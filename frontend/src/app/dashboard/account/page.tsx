@@ -1,8 +1,6 @@
-'use client';
-
 function AccountPage() {
     return (
-        <p>Account Page</p>
+        <p>account page</p>
     );
 }
 

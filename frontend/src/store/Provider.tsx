@@ -3,12 +3,15 @@
 import React from 'react';
 import { CityProvider } from './city';
 import { UserProvider } from './user';
+import { TwinProvider } from './twins';
 
 function Provider({ children }: { children: React.ReactNode }) {
     return (
         <UserProvider>
             <CityProvider>
-                {children}
+                <TwinProvider>
+                    {children}
+                </TwinProvider>
             </CityProvider>
         </UserProvider>
     );

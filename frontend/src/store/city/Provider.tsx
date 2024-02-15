@@ -8,13 +8,7 @@ interface City {
 }
 
 interface CityState {
-    current?: City;
     cities: City[];
-};
-
-interface SwitchCityAction {
-    type: 'switch_city';
-    city: City;
 };
 
 interface LoadCitiesAction {
@@ -22,16 +16,10 @@ interface LoadCitiesAction {
     cities: City[];
 }
 
-type CityAction = SwitchCityAction | LoadCitiesAction;
+type CityAction = LoadCitiesAction;
 
 function reducer(state: CityState, action: CityAction): CityState {
     switch (action.type) {
-        case 'switch_city': {
-            return {
-                ...state,
-                current: action.city
-            };
-        }
         case 'load_cities': {
             return {
                 ...state,

@@ -1,25 +1,28 @@
 'use client';
 
-import { City, CityContext } from "@/store/city";
-import { Navbar, NavbarBrand, Dropdown, NavbarLink, NavbarToggle, NavbarCollapse, Button, DropdownItem } from "flowbite-react";
+import { City } from "@/store/city";
+import { Twin, TwinContext } from "@/store/twins";
+import { Navbar, Dropdown, DropdownItem } from "flowbite-react";
 import { useContext } from "react";
 
 interface DashboardNavbarProps {
 }
 
 function DashboardNavbar({ }: DashboardNavbarProps) {
-    const [cityState, dispatch] = useContext(CityContext);
+    const [twinState, dispatch] = useContext(TwinContext);
 
-    const onCitySelect = (city: City) => {
-        dispatch({ type: 'switch_city', city: city });
+    const onTwinSelect = (twin: Twin) => {
+        dispatch({ type: 'switch_twin', twin: twin });
     }
 
-    return <Navbar fluid rounded>
+    return <Navbar fluid rounded className="shadow-md">
         <div className="flex">
-            <NavbarBrand><span className="self-center whitespace-nowrap text-xl font-semibold dark:text-white">Digital Twin</span></NavbarBrand>
+            <span className="w-full whitespace-nowrap text-2xl font-semibold dark:text-white">
+                Digital Twin
+            </span>
         </div>
-        <Dropdown label={cityState.current?.name ?? 'Select City'} dismissOnClick={false}>
-            {cityState.cities.map(city => <DropdownItem onClick={() => onCitySelect(city)}>{city.name}</DropdownItem>)}
+        <Dropdown label={twinState.current?.name ?? 'Select Twin'} dismissOnClick={false}>
+            {twinState.twins.map(twin => <DropdownItem onClick={() => onTwinSelect(twin)}>{twin.name}</DropdownItem>)}
         </Dropdown>
     </Navbar >
 }

@@ -1,34 +1,26 @@
 'use client';
 
 import { Sidebar } from 'flowbite-react';
-import { BiBuoy } from 'react-icons/bi';
-import { HiArrowSmRight, HiChartPie, HiInbox, HiShoppingBag, HiTable, HiUser, HiViewBoards } from 'react-icons/hi';
+import { HiUser, HiViewBoards, HiSun, HiDesktopComputer } from 'react-icons/hi';
 
 function DashboardSidebar() {
     return (
-        <Sidebar>
+        <Sidebar className="h-full shadow-md">
             <Sidebar.Items>
                 <Sidebar.ItemGroup>
-                    <Sidebar.Item href="#" icon={HiViewBoards}>
+                    <Sidebar.Item icon={HiViewBoards} href="/dashboard/twins">
                         My Twins
                     </Sidebar.Item>
-                    <Sidebar.Item href="#" icon={HiUser}>
+                    <Sidebar.Item icon={HiUser} href="/dashboard/account">
                         Account
                     </Sidebar.Item>
                 </Sidebar.ItemGroup>
                 <Sidebar.ItemGroup>
-                    <Sidebar.Item href="#">
-                        Use case 1
-                    </Sidebar.Item>
-                    <Sidebar.Item href="#">
-                        Use case 2
-                    </Sidebar.Item>
-                    <Sidebar.Item href="#">
-                        Use case 3
-                    </Sidebar.Item>
-                    <Sidebar.Item href="#">
-                        Use case 4
-                    </Sidebar.Item>
+                    <Sidebar.Collapse icon={HiDesktopComputer} label="Simulations" open={true}>
+                        <Sidebar.Item>Prediction</Sidebar.Item>
+                        <Sidebar.Item>Risk Analysis</Sidebar.Item>
+                        <Sidebar.Item>Optimization</Sidebar.Item>
+                    </Sidebar.Collapse>
                 </Sidebar.ItemGroup>
             </Sidebar.Items>
         </Sidebar>

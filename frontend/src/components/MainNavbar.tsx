@@ -15,7 +15,7 @@ function MainNavbar({ openLoginModal }: MainNavbarProps) {
 
     const handleGetStartedButtonClick = () => {
         if (userState.user) {
-            router.push('/dashboard');
+            router.push('/dashboard/account');
         } else {
             openLoginModal();
         }
