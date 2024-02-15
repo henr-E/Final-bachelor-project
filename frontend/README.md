@@ -1,0 +1,5 @@
+- how to work with context api and state management
+- protobuffer reflection
+- JWTs vs sessions
+- localStorage vs httponly cookie
+- build reusable components
