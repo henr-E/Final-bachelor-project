@@ -8,7 +8,8 @@ interface City {
 }
 
 interface CityState {
-    city?: City;
+    current?: City;
+    cities: City[];
 };
 
 interface SwitchCityAction {
@@ -16,26 +17,46 @@ interface SwitchCityAction {
     city: City;
 };
 
-type CityAction = SwitchCityAction;
+interface LoadCitiesAction {
+    type: 'load_cities';
+    cities: City[];
+}
+
+type CityAction = SwitchCityAction | LoadCitiesAction;
 
 function reducer(state: CityState, action: CityAction): CityState {
     switch (action.type) {
         case 'switch_city': {
             return {
-                city: action.city,
-                ...state
+                ...state,
+                current: action.city
+            };
+        }
+        case 'load_cities': {
+            return {
+                ...state,
+                cities: action.cities
             };
         }
         default: {
-            return state;
+            return {
+                ...state
+            };
         }
     }
 }
 
-const CityContext = createContext<[CityState, React.Dispatch<CityAction>]>([{}, () => { }]);
+const initialState: CityState = {
+    cities: [
+        { name: 'Antwerp', longitude: 4.402771, latitde: 51.260197 },
+        { name: 'Brussels', longitude: 4.34878, latitde: 50.85045 }
+    ]
+}
+
+const CityContext = createContext<[CityState, React.Dispatch<CityAction>]>([initialState, () => { }]);
 
 function CityProvider({ children }: { children: React.ReactNode }) {
-    const [state, dispatch] = useReducer(reducer, {});
+    const [state, dispatch] = useReducer(reducer, initialState);
 
     return (
         <CityContext.Provider value={[state, dispatch]}>
@@ -44,4 +65,4 @@ function CityProvider({ children }: { children: React.ReactNode }) {
     );
 }
 
-export { CityProvider, CityContext };
+export { type City, CityProvider, CityContext };

@@ -22,7 +22,7 @@ function MainNavbar({ openLoginModal }: MainNavbarProps) {
     }
 
     return <Navbar fluid rounded>
-        <NavbarBrand href="https://flowbite-react.com">
+        <NavbarBrand>
             <span className="self-center whitespace-nowrap text-xl font-semibold dark:text-white">Digital Twin</span>
         </NavbarBrand>
         <div className="flex md:order-2">

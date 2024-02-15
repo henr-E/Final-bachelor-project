@@ -35,7 +35,7 @@ function reducer(state: UserState, action: UserAction): UserState {
             return {};
         }
         default: {
-            return state;
+            return { ...state };
         }
     }
 }
