@@ -1,11 +1,12 @@
 'use client';
 
 import { Sidebar } from 'flowbite-react';
-import { HiUser, HiViewBoards, HiSun, HiDesktopComputer } from 'react-icons/hi';
+import { HiUser, HiViewBoards, HiDesktopComputer } from 'react-icons/hi';
 
+// TODO: avoid hard refresh (to={Link} does not appear to work on Sidebar.Item)
 function DashboardSidebar() {
     return (
-        <Sidebar className="h-full shadow-md">
+        <Sidebar className="h-100 shadow-md">
             <Sidebar.Items>
                 <Sidebar.ItemGroup>
                     <Sidebar.Item icon={HiViewBoards} href="/dashboard/twins">
@@ -17,9 +18,9 @@ function DashboardSidebar() {
                 </Sidebar.ItemGroup>
                 <Sidebar.ItemGroup>
                     <Sidebar.Collapse icon={HiDesktopComputer} label="Simulations" open={true}>
-                        <Sidebar.Item>Prediction</Sidebar.Item>
-                        <Sidebar.Item>Risk Analysis</Sidebar.Item>
-                        <Sidebar.Item>Optimization</Sidebar.Item>
+                        <Sidebar.Item href="/dashboard/prediction">Prediction</Sidebar.Item>
+                        <Sidebar.Item href="/dashboard/risk-analysis">Risk Analysis</Sidebar.Item>
+                        <Sidebar.Item href="/dashboard/optimization">Optimization</Sidebar.Item>
                     </Sidebar.Collapse>
                 </Sidebar.ItemGroup>
             </Sidebar.Items>

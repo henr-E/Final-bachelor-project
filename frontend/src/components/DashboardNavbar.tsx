@@ -1,17 +1,16 @@
 'use client';
 
-import { City } from "@/store/city";
 import { Twin, TwinContext } from "@/store/twins";
 import { Navbar, Dropdown, DropdownItem } from "flowbite-react";
 import { useContext } from "react";
 
-interface DashboardNavbarProps {
-}
+interface DashboardNavbarProps { }
 
 function DashboardNavbar({ }: DashboardNavbarProps) {
     const [twinState, dispatch] = useContext(TwinContext);
 
     const onTwinSelect = (twin: Twin) => {
+        localStorage.setItem("selectedTwinID", twin.id);
         dispatch({ type: 'switch_twin', twin: twin });
     }
 
@@ -22,7 +21,7 @@ function DashboardNavbar({ }: DashboardNavbarProps) {
             </span>
         </div>
         <Dropdown label={twinState.current?.name ?? 'Select Twin'} dismissOnClick={false}>
-            {twinState.twins.map(twin => <DropdownItem onClick={() => onTwinSelect(twin)}>{twin.name}</DropdownItem>)}
+            {twinState.twins.map(twin => <DropdownItem key={twin.id} onClick={() => onTwinSelect(twin)}>{twin.name}</DropdownItem>)}
         </Dropdown>
     </Navbar >
 }

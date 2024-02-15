@@ -4,7 +4,7 @@ import { User, UserContext } from "@/store/user";
 import { useContext, useEffect } from "react";
 
 function AppWrapper({ children }: { children: React.ReactNode }) {
-    const [userState, dispatch] = useContext(UserContext);
+    const [userState, dispatchUser] = useContext(UserContext);
 
     useEffect(() => {
         if (!userState.token && !userState.user) {
@@ -16,10 +16,9 @@ function AppWrapper({ children }: { children: React.ReactNode }) {
             }
 
             if (token) {
-                dispatch({ type: 'login', token, user });
+                dispatchUser({ type: 'login', token, user });
             }
         }
-
     }, []);
 
     return (
