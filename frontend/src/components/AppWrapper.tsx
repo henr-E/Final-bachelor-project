@@ -16,6 +16,7 @@ function AppWrapper({ children }: { children: React.ReactNode }) {
             }
 
             if (token) {
+                console.log('logging in...');
                 dispatchUser({ type: 'login', token, user });
             }
         }
