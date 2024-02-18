@@ -7,9 +7,10 @@ import { useContext } from "react";
 
 interface MainNavbarProps {
     openLoginModal: () => void;
+    openRegisterModal: ()=> void;
 }
 
-function MainNavbar({ openLoginModal }: MainNavbarProps) {
+function MainNavbar({ openLoginModal, openRegisterModal }: MainNavbarProps) {
     const [userState, dispatch] = useContext(UserContext);
     const router = useRouter();
 
@@ -21,13 +22,20 @@ function MainNavbar({ openLoginModal }: MainNavbarProps) {
         }
     }
 
+    const handleRegisterButtonClick = () => {
+        openRegisterModal();
+    }
+
     return <Navbar fluid rounded>
         <NavbarBrand>
             <span className="self-center whitespace-nowrap text-xl font-semibold dark:text-white">Digital Twin</span>
         </NavbarBrand>
         <div className="flex md:order-2">
+            <Button onClick={handleRegisterButtonClick} style={{backgroundColor: 'green'}}>Register</Button>
+            <div className="ml-2">
             <Button onClick={handleGetStartedButtonClick}>{userState.user ? 'Dashboard' : 'Login'}</Button>
-            <NavbarToggle />
+            <NavbarToggle/>
+            </div>
         </div>
         <NavbarCollapse>
             <NavbarLink href="#" active>
@@ -37,7 +45,7 @@ function MainNavbar({ openLoginModal }: MainNavbarProps) {
             <NavbarLink href="#">Docs</NavbarLink>
             <NavbarLink href="#">Contact</NavbarLink>
         </NavbarCollapse>
-    </Navbar >
+    </Navbar>
 }
 
 export default MainNavbar;
