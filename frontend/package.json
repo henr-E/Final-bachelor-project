@@ -9,6 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@mdi/js": "^7.4.47",
+    "@mdi/react": "^1.6.1",
     "flowbite": "^2.3.0",
     "flowbite-react": "^0.7.2",
     "jwt-decode": "^4.0.0",
