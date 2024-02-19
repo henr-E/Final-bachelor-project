@@ -25,7 +25,7 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
         // no need to validate here, add validation attributes to components (check the username and password fields)
 
         try {
-            const resp = await fetch('/api/v1/session', {
+            /* const resp = await fetch('/api/v1/session', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: username, password: password })
@@ -44,6 +44,12 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
             // even usernames should not be in claims
             const token = data.token;
             const user = jwtDecode<User>(token);
+            */
+
+            const token = "PLACEHOLDER";
+            const user: User = {
+                username: 'PLACEHOLDER'
+            }
 
             // context: application state is lost on refresh, we are required to persist the user's authorization token somewhere
             // options include: localStorage, (regular) cookies, HttpOnly cookies...

@@ -8,9 +8,10 @@ import RegisterModal from "@/components/modals/RegisterModal";
 export default function Home() {
     const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+
     return (
         <>
-            <MainNavbar openLoginModal={() => setIsLoginModalOpen(true)}  openRegisterModal={() => setIsRegisterModalOpen(true)}/>
+            <MainNavbar openLoginModal={() => setIsLoginModalOpen(true)} openRegisterModal={() => setIsRegisterModalOpen(true)} />
             <LoginModal isLoginModalOpen={isLoginModalOpen} closeLoginModal={() => setIsLoginModalOpen(false)} />
             <RegisterModal isRegisterModalOpen={isRegisterModalOpen} closeRegisterModal={() => setIsRegisterModalOpen(false)} />
         </>

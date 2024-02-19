@@ -7,7 +7,7 @@ import { useContext } from "react";
 
 interface MainNavbarProps {
     openLoginModal: () => void;
-    openRegisterModal: ()=> void;
+    openRegisterModal: () => void;
 }
 
 function MainNavbar({ openLoginModal, openRegisterModal }: MainNavbarProps) {
@@ -31,10 +31,10 @@ function MainNavbar({ openLoginModal, openRegisterModal }: MainNavbarProps) {
             <span className="self-center whitespace-nowrap text-xl font-semibold dark:text-white">Digital Twin</span>
         </NavbarBrand>
         <div className="flex md:order-2">
-            <Button onClick={handleRegisterButtonClick} style={{backgroundColor: 'green'}}>Register</Button>
+            {!userState.user && <Button onClick={handleRegisterButtonClick} style={{ backgroundColor: 'green' }}>Register</Button>}
             <div className="ml-2">
-            <Button onClick={handleGetStartedButtonClick}>{userState.user ? 'Dashboard' : 'Login'}</Button>
-            <NavbarToggle/>
+                <Button onClick={handleGetStartedButtonClick}>{userState.user ? 'Dashboard' : 'Login'}</Button>
+                <NavbarToggle />
             </div>
         </div>
         <NavbarCollapse>
