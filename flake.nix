@@ -33,7 +33,13 @@
             # real time running of tests/compiling/checking/linting during
             # development
             bacon
+            # run checks and tasks when making a commit
+            pre-commit
           ];
+          shellHook = ''
+            # Install pre-commit hooks to the local git repo.
+            ${pkgs.pre-commit}/bin/pre-commit install
+          '';
         };
       }
     );
