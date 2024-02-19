@@ -153,5 +153,3 @@ message Edge {
   // The data of the component in this edge.
   google.protobuf.Value component_data = 4;
 }
-
-
