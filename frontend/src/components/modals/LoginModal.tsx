@@ -25,26 +25,12 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
         // no need to validate here, add validation attributes to components (check the username and password fields)
 
         try {
-            /* const resp = await fetch('/api/v1/session', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username, password: password })
-            });
-
-            if (resp.status === 403) {
-                // invalid username or password
-                // show error message to the user
-                return;
-            }
-
-            const data = await resp.json();
-
             // NOTE: a JWT is not 'encrypted', meaning that anyone can decode the JWT claims
             // do not put sensitive information in JWT claims (passwords)
             // even usernames should not be in claims
-            const token = data.token;
-            const user = jwtDecode<User>(token);
-            */
+
+            // const token = data.token;
+            // const user = jwtDecode<User>(token);
 
             const token = "PLACEHOLDER";
             const user: User = {
