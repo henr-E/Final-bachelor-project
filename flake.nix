@@ -33,6 +33,8 @@
             # real time running of tests/compiling/checking/linting during
             # development
             bacon
+            # nodejs packages
+            nodejs_20
             # run checks and tasks when making a commit
             pre-commit
           ];
