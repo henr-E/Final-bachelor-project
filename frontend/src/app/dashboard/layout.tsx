@@ -16,6 +16,7 @@ export default function DashboardLayout({
 
     useEffect(() => {
         if (userState.token) {
+            /*
             fetch('/api/v1/city', {
                 headers: {
                     'Content-Type': 'application/json',
@@ -30,6 +31,7 @@ export default function DashboardLayout({
                     console.log(err.message);
                     // redirect to error page or dispay a notification
                 });
+            */
         }
     }, [userState.token]);
 

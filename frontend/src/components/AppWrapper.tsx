@@ -20,7 +20,7 @@ function AppWrapper({ children }: { children: React.ReactNode }) {
                 dispatchUser({ type: 'login', token, user });
             }
         }
-    }, []);
+    }, [userState.token, userState.user]);
 
     return (
         <>

@@ -2,12 +2,12 @@
 
 import 'leaflet/dist/leaflet.css';
 import { Twin, TwinContext } from '@/store/twins';
-import {useContext, useId, useState} from 'react';
+import { useContext, useId, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline, useMapEvents, } from 'react-leaflet'
 import { Icon as leafLetIcon, LatLngExpression } from 'leaflet'
 import Icon from '@mdi/react';
 import { Button } from 'flowbite-react';
-import { mdiTransmissionTower, mdiCursorPointer, mdiHomeLightningBoltOutline, mdiWindTurbine} from '@mdi/js';
+import { mdiTransmissionTower, mdiCursorPointer, mdiHomeLightningBoltOutline, mdiWindTurbine } from '@mdi/js';
 
 interface PredictionMapProps {
     twin: Twin;
@@ -25,16 +25,16 @@ function PredictionMap({ twin }: PredictionMapProps) {
 
     function changeMode(newMode: number) {
         setCurrentMode(newMode);
-        if(newMode == 0){
+        if (newMode == 0) {
             setCursor("");
         }
-        else if(newMode == 1){
+        else if (newMode == 1) {
             setCursor("/icons/transmission-tower.svg");
         }
-        else if(newMode == 2){
+        else if (newMode == 2) {
             setCursor("/icons/home-lightning-bolt-outline.svg");
         }
-        else if(newMode == 3){
+        else if (newMode == 3) {
             setCursor("/icons/wind-turbine.svg");
         }
     }
@@ -55,8 +55,8 @@ function PredictionMap({ twin }: PredictionMapProps) {
      * @param location location of item
      * @param itemType witch item
      */
-    function addItemOnMap(location: LatLngExpression, itemType: number){
-        if(itemType == 0)
+    function addItemOnMap(location: LatLngExpression, itemType: number) {
+        if (itemType == 0)
             return
         let newItem: MapItem = {
             location: location,
@@ -74,8 +74,8 @@ function PredictionMap({ twin }: PredictionMapProps) {
     }
 
     return (
-        <div style={{ width: '100%', height: '100%',  cursor: cursor == "" ? "grab": "url('" + cursor + "'), crosshair"}}>
-            <MapContainer style={{ width: '100%', height: '90%', cursor: "inherit"}} className="rounded-md" center={[twin.city.latitde, twin.city.longitude]} zoom={13} scrollWheelZoom={false}>
+        <div style={{ width: '100%', height: '100%', cursor: cursor == "" ? "grab" : "url('" + cursor + "'), crosshair" }}>
+            <MapContainer style={{ width: '100%', height: '90%', cursor: "inherit" }} className="rounded-md" center={[twin.city.latitde, twin.city.longitude]} zoom={13} scrollWheelZoom={false}>
                 <MapEventTracker>
                 </MapEventTracker>
                 <TileLayer
@@ -89,20 +89,20 @@ function PredictionMap({ twin }: PredictionMapProps) {
                         </Button>
                     </Marker>
                 ))}
-                <Polyline key={1} positions={[[51.2289271, 4.4022454],[51.2242539, 4.4139502], [51.2165844, 4.4171321]]} color={"red"} eventHandlers={{
-                    click: () => {console.log("mas", "kathedraal", "station")}
+                <Polyline key={1} positions={[[51.2289271, 4.4022454], [51.2242539, 4.4139502], [51.2165844, 4.4171321]]} color={"red"} eventHandlers={{
+                    click: () => { console.log("mas", "kathedraal", "station") }
                 }} />
             </MapContainer>
 
             <div className="bg-white grid-cols-12 gap-4 p-2 my-1 rounded-md flex justify-start">
-                <Button onClick={e=>changeMode(0)}>
+                <Button onClick={e => changeMode(0)}>
                     <span className="whitespace-nowrap text-xl font-semibold dark:text-whit"><Icon path={mdiCursorPointer} size={1} /></span>
                 </Button>
-                <Button onClick={e=>changeMode(1)}>
+                <Button onClick={e => changeMode(1)}>
                     <span className="whitespace-nowrap text-xl font-semibold dark:text-whit"><Icon path={mdiTransmissionTower} size={1.2} /></span>
                 </Button>
-                <Button onClick={e=>changeMode(2)}>
-                    <span className="whitespace-nowrap text-xl font-semibold dark:text-whit"><Icon path={mdiHomeLightningBoltOutline } size={1.2} /></span>
+                <Button onClick={e => changeMode(2)}>
+                    <span className="whitespace-nowrap text-xl font-semibold dark:text-whit"><Icon path={mdiHomeLightningBoltOutline} size={1.2} /></span>
                 </Button>
                 <Button>
                     <span className="whitespace-nowrap text-xl font-semibold dark:text-whit"><Icon path={mdiWindTurbine} size={1.2} /></span>
