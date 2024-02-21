@@ -16,7 +16,7 @@ function MainNavbar({ openLoginModal, openRegisterModal }: MainNavbarProps) {
 
     const handleGetStartedButtonClick = () => {
         if (userState.user) {
-            router.replace('/dashboard/account');
+            router.push('/dashboard');
         } else {
             openLoginModal();
         }

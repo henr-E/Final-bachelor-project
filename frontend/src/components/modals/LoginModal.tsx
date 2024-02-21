@@ -9,6 +9,7 @@ import {
 } from 'flowbite-react';
 import { useContext, useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
+import { useRouter } from 'next/navigation';
 
 interface LoginModalProps {
     isLoginModalOpen: boolean;
@@ -17,6 +18,8 @@ interface LoginModalProps {
 
 function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
     const [userState, dispatch] = useContext(UserContext);
+
+    const router = useRouter();
 
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
@@ -50,7 +53,9 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
             localStorage.setItem("authToken", token);
 
             // store token and user data in the application state
-            dispatch({ type: 'login', token, user })
+            dispatch({ type: 'login', token, user });
+
+            router.push('/dashboard');
         } catch (e) {
             // TODO: show error message to user
         }
