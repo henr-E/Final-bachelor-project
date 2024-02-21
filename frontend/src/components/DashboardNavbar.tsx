@@ -20,7 +20,7 @@ function DashboardNavbar({ }: DashboardNavbarProps) {
                 Digital Twin
             </span>
         </div>
-        <Dropdown label={twinState.current?.name ?? 'Select Twin'} dismissOnClick={false}>
+        <Dropdown pill color="indigo" theme={{ floating: { target: 'enabled:hover:bg-indigo-700 bg-indigo-600 text-white' } }} label={twinState.current?.name ?? 'Select Twin'} dismissOnClick>
             {twinState.twins.map(twin => <DropdownItem key={twin.id} onClick={() => onTwinSelect(twin)}>{twin.name}</DropdownItem>)}
         </Dropdown>
     </Navbar >
