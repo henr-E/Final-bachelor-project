@@ -37,6 +37,8 @@
             nodejs_20
             # run checks and tasks when making a commit
             pre-commit
+            # protobuf compiler
+            protobuf
           ];
           shellHook = ''
             # Install pre-commit hooks to the local git repo.
