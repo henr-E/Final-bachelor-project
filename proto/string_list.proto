@@ -1,0 +1,14 @@
+//This is a temporary service that currently shows 3 strings on the frontend. This service will be deleted later.
+syntax = "proto3";
+
+package users.string_list;
+
+import "google/protobuf/empty.proto";
+
+message ListStringsResponse {
+    repeated string strings = 1;
+}
+
+service StringService {
+    rpc ListStrings(google.protobuf.Empty) returns (ListStringsResponse);
+}
