@@ -1,7 +1,25 @@
 # Frontend
 
-## Getting Started
+## Running the project
+1. generate the proto files (the files should appear in the frontend/src/proto directory)
+```
+cd frontend
+./build-proto.sh
+```
+2. run envoy service (root directory): `envoy -c envoy.yaml`
+3. start the backend:
+`cargo run --bin ui-backend`
+4. start the frontend:
+```
+cd frontend
+npm install
+npm run dev
+```
+5. navigate to the http://localhost:3000
+6. The envoy.yaml file is configured such that the admin access can be found through http://127.0.0.1:9901/
+7. to check if envoy is running correctly run `lsof -i :9901`
 
+## Getting Started
 1. rename `.env.copy` to `.env` 
 2. fill in `.env` with backend URLs
 3. load `.env` file into terminal session (eg. `export $(cat .env | xargs)`)

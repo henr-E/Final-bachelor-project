@@ -37,8 +37,10 @@
             nodejs_20
             # run checks and tasks when making a commit
             pre-commit
-            # protobuf compiler
+            # used to compile `.proto` files
             protobuf
+            # gRPC proxy
+            envoy
           ];
           shellHook = ''
             # Install pre-commit hooks to the local git repo.
