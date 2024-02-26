@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import {StringServiceClient, StringServiceDefinition} from '@/proto/stringList';
+import {StringServiceClient, StringServiceDefinition} from '@/proto/string_list';
 import {createChannel, createClient} from "nice-grpc-web"; // Update this path
 
 const StringListRequest: React.FC = () => {
