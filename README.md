@@ -43,3 +43,23 @@ The branch has to be created from the related feature branch and should be merge
 ### JS/TS conventions
 
 TODO for someone currently working on the frontend
+
+## Database configuration
+
+### Defining a new database
+
+To add a new database to the project's postgres instance, define the following environment variables in`.env.example`:
+
+-   `<subproject-name>_<db-name>_DB_NAME`: Name of the new database.
+-   `<subproject-name>_<db-name>_PASSWORD`: Password used for the database.
+
+Then add an entry of the form `${<subproject-name>_<db-name>_DB_NAME}:${<subproject-name>_<db-name>_PASSWORD}` to the `docker-compose.yml` under `services -> database -> environment -> POSTGRES_DATABASES`.
+
+If done correctly, a new database should be set up under the given name with a user that has the same name as the database.
+
+### Creating migrations
+
+To create a migration, use the `sqlx` cli that can be installed with `cargo install sqlx-cli --locked`.
+Use a separate dedicated directory under the root `migrations` directory per database. Use subdirectories to group database migrations if appropriate.
+
+**NOTE**: When writing a service in a language other than rust, `sqlx-cli` can still be used.
