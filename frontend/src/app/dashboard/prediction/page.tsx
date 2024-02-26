@@ -4,10 +4,7 @@ import dynamic from "next/dynamic"
 import { Twin, TwinContext } from '@/store/twins';
 import { useContext, useState } from 'react';
 import { Accordion, Label, TextInput, Button } from 'flowbite-react';
-
-interface PredictionMapProps {
-    twin: Twin;
-};
+import {PredictionMapProps} from "@/components/maps/PredictionMap"
 
 function PredictionPage() {
     const [twinState, dispatch] = useContext(TwinContext);
