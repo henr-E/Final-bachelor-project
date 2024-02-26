@@ -1,4 +1,9 @@
+# IDE config/cache files
 .idea/
 .fleet/
 
+# Rust build artifacts
 target/
+
+# Environment configuration
+.env

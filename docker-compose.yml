@@ -1,0 +1,37 @@
+services:
+  database:
+    image: timescale/timescaledb:2.14.1-pg16
+    restart: unless-stopped
+    # Use environment variables from the `.env` file without copying the entire
+    # file and being able to use aliases for variables depending on the service.
+    environment:
+      # Do not set the following env variable as this user should be `postgres`
+      # and is only used to create other databases and users.
+      # POSTGRES_USER: ...
+      POSTGRES_PASSWORD: ${POSTGRES_USER_PASSWORD}
+      # Add more databases below if needed.
+      POSTGRES_DATABASES: |
+        ${SENSOR_ARCHIVE_DB_NAME}:${SENSOR_DB_PASSWORD},
+        ${SENSOR_TRANSFORMED_DB_NAME}:${SENSOR_DB_PASSWORD},
+      # Store db data in different directory. See `PGDATA` section of
+      # https://hub.docker.com/_/postgres/.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      # Create the databases when the postgres instance is first created.
+      - ./docker/postgres-create-multiple-databases.sh:/docker-entrypoint-initdb.d/create-databases.sh
+      # Add the healthcheck script.
+      - ./docker/postgres-multiple-db-healthcheck.sh:/postgres-multiple-db-healthcheck.sh
+      # Persist contents of the database to the host.
+      - ./storage:/var/lib/postgresql/data
+    healthcheck:
+      # Check health of the databases. Useful for startup order or monitoing
+      # whether silent errors happened that did not fully crash the service.
+      test: ["CMD", "/bin/bash", "/postgres-multiple-db-healthcheck.sh"]
+      # Initial wait time and frequency the check will be run at.
+      interval: 5s
+      # Startup time of the serice. Checks will be run, but non-zero return
+      # codes will not result in an unhealthy service. When 0 is returned,
+      # immediatly marked as healthy.
+      start_period: 10s
