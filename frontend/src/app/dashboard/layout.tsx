@@ -23,9 +23,9 @@ export default function DashboardLayout({
     return (
         <div className="flex flex-col h-screen">
             <DashboardNavbar />
-            <div className="flex grow">
+            <div className="flex flex-row grow">
                 <DashboardSidebar />
-                <div className="px-12 py-8">
+                <div className="px-12 py-8 grow">
                     {children}
                 </div>
             </div>
