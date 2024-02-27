@@ -29,14 +29,20 @@
           buildInputs = with pkgs; [
             # rust packages
             (rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
+            sqlx-cli
+            # rust lsp
             rust-analyzer
             # real time running of tests/compiling/checking/linting during
             # development
             bacon
+            # package needed to compile and check proto files
+            protobuf
             # nodejs packages
             nodejs_20
             # run checks and tasks when making a commit
             pre-commit
+            # containerization of services for easy development and deployment
+            docker
             # used to compile `.proto` files
             protobuf
             # gRPC proxy

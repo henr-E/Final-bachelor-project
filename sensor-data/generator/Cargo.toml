@@ -1,0 +1,20 @@
+[package]
+name = "sensor-data-generator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.196", features = ["derive"] }
+serde_json = "1.0.113"
+chrono = "0.4.34"
+csv = "1.3.0"
+tonic = "0.11.0"
+prost = "0.12.3"
+prost-types = "0.12.3"
+tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread"] }
+proto = { path = "../../crates/proto" }
+
+
+[build-dependencies]
+# Compile proto files into rust code.
+tonic-build = "0.11.0"

@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package sensor.data_ingest;
+
+import "google/protobuf/struct.proto";
+
+// Service for ingesting sensor data into the sensor data archive.
+service DataIngestService {
+    // Send a single packet to the server that will respond with whether it was
+    // able to parse the packet (and why the packet failed).
+    rpc TestParseSensorData(SensorData) returns (ParseResult);
+
+    // Send a stream of sensor data to the server. Responds with success or
+    // failure of the parsing of the packet.
+    rpc IngestSensorDataStream(stream SensorData) returns (ParseResult);
+}
+
+// Whether the service was able to parse and use the packet. Possibly provides
+// reasons for why it was not able to parse the packet.
+message ParseResult {
+    // Optional list of failures on the parsing of the packet.
+    // NOTE: proto3 no longer allows to specify whether a field is optional or
+    //       required. Instead every field is considered optional.
+    repeated ParseFailure failures = 1;
+}
+
+// Information about why the parsing of the packet failed.
+message ParseFailure {
+    // General reason for why the paring of the packet failed.
+    ParseFailureReason reason = 1;
+    // Human readable JSON containing extra information on why and where the
+    // parsing failed. Structure of this data is not specified as this is not
+    // meant to be analyzed/read by an algorithm. Sole purpose is to provide
+    // extra debug context to the sender of the packet.
+    google.protobuf.Value details = 2;
+}
+
+// Reason why the sensor data packet failed to parse.
+enum ParseFailureReason {
+    // The input data format is not supported (e.g. yaml, when only JSON is
+    // supported)
+    DataFormatNotSupported = 0;
+    // The structure within the data format is not supported. This means that
+    // the data format is parsable, but cannot be interpreted into valid sensor
+    // data
+    DataStructureNotSupported = 1;
+    /// The data format is supported, but the input contained an error.
+    DataFormatParsingError = 2;
+    /// The parser encountered an error that the user is not to blame for.
+    /// Could include a panic, unexpected errors, etc. The `details` object
+    // could still contain information about the error.
+    Unknown = 3;
+    // Add more here when needed.
+    // ...
+}
+
+// Generic sensor data packet containing any type/format/contents belonging to
+// a sensor.
+message SensorData {
+    // Sensor data payload.
+    bytes data = 1;
+    // Format the data is sent in. This serves as an indication to the parser.
+    oneof file_format {
+        CsvFileFormat csv = 2;
+        JsonFileFormat json = 3;
+    }
+}
+
+// CSV configuration for the file format the sensor data can be sent in.
+// This is not the structure the data is in, only the encoding format the data
+// is sent in.
+message CsvFileFormat {
+    // Byte indicating the delimiter used in the CSV file format.
+    string delimiter = 1;
+}
+
+// JSON configuration for the file format the sensor data can be sent in.
+// This is not the structure the data is in, only the encoding format the data
+// is sent in.
+message JsonFileFormat {}

@@ -5,4 +5,7 @@ members = [
     "ui-backend",
     "energy-simulator",
     "manager",
+    "sensor-data/ingestor",
+    "sensor-data/generator",
+    "sensor-data/crates/parser",
 ]
