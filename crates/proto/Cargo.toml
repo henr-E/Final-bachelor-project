@@ -9,6 +9,7 @@ edition = "2021"
 # Proto file data format (only needed for expanded tonic macros).
 prost = "0.12.3"
 prost-types = "0.12.3"
+prost-value = { path = "../prost-value" }
 # gRPC service server/router/client.
 tonic = "0.11.0"
 

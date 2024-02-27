@@ -1,0 +1,39 @@
+[package]
+name = "sensor-data-ingestor"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Binary JSON encoding.
+bson = "2.9.0"
+# Load environment variables from `.env` files in the current dir or up.
+dotenvy = "0.15.7"
+# Protobuf data format (only needed for expanded tonic macros).
+prost = "0.12.3"
+prost-types = "0.12.3"
+prost-value = { path = "../../crates/prost-value" }
+# Generated rust definition from proto files.
+proto = { path = "../../crates/proto" }
+# Custom sensor data parsing libary.
+sensor-data-parser = { path = "../crates/parser" }
+# Compile-time checked queries crate.
+sqlx = { version = "0.7.3", features = ["chrono", "postgres", "runtime-tokio"] }
+# Convert library error types to single custom error type.
+thiserror = "1.0.57"
+# Enables the ues of aysnc. Does so by providing a context in which `Futures`
+# can be run to completion.
+tokio = { version = "1.36.0", features = ["fs", "macros", "rt-multi-thread"] }
+# gRPC service server/router/client.
+tonic = "0.11.0"
+# General framework for sending out tracing events.
+tracing = "0.1.40"
+# Subscriber that receives these tracing events and performs the wanted actions
+# with them. For example, printing to console.
+tracing-subscriber = "0.3.18"
+# Universal unique identifier crate.
+ulid = "1.1.2"
+
+[build-dependencies]
+dotenvy = "0.15.7"
