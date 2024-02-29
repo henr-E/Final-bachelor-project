@@ -22,6 +22,7 @@ function RegisterModal({ isRegisterModalOpen, closeRegisterModal }: RegisterModa
     const [password, setPassword] = useState("");
 
     const handleRegisterButtonClick = async () => {
+        // TODO: handle registering
         closeRegisterModal();
     }
 
@@ -57,7 +58,7 @@ function RegisterModal({ isRegisterModalOpen, closeRegisterModal }: RegisterModa
                     </div>
                 </Modal.Body>
                 <Modal.Footer>
-                    <Button onClick={handleRegisterButtonClick} color={"green"}>Register</Button>
+                    <Button onClick={handleRegisterButtonClick}>Register</Button>
                     <Button color="gray" onClick={handleCancelButtonClick}>Cancel</Button>
                 </Modal.Footer>
             </Modal>

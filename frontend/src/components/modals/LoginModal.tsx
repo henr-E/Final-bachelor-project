@@ -5,7 +5,7 @@ import {
     Button,
     Modal,
     Label,
-    TextInput,
+    TextInput
 } from 'flowbite-react';
 import { useContext, useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
@@ -28,6 +28,8 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
         // no need to validate here, add validation attributes to components (check the username and password fields)
 
         try {
+
+
             // NOTE: a JWT is not 'encrypted', meaning that anyone can decode the JWT claims
             // do not put sensitive information in JWT claims (passwords)
             // even usernames should not be in claims
