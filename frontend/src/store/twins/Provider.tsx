@@ -23,7 +23,12 @@ interface LoadTwinsAction {
     twins: Twin[];
 }
 
-type TwinAction = SwitchTwinAction | LoadTwinsAction;
+interface CreateTwin {
+    type: 'create_twin';
+    twin: Twin;
+}
+
+type TwinAction = SwitchTwinAction | LoadTwinsAction | CreateTwin;
 
 function reducer(state: TwinState, action: TwinAction): TwinState {
     switch (action.type) {
@@ -39,6 +44,14 @@ function reducer(state: TwinState, action: TwinAction): TwinState {
                 twins: action.twins
             };
         }
+        case 'create_twin': {
+            const updatedTwins = [...state.twins, action.twin];
+            return {
+                ...state,
+                current: action.twin,
+                twins: updatedTwins
+            };
+        }
         default: {
             return {
                 ...state
@@ -49,8 +62,8 @@ function reducer(state: TwinState, action: TwinAction): TwinState {
 
 const initialState: TwinState = {
     twins: [
-        { id: 'a68b1cdd-ee5e-4569-8ce2-4d7c2c54c690', name: 'Antwerp Twin', city: { name: 'Antwerp', longitude: 4.402771, latitde: 51.260197 } },
-        { id: '4d30cf48-3790-4c22-b9f8-2825245924f0', name: 'Brussels Twin', city: { name: 'Brussels', longitude: 4.34878, latitde: 50.85045 } }
+        { id: 'a68b1cdd-ee5e-4569-8ce2-4d7c2c54c690', name: 'Antwerp Twin', city: { name: 'Antwerp', longitude: 4.402771, latitude: 51.260197 } },
+        { id: '4d30cf48-3790-4c22-b9f8-2825245924f0', name: 'Brussels Twin', city: { name: 'Brussels', longitude: 4.34878, latitude: 50.85045 } },
     ]
 }
 

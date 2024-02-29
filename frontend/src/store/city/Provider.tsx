@@ -4,10 +4,11 @@ import React, { createContext, useReducer } from "react";
 interface City {
     name: string;
     longitude: number;
-    latitde: number;
+    latitude: number;
 }
 
 interface CityState {
+    current?: City;
     cities: City[];
 };
 
@@ -16,7 +17,12 @@ interface LoadCitiesAction {
     cities: City[];
 }
 
-type CityAction = LoadCitiesAction;
+interface SwitchCityAction {
+    type: 'switch_city';
+    city: City;
+};
+
+type CityAction = LoadCitiesAction | SwitchCityAction;
 
 function reducer(state: CityState, action: CityAction): CityState {
     switch (action.type) {
@@ -24,6 +30,12 @@ function reducer(state: CityState, action: CityAction): CityState {
             return {
                 ...state,
                 cities: action.cities
+            };
+        }
+        case 'switch_city': {
+            return {
+                ...state,
+                current: action.city
             };
         }
         default: {
@@ -36,8 +48,9 @@ function reducer(state: CityState, action: CityAction): CityState {
 
 const initialState: CityState = {
     cities: [
-        { name: 'Antwerp', longitude: 4.402771, latitde: 51.260197 },
-        { name: 'Brussels', longitude: 4.34878, latitde: 50.85045 }
+        { name: 'Antwerp', longitude: 4.402771, latitude: 51.260197 },
+        { name: 'Brussels', longitude: 4.34878, latitude: 50.85045 },
+        { name: 'New York', longitude: 3.222, latitude: 23.67878}
     ]
 }
 

@@ -5,6 +5,7 @@ import DashboardNavbar from "@/components/DashboardNavbar";
 import DashboardSidebar from "@/components/DashboardSidebar";
 import { UserContext } from "@/store/user";
 import { TwinContext } from "@/store/twins";
+import CreateTwinModal from "@/components/modals/CreateTwinModal";
 
 export default function DashboardLayout({
     children,
@@ -13,6 +14,7 @@ export default function DashboardLayout({
 }>) {
     const [userState, dispatchUser] = useContext(UserContext);
     const [twinState, dispatchTwin] = useContext(TwinContext);
+    const [isCreateTwinModalOpen, setIsCreateTwinModalOpen] = useState(false);
 
     useEffect(() => {
         if (userState.token && twinState.twins.length > 0 && !twinState.current) {
@@ -22,7 +24,8 @@ export default function DashboardLayout({
 
     return (
         <div className="flex flex-col h-screen">
-            <DashboardNavbar />
+            <DashboardNavbar openCreateTwinModal={() => setIsCreateTwinModalOpen(true)}/>
+            <CreateTwinModal isCreateTwinModalOpen={isCreateTwinModalOpen} closeCreateTwinModal={() => setIsCreateTwinModalOpen(false)} />
             <div className="flex flex-row grow">
                 <DashboardSidebar />
                 <div className="px-12 py-8 grow">
