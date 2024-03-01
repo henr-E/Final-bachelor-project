@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+import "simulation.proto";
+
+package simulation.simulator;
+
+// Communication between the manager and a simulator.
+service Simulator {
+  // Retrieves a specification of exactly which data is expected by the simulator and what data it will return.
+  // Examples include: weather, power grid, ...
+  rpc GetIOConfig (IOConfigRequest) returns (SimulatorIOConfig) {}
+
+  // Set ups the simulator by providing it with the initial state of the city.
+  rpc Setup (InitialState) returns (SetupResponse) {}
+
+  // Executes one single timestep.
+  rpc DoTimestep (simulation.State) returns (TimestepResult) {}
+}
+
+// Defines the inputs and outputs for a simulator.
+message SimulatorIOConfig {
+  // Defines which kinds of data components (temperature, power consumer, ...) the simulator will output back to the manager.
+  repeated string output_components = 1;
+
+  // Defines the required components of inputs that the simulation needs to be able to work.
+  // For an electricity simulation this would be the power grid.
+  repeated string required_input_components = 2;
+
+  // Optional inputs that the simulator is able to use but are not required to be able to run the system.
+  // For an electricity simulation an example of this would be weather data.
+  repeated string optional_input_components = 3;
+
+  // Provides the manager with information about the components mentioned above.
+  // The manager uses this to ensure compatibility between other simulators.
+  map<string, simulation.ComponentSpecification> components = 4;
+}
+
+
+// Reserved message for the request dat in GetIOConfig.
+message IOConfigRequest {}
+
+// The initial data used to set up and start the simulation.
+message InitialState {
+  // The amount of milliseconds in each timestep.
+  uint64 timestep_delta = 1;
+
+  // The initial state of the city.
+  simulation.State initial_state = 2;
+}
+
+// Reserved message for the response data to Setup.
+message SetupResponse {}
+
+// Data returned by the simulator after each timestep.
+message TimestepResult {
+  // The new state after executing the timestep.
+  simulation.State output_state = 1;
+}

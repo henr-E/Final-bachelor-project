@@ -16,8 +16,11 @@ use tokio::sync::Mutex;
 use tonic::{transport, Request, Response, Status};
 
 use proto::{
-    simulator_server::SimulatorServer, InitialState, IoConfigRequest, SetupResponse,
-    SimulatorIoConfig, State, TimestepResult,
+    simulator::{
+        simulator_server::SimulatorServer, InitialState, IoConfigRequest, SetupResponse,
+        SimulatorIoConfig, TimestepResult,
+    },
+    State,
 };
 
 pub use graph::Graph;
@@ -72,12 +75,12 @@ extern crate self as simulator_communication;
 #[doc(hidden)]
 pub use prost_types::{self, Value};
 #[doc(hidden)]
-pub use proto::simulator as proto;
+pub use proto::simulation as proto;
 #[doc(hidden)]
 pub use proto::{component_structure, ComponentSpecification, ComponentStructure};
 
 #[tonic::async_trait]
-impl<S: Simulator> proto::simulator_server::Simulator for Server<S> {
+impl<S: Simulator> proto::simulator::simulator_server::Simulator for Server<S> {
     /// Returns the input/output configuration of the simulation, including required and optional input kinds and the kind of output produced.
     async fn get_io_config(
         &self,
