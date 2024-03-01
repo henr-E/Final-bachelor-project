@@ -421,22 +421,22 @@ mod tests {
         let c4 = TestNodeComp(4);
 
         let nodes = vec![
-            ::proto::simulator::Node {
+            ::proto::simulation::Node {
                 longitude: 1.0,
                 latitude: 1.0,
                 components: HashMap::from([("test-node".to_owned(), c1.to_value())]),
             },
-            ::proto::simulator::Node {
+            ::proto::simulation::Node {
                 longitude: 2.0,
                 latitude: 2.0,
                 components: HashMap::from([("test-node".to_owned(), c2.to_value())]),
             },
-            ::proto::simulator::Node {
+            ::proto::simulation::Node {
                 longitude: 3.0,
                 latitude: 3.0,
                 components: HashMap::from([("test-node".to_owned(), c3.to_value())]),
             },
-            ::proto::simulator::Node {
+            ::proto::simulation::Node {
                 longitude: 4.0,
                 latitude: 4.0,
                 components: HashMap::from([("test-node".to_owned(), c4.to_value())]),

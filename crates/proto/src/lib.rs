@@ -47,10 +47,30 @@ pub mod sensor_data_ingest {
     }
 }
 
-pub mod simulator {
-    pub use proto_simulator::{simulator_client::*, simulator_server::*, *};
+pub mod simulation {
+    pub use proto_simulation::*;
 
-    mod proto_simulator {
-        tonic::include_proto!("simulator");
+    mod proto_simulation {
+        tonic::include_proto!("simulation.simulation");
+    }
+
+    pub mod simulator {
+        use crate::simulation;
+        pub use proto_simulator::{simulator_client::*, simulator_server::*, *};
+
+        mod proto_simulator {
+            tonic::include_proto!("simulation.simulator");
+        }
+    }
+
+    pub mod simulation_manager {
+        use crate::simulation;
+        pub use proto_simulation_manager::{
+            simulation_manager_client::*, simulation_manager_server::*, *,
+        };
+
+        mod proto_simulation_manager {
+            tonic::include_proto!("simulation.simulation_manager");
+        }
     }
 }

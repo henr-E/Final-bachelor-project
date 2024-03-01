@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "simulation.proto";
+
+package simulation.simulation_manager;
+
+// Acts as the central service of the simulation runner. It controls which simulation is being processed and
+// how this is done.
+service SimulationManager {
+  // Specifies all known components. Used to verify whether the manager and frontend are
+  // compatible.
+  rpc GetComponents(google.protobuf.Empty) returns (ComponentsInfo);
+  
+  // Add a new simulation to the queue. It will be run some time in the future.
+  rpc PushSimulation(PushSimulationRequest) returns (google.protobuf.Empty);
+
+  // Returns data for a simulation that has previously been enqueued. This simulation can either still
+  // be pending or have already been run.
+  rpc GetSimulation(SimulationId) returns (SimulationData);
+
+  // Opens a stream for requesting simulation frames.
+  rpc GetSimulationFrames(stream SimulationFrameRequest) returns (stream SimulationFrame);
+};
+
+// Information for all known components.
+message ComponentsInfo {
+  // Specifies all the components known by the simulation manager along with their structure.
+  map<string, simulation.ComponentSpecification> components = 1;
+}
+
+// A unique identifier for a simulation.
+message SimulationId {
+  string uuid = 1;
+}
+
+message PushSimulationRequest {
+  // Uniquely identifies the simulation.
+  SimulationId id = 1;
+  // How the initial 'frame' of the simulation looks. The simulation will be continued
+  // off of this frame.
+  simulation.State initial_state = 3;
+  // The requested amount of timesteps the simulation should run for.
+  uint64 timesteps = 4;
+  // How much time elapses after each timestep. (in seconds)
+  double timestep_delta = 5;
+};
+
+// General information about a simulation.
+message SimulationData {
+  SimulationId id = 1;
+  SimulationStatus status = 3;
+  // The current number of frames that have been simulated. Will only be lower than
+  // the max timestep count if the simulation has not yet been fully calculated.
+  uint64 timestep_count = 4;
+  // The total amount of timesteps requested.
+  uint64 max_timestep_count = 5;
+  // How much time in the real world each timestep represents. (in seconds)
+  double timestep_delta = 6;
+}
+
+// Denotes the status of a simulation in the queue.
+enum SimulationStatus {
+  // The simulation is awaiting to be simulated.
+  PENDING = 0;
+  // The simulation is currently being computed.
+  COMPUTING = 1;
+  // The simulation has been fully computed.
+  FINISHED = 2;
+}
+
+message SimulationFrameRequest {
+  // The identifier associated with the simulation.
+  SimulationId simulation_id = 1;
+  // The serial number of the requested frame. Starts from zero.
+  uint32 frame_nr = 2;
+}
+
+message SimulationFrame {
+  // Info about which request is being responded to.
+  SimulationFrameRequest request = 1;
+  // The state of the frame.
+  simulation.State state = 2;
+}
