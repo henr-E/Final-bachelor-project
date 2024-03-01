@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO sensor_data_files (identifier, time, path, metadata) VALUES ($1::text, now()::timestamp, $2::text, $3::text);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4635c465b680d7d5c0475c67c814f0e09b77ee2335079aeb61ce4b4e5513c0bc"
+}
