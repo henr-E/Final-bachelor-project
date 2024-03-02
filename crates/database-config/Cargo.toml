@@ -1,0 +1,22 @@
+[package]
+name = "database-config"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Trait to wrap any error in a generic error message.
+anyhow = "1.0.80"
+# Load `.env` file from the current directory or up.
+dotenvy = "0.15.7"
+# Const singleton storage. `std::cell::OnceCell` could not be used because of
+# nightly api that is implemented in this crate.
+once_cell = "1.19.0"
+# Connect to and perform migrations on databases.
+sqlx = { version = "0.7.3", default-features = false, features = [
+  "migrate",
+  "postgres",
+] }
+# Macro for creating a comprehensive error wrapper type.
+thiserror = "1.0.57"
