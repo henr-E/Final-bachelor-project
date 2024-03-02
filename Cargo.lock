@@ -448,6 +448,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "database-config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dotenvy",
+ "once_cell",
+ "sqlx",
+ "thiserror",
+]
+
+[[package]]
 name = "der"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1617,6 +1628,7 @@ name = "sensor-data-ingestor"
 version = "0.1.0"
 dependencies = [
  "bson",
+ "database-config",
  "dotenvy",
  "prost",
  "prost-types",

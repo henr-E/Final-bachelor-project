@@ -1,40 +1,37 @@
-use std::collections::HashMap;
+use database_config::{configure_recompile, do_migrations_if_enabled, set_database_url};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Only set the environment variable if an dotenv file was found
-    match dotenvy::dotenv_iter().map(|i| i.collect::<Result<HashMap<_, _>, _>>()) {
-        Ok(env_variables) => {
-            // Return the inner error.
-            let env_variables = env_variables?;
-            let database = env_variables
-                .get("SENSOR_ARCHIVE_DB_NAME")
-                .expect("SENSOR_ARCHIVE_DB_NAME environment variable not set");
-            let password = env_variables
-                .get("SENSOR_DB_PASSWORD")
-                .expect("SENSOR_DB_PASSWORD environment variable not set");
-            let database_url = format!(
-                "postgres://{}:{}@localhost:5432/{}",
-                database, password, database
-            );
+const MIGRTIONS_PATH: &str = "../../migrations/sensor";
 
-            // Set the sqlx database url env variable.
-            // NOTE: This will also be set when compiling for production. Thus, when compiling for
-            // production we should use the `SQLX_OFFLINE` flag to force the use of generated database
-            // definitions instead of a live one.
-            // NOTE: This is only set when building. When running the application from the binary in
-            // production, this variable will not be set.
+type Result = std::result::Result<(), Box<dyn std::error::Error>>;
 
-            println!("cargo:rustc-env=DATABASE_URL={}", database_url);
-        }
-        Err(err) if err.not_found() => {
-            eprintln!("[sensor-data-ingestor] no .env file found!");
-            return Err(err.into());
-        }
-        Err(err) => return Err(err.into()),
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result {
+    async fn config() -> Result {
+        do_migrations_if_enabled(
+            MIGRTIONS_PATH,
+            "SENSOR_ARCHIVE",
+            None::<std::net::SocketAddr>,
+        )
+        .await?;
+
+        // Set the sqlx database url env variable.
+        // NOTE: This will also be set when compiling for production. Thus, when compiling for
+        // production we should use the `SQLX_OFFLINE` flag to force the use of generated database
+        // definitions instead of a live one.
+        // NOTE: This is only set when building. When running the application from the binary in
+        // production, this variable will not be set.
+        set_database_url("SENSOR_ARCHIVE", "SENSOR", None::<std::net::SocketAddr>)?;
+
+        // Configure cargo to recompile the crate when the following directories/files contain changes.
+        configure_recompile(MIGRTIONS_PATH, "../../.env");
+
+        Ok(())
     }
 
-    // Rebuild (partial) the project when the migrations directory is updated.
-    println!("cargo:rerun-if-changed=./migrations");
-
-    Ok(())
+    let result = config().await;
+    if let Err(err) = &result {
+        // Display print errors for better error messages.
+        eprintln!("{}", err);
+    }
+    result
 }
