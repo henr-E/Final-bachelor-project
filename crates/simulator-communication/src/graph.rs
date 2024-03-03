@@ -8,6 +8,14 @@ use std::{
 
 use crate::{component::Component, proto, simulator::ComponentsInfo, Value};
 
+/// A pointer to a specific Node in the [`Graph`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NodeId(usize);
+
+/// A pointer to a specific Edge in the [`Graph`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EdgeId(usize);
+
 /// A single node in the world with a location.
 #[derive(Debug, PartialEq)]
 pub struct Node {
@@ -23,16 +31,38 @@ pub struct Node {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Edge {
     /// The index of the node of origin.
-    pub from: usize,
+    pub from: NodeId,
     /// The index of the destination node.
-    pub to: usize,
+    pub to: NodeId,
 }
 
 pub(crate) struct ComponentStorage<C: Component> {
+    /// The usizes refernce specific node/edge by there position in the respective Vec
     pub(crate) components: Vec<(usize, C)>,
 }
 
-type ComponentStorageMap = HashMap<TypeId, Box<dyn Any + Send>>;
+#[derive(Debug)]
+struct ComponentStorageMap {
+    components: HashMap<TypeId, Box<dyn Any + Send>>,
+}
+
+impl ComponentStorageMap {
+    fn downcast<C: Component>(&self) -> Option<&ComponentStorage<C>> {
+        let component_storage = self.components.get(&TypeId::of::<C>())?;
+        match component_storage.downcast_ref::<ComponentStorage<C>>() {
+            Some(c) => Some(c),
+            None => unreachable!("ComponentStorage had ComponentStorage with wrong type, This is a bug in the simulator communication lib"),
+        }
+    }
+
+    fn downcast_mut<C: Component>(&mut self) -> Option<&mut ComponentStorage<C>> {
+        let component_storage = self.components.get_mut(&TypeId::of::<C>())?;
+        match component_storage.downcast_mut::<ComponentStorage<C>>() {
+            Some(c) => Some(c),
+            None => unreachable!("ComponentStorage had ComponentStorage with wrong type, This is a bug in the simulator communication lib"),
+        }
+    }
+}
 
 /// The main datastructure used to send data to and from the manager.
 ///
@@ -40,7 +70,7 @@ type ComponentStorageMap = HashMap<TypeId, Box<dyn Any + Send>>;
 /// Nodes can be connected with edges, all containing exactly one [`Component`].
 ///
 /// There can also be global [`Component`]s.
-#[derive(Default)]
+#[derive(Debug)]
 pub struct Graph {
     nodes: Vec<Node>,
     edges: Vec<Edge>,
@@ -51,73 +81,185 @@ pub struct Graph {
 
 impl Graph {
     /// Get all nodes with the [`Component`] `C` in this graph, together with this component.
-    pub fn get_all_nodes<C: Component>(&self) -> Option<impl Iterator<Item = (usize, &Node, &C)>> {
-        let component_storage = self.node_components.get(&TypeId::of::<C>())?;
-        let component_storage = component_storage
-            .downcast_ref::<ComponentStorage<C>>()
-            .expect("Failed to downcast");
-        let iter = component_storage
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
+    pub fn get_all_nodes<C: Component>(&self) -> Option<impl Iterator<Item = (NodeId, &Node, &C)>> {
+        let iter = self
+            .node_components
+            .downcast()?
             .components
             .iter()
             .filter_map(|(index, component)| {
-                self.nodes.get(*index).map(|node| (*index, node, component))
+                self.nodes
+                    .get(*index)
+                    .map(|node| (NodeId(*index), node, component))
             });
 
         Some(iter)
     }
 
     /// Get all edges with the [`Component`] `C` in this graph, together with this component.
-    pub fn get_all_edges<C: Component>(&self) -> Option<impl Iterator<Item = (&Edge, &C)>> {
-        let component_storage = self.edge_components.get(&TypeId::of::<C>())?;
-        let component_storage = component_storage
-            .downcast_ref::<ComponentStorage<C>>()
-            .expect("Failed to downcast");
-        let iter = component_storage
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
+    pub fn get_all_edges<C: Component>(&self) -> Option<impl Iterator<Item = (EdgeId, &Edge, &C)>> {
+        let iter = self
+            .edge_components
+            .downcast()?
             .components
             .iter()
-            .filter_map(|(index, component)| self.edges.get(*index).map(|edge| (edge, component)));
+            .filter_map(|(index, component)| {
+                self.edges
+                    .get(*index)
+                    .map(|edge| (EdgeId(*index), edge, component))
+            });
 
         Some(iter)
     }
 
     /// Get all nodes with the [`Component`] `C` in this graph, together with this component.
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
     pub fn get_all_nodes_mut<C: Component>(
         &mut self,
-    ) -> Option<impl Iterator<Item = (usize, &Node, &mut C)>> {
-        let component_storage = self.node_components.get_mut(&TypeId::of::<C>())?;
-        let component_storage = component_storage
-            .downcast_mut::<ComponentStorage<C>>()
-            .expect("Failed to downcast");
-        let iter =
-            component_storage
-                .components
-                .iter_mut()
-                .filter_map(|(index, ref mut component)| {
-                    self.nodes
-                        .get(*index)
-                        .map(|node: &Node| (*index, node, component))
-                });
+    ) -> Option<impl Iterator<Item = (NodeId, &Node, &mut C)>> {
+        let iter = self
+            .node_components
+            .downcast_mut()?
+            .components
+            .iter_mut()
+            .filter_map(|(index, ref mut component)| {
+                self.nodes
+                    .get(*index)
+                    .map(|node: &Node| (NodeId(*index), node, component))
+            });
 
         Some(iter)
     }
 
     /// Get all edges with the [`Component`] `C` in this graph, together with this component.
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
     pub fn get_all_edges_mut<C: Component>(
         &mut self,
-    ) -> Option<impl Iterator<Item = (&Edge, &mut C)>> {
-        let component_storage = self.edge_components.get_mut(&TypeId::of::<C>())?;
-        let component_storage = component_storage
-            .downcast_mut::<ComponentStorage<C>>()
-            .expect("Failed to downcast");
-        let iter =
-            component_storage
-                .components
-                .iter_mut()
-                .filter_map(|(index, ref mut component)| {
-                    self.edges.get(*index).map(|edge: &Edge| (edge, component))
-                });
+    ) -> Option<impl Iterator<Item = (EdgeId, &Edge, &mut C)>> {
+        let iter = self
+            .edge_components
+            .downcast_mut()?
+            .components
+            .iter_mut()
+            .filter_map(|(index, ref mut component)| {
+                self.edges
+                    .get(*index)
+                    .map(|edge: &Edge| (EdgeId(*index), edge, component))
+            });
 
         Some(iter)
+    }
+
+    /// Get the [`Component`] `C` for a single node.
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
+    pub fn get_node_component<C: Component>(&self, id: NodeId) -> Option<&C> {
+        let components = &self.node_components.downcast()?.components;
+        if let Ok(i) = components.binary_search_by(|(correct_index, _)| correct_index.cmp(&id.0)) {
+            return Some(&components[i].1);
+        }
+
+        None
+    }
+
+    /// Get the [`Component`] `C` for a single edge.
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
+    pub fn get_edge_component<C: Component>(&self, id: EdgeId) -> Option<&C> {
+        let components = &self.edge_components.downcast()?.components;
+        if let Ok(i) = components.binary_search_by(|(correct_index, _)| correct_index.cmp(&id.0)) {
+            return Some(&components[i].1);
+        }
+
+        None
+    }
+
+    /// Get the [`Component`] `C` for a single node.
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
+    pub fn get_node_component_mut<C: Component>(&mut self, id: NodeId) -> Option<&mut C> {
+        let components = &mut self.node_components.downcast_mut()?.components;
+        if let Ok(i) = components.binary_search_by(|(correct_index, _)| correct_index.cmp(&id.0)) {
+            return Some(&mut components[i].1);
+        }
+
+        None
+    }
+
+    /// Get the [`Component`] `C` for a single edge.
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
+    pub fn get_edge_component_mut<C: Component>(&mut self, id: EdgeId) -> Option<&mut C> {
+        let components = &mut self.edge_components.downcast_mut()?.components;
+        if let Ok(i) = components.binary_search_by(|(correct_index, _)| correct_index.cmp(&id.0)) {
+            return Some(&mut components[i].1);
+        }
+
+        None
+    }
+
+    /// Get the [`Component`] `C` from the global components.
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
+    pub fn get_global_component<C: Component>(&self) -> Option<&C> {
+        let component = &self.global_components.downcast()?.components;
+        match &component[..] {
+            [] => None,
+            [c] => Some(&c.1),
+            _ => {
+                unreachable!("All global components should have exactly one or zero component in storage, This is a bug in the simulator communication lib")
+            }
+        }
+    }
+
+    /// Returns an iterator iterating over all the nodes connected *from*
+    /// the node with id `from` via an edge with the [`Component`] `C`.
+    /// Giving a tupple of the Edge component, NodeId, and node itself.
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
+    pub fn neighbors_directed<C: Component>(
+        &self,
+        from: NodeId,
+    ) -> Option<impl Iterator<Item = (NodeId, &Node, &C)>> {
+        let components = &self.edge_components.downcast::<C>()?.components;
+
+        Some(components.iter().filter_map(move |(edge_id, comp)| {
+            let edge = &self.edges[*edge_id];
+            if edge.from == from {
+                Some((edge.to, &self.nodes[edge.to.0], comp))
+            } else {
+                None
+            }
+        }))
+    }
+
+    /// Returns an iterator iterating over all the nodes connected *with*
+    /// the node with id `from` via an edge with the [`Component`] `C`.
+    /// Giving a tupple of the Edge component, NodeId, and node itself.
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
+    pub fn neighbors_undirected<C: Component>(
+        &self,
+        from: NodeId,
+    ) -> Option<impl Iterator<Item = (NodeId, &Node, &C)>> {
+        let components = &self.edge_components.downcast::<C>()?.components;
+
+        Some(components.iter().filter_map(move |(edge_id, comp)| {
+            let edge = &self.edges[*edge_id];
+            if edge.from == from {
+                Some((edge.to, &self.nodes[edge.to.0], comp))
+            } else if edge.to == from {
+                Some((edge.from, &self.nodes[edge.from.0], comp))
+            } else {
+                None
+            }
+        }))
     }
 
     /// Create a new graph containing only the components marked as output components in
@@ -132,11 +274,6 @@ impl Graph {
     /// struct ExampleSimulator;
     ///
     /// impl Simulator for ExampleSimulator {
-    ///     fn do_timestep(&mut self, mut graph: Graph) -> Graph {
-    ///         do_timestep(&mut graph);
-    ///         graph.filter(Self::get_component_info())
-    ///     }
-    ///
     ///     fn get_component_info() -> ComponentsInfo {
     ///         // < SNIP >
     /// #       todo!()
@@ -149,94 +286,47 @@ impl Graph {
     ///         // < SNIP >
     /// #       todo!()
     ///     }
+    ///         
+    ///     fn do_timestep(&mut self, mut graph: Graph) -> Graph {
+    ///         do_timestep(&mut graph);
+    ///         graph.filter(Self::get_component_info())
+    ///     }
     /// }
     /// ```
     pub fn filter(mut self, component_info: ComponentsInfo) -> Graph {
-        let mut new_graph = Graph::default();
+        let mut new_graph = Self {
+            node_components: ComponentStorageMap {
+                components: HashMap::new(),
+            },
+            edge_components: ComponentStorageMap {
+                components: HashMap::new(),
+            },
+            global_components: ComponentStorageMap {
+                components: HashMap::new(),
+            },
+            // Copy nodes and edges
+            ..self
+        };
         for (id, _) in component_info.output_components.iter() {
-            if let Some(component) = self.node_components.remove(id) {
-                new_graph.node_components.insert(*id, component);
-            } else if let Some(component) = self.edge_components.remove(id) {
-                new_graph.edge_components.insert(*id, component);
-            } else if let Some(component) = self.global_components.remove(id) {
-                new_graph.global_components.insert(*id, component);
+            if let Some(component) = self.node_components.components.remove(id) {
+                new_graph.node_components.components.insert(*id, component);
+            } else if let Some(component) = self.edge_components.components.remove(id) {
+                new_graph.edge_components.components.insert(*id, component);
+            } else if let Some(component) = self.global_components.components.remove(id) {
+                new_graph
+                    .global_components
+                    .components
+                    .insert(*id, component);
             }
         }
         new_graph
-    }
-
-    /// Get the [`Component`] `C` for a single node.
-    pub fn get_node_component<C: Component>(&self, index: &usize) -> Option<&C> {
-        let component_storage = self.node_components.get(&TypeId::of::<C>())?;
-        let component_storage = component_storage
-            .downcast_ref::<ComponentStorage<C>>()
-            .expect("Failed to downcast");
-        if let Ok(component) = component_storage
-            .components
-            .binary_search_by(|(correct_index, _)| correct_index.cmp(index))
-        {
-            let found_component = component;
-            return Some(&component_storage.components[found_component].1);
-        }
-
-        None
-    }
-
-    /// Get the [`Component`] `C` for a single edge.
-    pub fn get_edge_component<C: Component>(&self, index: &usize) -> Option<&C> {
-        let component_storage = self.edge_components.get(&TypeId::of::<C>())?;
-        let component_storage = component_storage
-            .downcast_ref::<ComponentStorage<C>>()
-            .expect("Failed to downcast");
-        if let Ok(component) = component_storage
-            .components
-            .binary_search_by(|(correct_index, _)| correct_index.cmp(index))
-        {
-            let found_component = component;
-            return Some(&component_storage.components[found_component].1);
-        }
-
-        None
-    }
-
-    /// Get the [`Component`] `C` for a single node.
-    pub fn get_node_component_mut<C: Component>(&mut self, index: &usize) -> Option<&mut C> {
-        let component_storage = self.node_components.get_mut(&TypeId::of::<C>())?;
-        let component_storage = component_storage
-            .downcast_mut::<ComponentStorage<C>>()
-            .expect("Failed to downcast");
-        if let Ok(component) = component_storage
-            .components
-            .binary_search_by(|(correct_index, _)| correct_index.cmp(index))
-        {
-            let found_component = component;
-            return Some(&mut component_storage.components[found_component].1);
-        }
-        None
-    }
-
-    /// Get the [`Component`] `C` for a single edge.
-    pub fn get_edge_component_mut<C: Component>(&mut self, index: &usize) -> Option<&mut C> {
-        let component_storage = self.edge_components.get_mut(&TypeId::of::<C>())?;
-        let component_storage = component_storage
-            .downcast_mut::<ComponentStorage<C>>()
-            .expect("Failed to downcast");
-        if let Ok(component) = component_storage
-            .components
-            .binary_search_by(|(correct_index, _)| correct_index.cmp(index))
-        {
-            let found_component = component;
-            return Some(&mut component_storage.components[found_component].1);
-        }
-
-        None
     }
 }
 
 fn create_items_and_components<F, T, I>(
     from: Vec<F>,
     to_item: impl Fn(&F) -> T,
-    get_components: impl Fn(F) -> I,
+    get_components: impl Fn(F) -> Option<I>,
     components_info: &ComponentsInfo,
 ) -> Option<(Vec<T>, ComponentStorageMap)>
 where
@@ -255,7 +345,7 @@ where
     for (i, item) in from.into_iter().enumerate() {
         items.push(to_item(&item));
 
-        for (name, component) in get_components(item) {
+        for (name, component) in get_components(item)? {
             let Some(type_id) = components_info.string_to_typeid.get(&name) else {
                 // Skip component we didn't ask for
                 continue;
@@ -272,13 +362,14 @@ where
         }
     }
 
-    let item_components = item_components
+    let components = item_components
         .into_iter()
         .map(|(type_id, (vec, info))| {
             let component_storage = (info.values_to_components)(vec)?;
             Some((type_id, component_storage))
         })
         .collect::<Option<_>>()?;
+    let item_components = ComponentStorageMap { components };
 
     Some((items, item_components))
 }
@@ -298,17 +389,17 @@ impl Graph {
                 latitude: node.latitude,
                 longitude: node.longitude,
             },
-            |n| n.components.into_iter(),
+            |n| Some(n.components.into_iter()),
             components_info,
         )?;
 
         let (edges, edge_components) = create_items_and_components(
             edge,
             |edge| Edge {
-                from: edge.from as usize,
-                to: edge.to as usize,
+                from: NodeId(edge.from as usize),
+                to: NodeId(edge.to as usize),
             },
-            |e| iter::once((e.component_type, e.component_data.unwrap())),
+            |e| Some(iter::once((e.component_type, e.component_data?))),
             components_info,
         )?;
 
@@ -316,7 +407,7 @@ impl Graph {
         let (_, global_components) = create_items_and_components(
             vec![()],
             |()| (),
-            move |()| global_components.clone().into_iter(),
+            move |()| Some(global_components.clone().into_iter()),
             components_info,
         )?;
 
@@ -332,7 +423,7 @@ impl Graph {
     /// Create [`proto::State`] from a [`Graph`].
     pub(crate) fn into_state(self, components_info: &ComponentsInfo) -> Option<proto::State> {
         let mut global_components = HashMap::new();
-        for (type_id, component_storage) in self.global_components {
+        for (type_id, component_storage) in self.global_components.components {
             let Some(info) = components_info.output_components.get(&type_id) else {
                 // Skip componts that aren't output components
                 continue;
@@ -353,7 +444,7 @@ impl Graph {
             })
             .collect();
 
-        for (type_id, component_storage) in self.node_components {
+        for (type_id, component_storage) in self.node_components.components {
             let Some(info) = components_info.output_components.get(&type_id) else {
                 // Skip componts that aren't output components
                 continue;
@@ -371,14 +462,14 @@ impl Graph {
             .edges
             .into_iter()
             .map(|e| proto::Edge {
-                from: e.from as u64,
-                to: e.to as u64,
+                from: e.from.0 as u64,
+                to: e.to.0 as u64,
                 component_type: String::new(),
                 component_data: None,
             })
             .collect();
 
-        for (type_id, component_storage) in self.edge_components {
+        for (type_id, component_storage) in self.edge_components.components {
             let Some(info) = components_info.output_components.get(&type_id) else {
                 // Skip componts that aren't output components
                 continue;
@@ -403,16 +494,33 @@ impl Graph {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use crate::{component::ComponentPiece, Component, ComponentPiece};
 
+    #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
+    #[component(name = "test-node", ty = "node")]
+    struct TestNodeComp(u32);
+    #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
+    #[component(name = "test-edge", ty = "edge")]
+    struct TestEdgeComp(u32);
+    #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
+    #[component(name = "test-global", ty = "global")]
+    struct TestGlobalComp(u32);
+
+    #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
+    #[component(name = "test-node2", ty = "node")]
+    struct TestNodeComp2(u32);
+    #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
+    #[component(name = "test-edge2", ty = "edge")]
+    struct TestEdgeComp2(u32);
+    #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
+    #[component(name = "test-global2", ty = "global")]
+    struct TestGlobalComp2(u32);
+
     #[test]
     fn create_items_and_components_test() {
-        #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
-        #[component(name = "test-node", ty = "node")]
-        struct TestNodeComp(u32);
-
         let components_info = ComponentsInfo::new().add_required_component::<TestNodeComp>();
 
         let c1 = TestNodeComp(1);
@@ -420,28 +528,15 @@ mod tests {
         let c3 = TestNodeComp(3);
         let c4 = TestNodeComp(4);
 
-        let nodes = vec![
-            ::proto::simulation::Node {
-                longitude: 1.0,
-                latitude: 1.0,
-                components: HashMap::from([("test-node".to_owned(), c1.to_value())]),
-            },
-            ::proto::simulation::Node {
-                longitude: 2.0,
-                latitude: 2.0,
-                components: HashMap::from([("test-node".to_owned(), c2.to_value())]),
-            },
-            ::proto::simulation::Node {
-                longitude: 3.0,
-                latitude: 3.0,
-                components: HashMap::from([("test-node".to_owned(), c3.to_value())]),
-            },
-            ::proto::simulation::Node {
-                longitude: 4.0,
-                latitude: 4.0,
-                components: HashMap::from([("test-node".to_owned(), c4.to_value())]),
-            },
-        ];
+        let nodes: Vec<_> = [&c1, &c2, &c3, &c4]
+            .into_iter()
+            .enumerate()
+            .map(|(i, c)| ::proto::simulation::Node {
+                longitude: (i + 1) as f64,
+                latitude: (i + 1) as f64,
+                components: HashMap::from([(TestNodeComp::get_name(), c.to_value())]),
+            })
+            .collect();
 
         let (nodes, node_components) = create_items_and_components(
             nodes,
@@ -449,7 +544,7 @@ mod tests {
                 latitude: node.latitude,
                 longitude: node.longitude,
             },
-            |n| n.components.into_iter(),
+            |n| Some(n.components.into_iter()),
             &components_info,
         )
         .unwrap();
@@ -477,6 +572,7 @@ mod tests {
         );
 
         let component_storage: &ComponentStorage<TestNodeComp> = node_components
+            .components
             .get(&TypeId::of::<TestNodeComp>())
             .unwrap()
             .downcast_ref()
@@ -485,6 +581,299 @@ mod tests {
         assert_eq!(
             component_storage.components,
             vec![(0, c1), (1, c2), (2, c3), (3, c4)]
+        );
+    }
+
+    fn create_test_graph() -> Graph {
+        let components_info = ComponentsInfo::new()
+            .add_required_component::<TestNodeComp>()
+            .add_required_component::<TestNodeComp2>()
+            .add_required_component::<TestEdgeComp>()
+            .add_required_component::<TestEdgeComp2>()
+            .add_required_component::<TestGlobalComp>()
+            .add_required_component::<TestGlobalComp2>();
+
+        let mut nodes: Vec<_> = [
+            TestNodeComp(1),
+            TestNodeComp(2),
+            TestNodeComp(3),
+            TestNodeComp(4),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(i, c)| ::proto::simulation::Node {
+            longitude: (i + 1) as f64,
+            latitude: (i + 1) as f64,
+            components: HashMap::from([(TestNodeComp::get_name(), c.to_value())]),
+        })
+        .collect();
+
+        nodes[0]
+            .components
+            .insert(TestNodeComp2::get_name(), TestNodeComp2(1).to_value());
+        nodes[2]
+            .components
+            .insert(TestNodeComp2::get_name(), TestNodeComp2(3).to_value());
+
+        let mut edges: Vec<_> = [
+            (0, 1, TestEdgeComp(1)),
+            (1, 2, TestEdgeComp(2)),
+            (3, 2, TestEdgeComp(3)),
+            (0, 2, TestEdgeComp(4)),
+        ]
+        .into_iter()
+        .map(|(from, to, c)| ::proto::simulation::Edge {
+            from,
+            to,
+            component_type: TestEdgeComp::get_name(),
+            component_data: Some(c.to_value()),
+        })
+        .collect();
+
+        edges.push(::proto::simulation::Edge {
+            from: 0,
+            to: 1,
+            component_type: TestEdgeComp2::get_name(),
+            component_data: Some(TestEdgeComp2(5).to_value()),
+        });
+        edges.push(::proto::simulation::Edge {
+            from: 0,
+            to: 3,
+            component_type: TestEdgeComp2::get_name(),
+            component_data: Some(TestEdgeComp2(6).to_value()),
+        });
+
+        let global_components =
+            HashMap::from([(TestGlobalComp::get_name(), TestGlobalComp(1).to_value())]);
+
+        Graph::from_state(
+            ::proto::simulation::State {
+                graph: Some(::proto::simulation::Graph { nodes, edge: edges }),
+                global_components,
+            },
+            &components_info,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn get_all() {
+        let graph = create_test_graph();
+
+        assert_eq!(
+            graph
+                .get_all_nodes::<TestNodeComp>()
+                .unwrap()
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    NodeId(0),
+                    &Node {
+                        latitude: 1.0,
+                        longitude: 1.0
+                    },
+                    &TestNodeComp(1)
+                ),
+                (
+                    NodeId(1),
+                    &Node {
+                        latitude: 2.0,
+                        longitude: 2.0
+                    },
+                    &TestNodeComp(2)
+                ),
+                (
+                    NodeId(2),
+                    &Node {
+                        latitude: 3.0,
+                        longitude: 3.0
+                    },
+                    &TestNodeComp(3)
+                ),
+                (
+                    NodeId(3),
+                    &Node {
+                        latitude: 4.0,
+                        longitude: 4.0
+                    },
+                    &TestNodeComp(4)
+                ),
+            ]
+        );
+
+        assert_eq!(
+            graph
+                .get_all_nodes::<TestNodeComp2>()
+                .unwrap()
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    NodeId(0),
+                    &Node {
+                        latitude: 1.0,
+                        longitude: 1.0
+                    },
+                    &TestNodeComp2(1)
+                ),
+                (
+                    NodeId(2),
+                    &Node {
+                        latitude: 3.0,
+                        longitude: 3.0
+                    },
+                    &TestNodeComp2(3)
+                ),
+            ]
+        );
+
+        assert_eq!(
+            graph
+                .get_all_edges::<TestEdgeComp>()
+                .unwrap()
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    EdgeId(0),
+                    &Edge {
+                        from: NodeId(0),
+                        to: NodeId(1)
+                    },
+                    &TestEdgeComp(1)
+                ),
+                (
+                    EdgeId(1),
+                    &Edge {
+                        from: NodeId(1),
+                        to: NodeId(2)
+                    },
+                    &TestEdgeComp(2)
+                ),
+                (
+                    EdgeId(2),
+                    &Edge {
+                        from: NodeId(3),
+                        to: NodeId(2)
+                    },
+                    &TestEdgeComp(3)
+                ),
+                (
+                    EdgeId(3),
+                    &Edge {
+                        from: NodeId(0),
+                        to: NodeId(2)
+                    },
+                    &TestEdgeComp(4)
+                ),
+            ]
+        );
+
+        assert_eq!(
+            graph
+                .get_all_edges::<TestEdgeComp2>()
+                .unwrap()
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    EdgeId(4),
+                    &Edge {
+                        from: NodeId(0),
+                        to: NodeId(1)
+                    },
+                    &TestEdgeComp2(5)
+                ),
+                (
+                    EdgeId(5),
+                    &Edge {
+                        from: NodeId(0),
+                        to: NodeId(3)
+                    },
+                    &TestEdgeComp2(6)
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn get_single() {
+        let graph = create_test_graph();
+
+        assert_eq!(
+            graph.get_node_component::<TestNodeComp>(NodeId(0)),
+            Some(&TestNodeComp(1))
+        );
+        assert_eq!(
+            graph.get_node_component::<TestNodeComp>(NodeId(1)),
+            Some(&TestNodeComp(2))
+        );
+        assert_eq!(
+            graph.get_node_component::<TestNodeComp2>(NodeId(0)),
+            Some(&TestNodeComp2(1))
+        );
+        assert_eq!(graph.get_node_component::<TestNodeComp2>(NodeId(1)), None);
+
+        assert_eq!(
+            graph.get_edge_component::<TestEdgeComp>(EdgeId(0)),
+            Some(&TestEdgeComp(1))
+        );
+        assert_eq!(
+            graph.get_edge_component::<TestEdgeComp>(EdgeId(1)),
+            Some(&TestEdgeComp(2))
+        );
+        assert_eq!(graph.get_edge_component::<TestEdgeComp2>(EdgeId(1)), None);
+        assert_eq!(
+            graph.get_edge_component::<TestEdgeComp2>(EdgeId(4)),
+            Some(&TestEdgeComp2(5))
+        );
+
+        assert_eq!(
+            graph.get_global_component::<TestGlobalComp>(),
+            Some(&TestGlobalComp(1))
+        );
+        assert_eq!(graph.get_global_component::<TestGlobalComp2>(), None);
+    }
+
+    #[test]
+    fn get_via_edges() {
+        let graph = create_test_graph();
+
+        assert_eq!(
+            graph
+                .neighbors_directed::<TestEdgeComp>(NodeId(1))
+                .unwrap()
+                .collect::<Vec<_>>(),
+            vec![(
+                NodeId(2),
+                &Node {
+                    latitude: 3.0,
+                    longitude: 3.0
+                },
+                &TestEdgeComp(2)
+            ),]
+        );
+
+        assert_eq!(
+            graph
+                .neighbors_undirected::<TestEdgeComp>(NodeId(1))
+                .unwrap()
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    NodeId(0),
+                    &Node {
+                        latitude: 1.0,
+                        longitude: 1.0
+                    },
+                    &TestEdgeComp(1)
+                ),
+                (
+                    NodeId(2),
+                    &Node {
+                        latitude: 3.0,
+                        longitude: 3.0
+                    },
+                    &TestEdgeComp(2)
+                )
+            ]
         );
     }
 }
