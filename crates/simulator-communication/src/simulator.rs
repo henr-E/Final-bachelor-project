@@ -49,7 +49,9 @@ fn values_to_components<C: Component>(values: Vec<(usize, Value)>) -> Option<Box
 fn components_to_values<C: Component>(
     component_storage: Box<dyn Any + Send>,
 ) -> Vec<(usize, Value)> {
-    let component_storage = component_storage.downcast::<ComponentStorage<C>>().unwrap();
+    let component_storage = component_storage.downcast::<ComponentStorage<C>>().expect(
+        "Component storage is of the wrong type, This is a bug in the simulator communication lib",
+    );
 
     component_storage
         .components
