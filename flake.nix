@@ -26,28 +26,30 @@
         formatter = pkgs.alejandra;
 
         devShells.default = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            # rust packages
-            (rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
-            sqlx-cli
-            # rust lsp
-            rust-analyzer
-            # real time running of tests/compiling/checking/linting during
-            # development
-            bacon
-            # package needed to compile and check proto files
-            protobuf
-            # nodejs packages
-            nodejs_20
-            # run checks and tasks when making a commit
-            pre-commit
-            # containerization of services for easy development and deployment
-            docker
-            # used to compile `.proto` files
-            protobuf
-            # gRPC proxy
-            envoy
-          ];
+          buildInputs = with pkgs;
+            [
+              # rust packages
+              (rust-bin.fromRustupToolchainFile ./rust-toolchain.toml)
+              sqlx-cli
+              # rust lsp
+              rust-analyzer
+              # real time running of tests/compiling/checking/linting during
+              # development
+              bacon
+              # nodejs packages
+              nodejs_20
+              # run checks and tasks when making a commit
+              pre-commit
+              # containerization of services for easy development and deployment
+              docker
+              # used to compile `.proto` files
+              protobuf
+            ]
+            # MacOS specific packages
+            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
+              darwin.apple_sdk.frameworks.SystemConfiguration
+              pkg-config
+            ];
           shellHook = ''
             # Install pre-commit hooks to the local git repo.
             ${pkgs.pre-commit}/bin/pre-commit install
