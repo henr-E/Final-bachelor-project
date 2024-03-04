@@ -34,7 +34,7 @@ function CreateTwinModalProps({ isCreateTwinModalOpen, closeCreateTwinModal}: Cr
 
 
     const formRef = useRef<HTMLFormElement>(null);
-    
+
 
     const handleSelectButton = (city: City) => {
         /**
@@ -43,7 +43,7 @@ function CreateTwinModalProps({ isCreateTwinModalOpen, closeCreateTwinModal}: Cr
          */
         setCity(city)
 
-        
+
 
         const cityTwin = city.name + " Twin" // adding Twin manually, because it's being selected from City, so Antwerp Twin vs Antwerp
         setName(cityTwin)
@@ -67,7 +67,7 @@ function CreateTwinModalProps({ isCreateTwinModalOpen, closeCreateTwinModal}: Cr
         // for now ID is hardcoded as it will be decided by the database
         const twin:Twin = {id: "0", name: name, city:city};
 
-        
+
         dispatchTwin({type: 'create_twin', twin})
 
         closeCreateTwinModal();
@@ -79,7 +79,7 @@ function CreateTwinModalProps({ isCreateTwinModalOpen, closeCreateTwinModal}: Cr
     }
 
     return (
-        <Modal show={isCreateTwinModalOpen} onClose={closeCreateTwinModal}>
+        <Modal show={isCreateTwinModalOpen} onClose={closeCreateTwinModal} style={{zIndex: 100}}>
             <Modal.Header>Create Twin</Modal.Header>
             <Modal.Body>
                 <form ref={formRef}>

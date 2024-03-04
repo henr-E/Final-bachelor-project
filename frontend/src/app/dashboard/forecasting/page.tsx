@@ -2,8 +2,9 @@
 
 import dynamic from "next/dynamic"
 import { Twin, TwinContext } from '@/store/twins';
-import { useContext, useState } from 'react';
+import {useContext, useEffect, useState} from 'react';
 import { Accordion, Label, TextInput, Button } from 'flowbite-react';
+import PredictionMap from "@/components/maps/PredictionMap";
 
 interface ForecastMapProps {
     twin: Twin;
