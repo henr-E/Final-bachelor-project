@@ -1,3 +1,43 @@
+pub use chrono;
+use chrono::NaiveDateTime;
+use simulator_communication::{
+    component::ComponentPiece, component_structure::ComponentStructure, Component, ComponentPiece,
+    Value,
+};
+
+/// The current time of a frame in the simulation.
+///
+/// Accurate up to the millisecond.
+#[derive(Component, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[component(name = "global_time", ty = "global")]
+pub struct TimeComponent(pub NaiveDateTime);
+
+/// Used to automate the [`ComponentPiece`] implementation for [`TimeComponent`] and
+/// avoid having to write it out manually, while keeping a nice API ([`NaiveDateTime`]).
+#[derive(ComponentPiece)]
+struct TimeComponentImpl {
+    unix_timestamp_millis: i64,
+}
+
+impl ComponentPiece for TimeComponent {
+    fn get_structure() -> ComponentStructure {
+        TimeComponentImpl::get_structure()
+    }
+
+    fn from_value(value: Value) -> Option<Self> {
+        TimeComponentImpl::from_value(value)
+            .map(|v| NaiveDateTime::from_timestamp_millis(v.unix_timestamp_millis))
+            .flatten()
+            .map(TimeComponent)
+    }
+
+    fn to_value(&self) -> Value {
+        TimeComponentImpl::to_value(&TimeComponentImpl {
+            unix_timestamp_millis: self.0.timestamp_millis(),
+        })
+    }
+}
+
 pub mod energy {
     use simulator_communication_macros::Component;
     use simulator_communication_macros::ComponentPiece;
