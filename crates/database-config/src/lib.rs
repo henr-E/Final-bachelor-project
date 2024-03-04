@@ -60,6 +60,20 @@ pub async fn do_migrations_if_enabled(
     let db_pool = sqlx::PgPool::connect(&db_url).await?;
     migrator.run(&db_pool).await?;
 
+    // Set table permissions.
+    sqlx::query(&format!(
+        "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public to {}",
+        database
+    ))
+    .execute(&db_pool)
+    .await?;
+    sqlx::query(&format!(
+        "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public to {}",
+        database
+    ))
+    .execute(&db_pool)
+    .await?;
+
     Ok(())
 }
 
