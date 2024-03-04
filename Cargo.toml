@@ -3,9 +3,15 @@ resolver = "2"
 members = [
     "crates/*",
     "ui-backend",
-    "energy-simulator",
     "manager",
     "sensor-data/ingestor",
     "sensor-data/generator",
     "sensor-data/crates/parser",
+    "simulators/*",
 ]
+
+[workspace.dependencies]
+# Local crates are added here to avoid having to repeat the entire path.
+# These can be imported in your crate usig `<name>.workspace = true`.
+component-library = { path = "crates/component-library" }
+simulator-communication = { path = "crates/simulator-communication" }

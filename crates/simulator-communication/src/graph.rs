@@ -218,6 +218,20 @@ impl Graph {
         }
     }
 
+    /// Get the [`Component`] `C` from the global components.
+    ///
+    /// Returns [`None`] if the [`Component`] `C` does not exist in this [`Graph`].
+    pub fn get_global_component_mut<C: Component>(&mut self) -> Option<&mut C> {
+        let component = &mut self.global_components.downcast_mut()?.components;
+        match &mut component[..] {
+            [] => None,
+            [c] => Some(&mut c.1),
+            _ => {
+                unreachable!("All global components should have exactly one or zero component in storage, This is a bug in the simulator communication lib")
+            }
+        }
+    }
+
     /// Returns an iterator iterating over all the nodes connected *from*
     /// the node with id `from` via an edge with the [`Component`] `C`.
     /// Giving a tupple of the Edge component, NodeId, and node itself.
