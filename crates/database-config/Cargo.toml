@@ -20,3 +20,8 @@ sqlx = { version = "0.7.3", default-features = false, features = [
 ] }
 # Macro for creating a comprehensive error wrapper type.
 thiserror = "1.0.57"
+
+# Dependencies only used for tests, examples and benchmarks.
+[dev-dependencies]
+# Provides an async runtime allowing the use of async/await.
+tokio = { version = "1.36.0", features = ["macros", "rt"] }
