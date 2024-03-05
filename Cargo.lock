@@ -457,6 +457,7 @@ dependencies = [
  "once_cell",
  "sqlx",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

@@ -48,7 +48,7 @@ TODO for someone currently working on the frontend
 
 ### Defining a new database
 
-To add a new database to the project's postgres instance, define the following environment variables in`.env.example`:
+To add a new database to the project's postgres instance, define the following environment variables in `.env.example`:
 
 -   `<subproject-name>_<db-name>_DB_NAME`: Name of the new database.
 -   `<subproject-name>_<db-name>_PASSWORD`: Password used for the database.
@@ -63,3 +63,13 @@ To create a migration, use the `sqlx` cli that can be installed with `cargo inst
 Use a separate dedicated directory under the root `migrations` directory per database. Use subdirectories to group database migrations if appropriate.
 
 **NOTE**: When writing a service in a language other than rust, `sqlx-cli` can still be used.
+
+### Executing migrations
+
+When compiling crates that use `sqlx` queries, and other compile time checked SQL statements, `sqlx` requires a running database that has the required tables created.
+This is normally done by first running the migrations manually.
+However, this project uses multiple databases, requiring multiple database urls to perform migrations.
+This is solved by using the [`database-config`](./crates/database-config) crate in the root `crates` directory.
+An example on how to use it can be found in the same directory.
+
+When making use of the `database-config` crate, you can toggle the migrations at compile time with the environment variable `COMPILE_TIME_MIGRATIONS` set in the `.env`.
