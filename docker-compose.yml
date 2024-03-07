@@ -24,7 +24,7 @@ services:
       # Add the healthcheck script.
       - ./docker/postgres-multiple-db-healthcheck.sh:/postgres-multiple-db-healthcheck.sh
       # Persist contents of the database to the host.
-      - ./storage:/var/lib/postgresql/data
+      - postgres:/var/lib/postgresql/data
     healthcheck:
       # Check health of the databases. Useful for startup order or monitoing
       # whether silent errors happened that did not fully crash the service.
@@ -35,3 +35,5 @@ services:
       # codes will not result in an unhealthy service. When 0 is returned,
       # immediatly marked as healthy.
       start_period: 10s
+volumes:
+  postgres:
