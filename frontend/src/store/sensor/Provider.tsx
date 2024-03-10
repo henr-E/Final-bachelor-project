@@ -157,14 +157,81 @@ const quantityBaseUnits: Record<Quantity, Unit> = {
     [Quantity.ELECTRICITY_CONSUMPTION]: Unit.WATT_HOUR
 }
 
+const quantities: Array<Quantity> = [
+    Quantity.TIME,
+    Quantity.LENGTH,
+    Quantity.MASS,
+    Quantity.ELECTRIC_CURRENT,
+    Quantity.THERMODYNAMIC_TEMPERATURE,
+    Quantity.SUBSTANCE_AMOUNT,
+    Quantity.LUMINOUS_INTENSITY,
+    Quantity.FREQUENCY,
+    Quantity.FORCE,
+    Quantity.PRESSURE,
+    Quantity.ENERGY,
+    Quantity.POWER,
+    Quantity.ELECTRIC_CHARGE,
+    Quantity.ELECTRIC_POTENTIAL,
+    Quantity.CAPACITANCE,
+    Quantity.RESISTANCE,
+    Quantity.ELECTRICAL_CONDUCTANCE,
+    Quantity.MAGNETIC_FLUX,
+    Quantity.MAGNETIC_FLUX_DENSITY,
+    Quantity.INDUCTANCE,
+    Quantity.TEMPERATURE,
+    Quantity.LUMINOUS_FLUX,
+    Quantity.ILLUMINANCE,
+    Quantity.RADIONUCLIDE,
+    Quantity.ABSORBED_DOSE,
+    Quantity.EQUIVALENT_DOSE,
+    Quantity.CATALYTIC_ACTIVITY,
+    Quantity.RAINFALL,
+    Quantity.ELECTRICITY_CONSUMPTION
+];
+
+const prefixes: Array<Prefix> = [
+    Prefix.QUETTA,
+    Prefix.RONNA,
+    Prefix.YOTTA,
+    Prefix.ZETTA,
+    Prefix.EXA,
+    Prefix.PETA,
+    Prefix.TERA,
+    Prefix.GIGA,
+    Prefix.MEGA,
+    Prefix.KILO,
+    Prefix.HECTO,
+    Prefix.DECA,
+    Prefix.ONE,
+    Prefix.DECI,
+    Prefix.CENTI,
+    Prefix.MILI,
+    Prefix.MICRO,
+    Prefix.NANO,
+    Prefix.PICO,
+    Prefix.FEMTO,
+    Prefix.ATTO,
+    Prefix.ZEPTO,
+    Prefix.YOCTO,
+    Prefix.RONTO,
+    Prefix.QUECTO
+]
+
+interface Signal {
+    quantity: Quantity;
+    unit: Unit;
+    ingestionUnit: Unit;
+    ingestionColumnAlias: string;
+    ingestionPrefix: Prefix;
+}
+
 // coordinates stored as 64-bit IEEE754 floats for now
 // potentially use better representation
 interface Sensor {
     id: string; // id can be an UUID
     name: string;
     description: string;
-    quantity: Quantity;
-    unit: Unit;
+    signals: Signal[];
     location: { lat: number, lng: number }
 }
 
@@ -235,8 +302,15 @@ const initialState: SensorState = {
             id: '34a32019-3e06-4170-b866-48d0a6c39a2e',
             name: 'SENSOR-1',
             description: 'Thermometer campus Middelheim',
-            quantity: Quantity.TEMPERATURE,
-            unit: Unit.DEGREES_CELSIUS,
+            signals: [
+                {
+                    quantity: Quantity.TEMPERATURE,
+                    unit: quantityBaseUnits[Quantity.TEMPERATURE],
+                    ingestionUnit: quantityBaseUnits[Quantity.TEMPERATURE],
+                    ingestionPrefix: Prefix.CENTI,
+                    ingestionColumnAlias: 'TEMP-COL'
+                },
+            ],
             location: {
                 lat: 51.1842469,
                 lng: 4.4203308
@@ -246,8 +320,14 @@ const initialState: SensorState = {
             id: 'd256fe98-53aa-47cb-8169-ac6f30addca5',
             name: 'SENSOR-2',
             description: 'Pluviometer campus Middelheim',
-            quantity: Quantity.RAINFALL,
-            unit: Unit.METRE,
+            signals: [{
+                quantity:
+                    Quantity.RAINFALL,
+                unit: quantityBaseUnits[Quantity.RAINFALL],
+                ingestionUnit: quantityBaseUnits[Quantity.RAINFALL],
+                ingestionPrefix: Prefix.ONE,
+                ingestionColumnAlias: 'RAINFALL-COL'
+            }],
             location: {
                 lat: 51.1842469,
                 lng: 4.4203308
@@ -257,8 +337,22 @@ const initialState: SensorState = {
             id: '9bb1c650-3e71-4688-8ab5-a6dd4a8639c3',
             name: 'SENSOR-3',
             description: 'Cumulative electricity usage Middelheim gebouw G',
-            quantity: Quantity.ELECTRICITY_CONSUMPTION,
-            unit: Unit.WATT_HOUR,
+            signals: [
+                {
+                    quantity: Quantity.ELECTRICITY_CONSUMPTION,
+                    unit: Unit.WATT_HOUR,
+                    ingestionUnit: quantityBaseUnits[Quantity.ELECTRICITY_CONSUMPTION],
+                    ingestionPrefix: Prefix.CENTI,
+                    ingestionColumnAlias: 'KWH-COL'
+                },
+                {
+                    quantity: Quantity.ELECTRIC_CURRENT,
+                    unit: quantityBaseUnits[Quantity.ELECTRIC_CURRENT],
+                    ingestionUnit: quantityBaseUnits[Quantity.ELECTRIC_CURRENT],
+                    ingestionPrefix: Prefix.CENTI,
+                    ingestionColumnAlias: 'AMP-COL'
+                }
+            ],
             location: {
                 lat: 51.1842469,
                 lng: 4.4203308
@@ -283,9 +377,12 @@ export {
     Quantity,
     Unit,
     Prefix,
+    type Signal,
     type Sensor,
     prefixExponents,
     quantityBaseUnits,
+    quantities,
+    prefixes,
     SensorProvider,
     SensorContext
 };

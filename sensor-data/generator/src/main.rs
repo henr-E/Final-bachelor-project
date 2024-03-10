@@ -1,6 +1,6 @@
-use proto::sensor_data_ingest::sensor_data::FileFormat;
+use proto::sensor_data_ingest::sensor_data_file::FileFormat;
 use proto::sensor_data_ingest::{
-    data_ingest_service_client::DataIngestServiceClient, JsonFileFormat, SensorData,
+    data_ingest_service_client::DataIngestServiceClient, JsonFileFormat, SensorDataFile,
 };
 
 use crate::data_generator::SensorDataGenerator;
@@ -53,8 +53,9 @@ async fn main() {
     let generated_data = sensor_data_generator.generate_data(begin, end);
 
     // send data to DataIngestService
-    let request = tonic::Request::new(SensorData {
+    let request = tonic::Request::new(SensorDataFile {
         data: generated_data,
+        data_format: "".to_string(),
         file_format: Some(FileFormat::Json(JsonFileFormat {})), // TODO: add correct file format
     });
 
