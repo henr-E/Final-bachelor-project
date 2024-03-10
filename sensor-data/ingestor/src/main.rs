@@ -1,6 +1,7 @@
 use proto::sensor_data_ingest::{
-    sensor_data::FileFormat as ProtoSensorDataFileFormat, DataIngestService,
-    DataIngestServiceServer, ParseFailure, ParseFailureReason, ParseResult, SensorData,
+    sensor_data_file::FileFormat as ProtoSensorDataFileFormat, DataIngestService,
+    DataIngestServiceServer, ParseFailure, ParseFailureReason, ParseResult, SensorDataFile,
+    SensorDataLines,
 };
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{
@@ -44,7 +45,7 @@ struct DataIngestor {
 impl DataIngestService for DataIngestor {
     async fn test_parse_sensor_data(
         &self,
-        request: Request<SensorData>,
+        request: Request<SensorDataFile>,
     ) -> Result<Response<ParseResult>, Status> {
         // Generating an identifier for debugging streams.
         let identifier = DataIngestor::generate_identifier();
@@ -100,9 +101,9 @@ impl DataIngestService for DataIngestor {
         }.instrument(span).await
     }
 
-    async fn ingest_sensor_data_stream(
+    async fn ingest_sensor_data_file_stream(
         &self,
-        request: Request<Streaming<SensorData>>,
+        request: Request<Streaming<SensorDataFile>>,
     ) -> Result<Response<ParseResult>, Status> {
         // Generating an identifier for debugging streams.
         let identifier = DataIngestor::generate_identifier();
@@ -164,6 +165,13 @@ impl DataIngestService for DataIngestor {
             }
         }.instrument(span).await
     }
+
+    async fn ingest_sensor_data_stream(
+        &self,
+        request: Request<Streaming<SensorDataLines>>,
+    ) -> Result<Response<ParseResult>, Status> {
+        todo!()
+    }
 }
 
 impl DataIngestor {
@@ -205,7 +213,7 @@ impl DataIngestor {
         }
 
         // Insert the values in the archive database.
-        sqlx::query!("INSERT INTO sensor_data_files (identifier, time, path, metadata) VALUES ($1::text, now()::timestamp, $2::text, $3::text);", identifier, path.to_str().unwrap(), "")
+        sqlx::query!("INSERT INTO archive_sensor_data_file (identifier, time, path, metadata) VALUES ($1::text, now()::timestamp, $2::text, $3::text);", identifier, path.to_str().unwrap(), "")
             .execute(&self.pool)
             .await?;
 
