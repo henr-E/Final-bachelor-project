@@ -28,7 +28,7 @@ function DeleteMultipleSensorsModal({ isModalOpen, sensors, closeModal, confirm 
                 <div>
                     <ul className="max-w-md space-y-1 text-gray-600 list-disc list-inside">
                         {
-                            sensors.map(sensor => <li className="text-sm" >{sensor.name}</li>)
+                            sensors.map((sensor, index) => <li key={index} className="text-sm" >{sensor.name}</li>)
                         }
                     </ul>
                 </div>

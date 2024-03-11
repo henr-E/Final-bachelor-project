@@ -490,8 +490,7 @@ name = "database-config"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "dotenvy",
- "once_cell",
+ "environment-config",
  "sqlx",
  "thiserror",
  "tokio",
@@ -562,6 +561,29 @@ dependencies = [
 [[package]]
 name = "energy-simulator"
 version = "0.1.0"
+
+[[package]]
+name = "energy-supply-and-demand-simulator"
+version = "0.1.0"
+dependencies = [
+ "component-library",
+ "dotenvy",
+ "rand",
+ "simulator-communication",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "environment-config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dotenvy",
+ "once_cell",
+ "thiserror",
+]
 
 [[package]]
 name = "equivalent"
@@ -1364,7 +1386,7 @@ checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.48",
+ "syn 2.0.52",
 ]
 
 [[package]]
@@ -1925,6 +1947,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "csv",
+ "environment-config",
  "prost",
  "prost-types",
  "proto",
@@ -1941,7 +1964,7 @@ version = "0.1.0"
 dependencies = [
  "bson",
  "database-config",
- "dotenvy",
+ "environment-config",
  "prost",
  "prost-types",
  "prost-value",
@@ -2392,20 +2415,6 @@ name = "subtle"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
-
-[[package]]
-name = "supply-and-demand-simulator"
-version = "0.1.0"
-dependencies = [
- "component-library",
- "dotenvy",
- "num_cpus",
- "rand",
- "simulator-communication",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
 
 [[package]]
 name = "syn"

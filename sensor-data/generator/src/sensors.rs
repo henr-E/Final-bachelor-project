@@ -224,6 +224,8 @@ pub mod energy {
     use super::*;
 
     /// Represents a concrete power sensor called [SensorPower].
+    // TODO: Remove this
+    #[allow(unused)]
     pub struct SensorPower {
         /// Geographical coordinates of the sensor.
         pub coordinates: Coordinates,
@@ -264,6 +266,8 @@ pub mod energy {
 
     /// Specific implementation for the concrete temperature sensor called [SensorTemperature].
     impl SensorPower {
+        // TODO: Remove this
+        #[allow(unused)]
         pub fn generate(&self, begin: u64, end: u64) -> Vec<String> {
             let mut results = Vec::new();
             let mut timestamp = begin;
@@ -356,7 +360,7 @@ mod tests {
             interval: 60,
         };
 
-        let expected = vec![
+        let expected = [
             r#"{"coordinates":{"latitude":23.5,"longitude":60.2},"timestamp":5,"interval":60,"temperature":20.0}"#,
             r#"{"coordinates":{"latitude":23.5,"longitude":60.2},"timestamp":65,"interval":60,"temperature":20.0}"#,
             r#"{"coordinates":{"latitude":23.5,"longitude":60.2},"timestamp":125,"interval":60,"temperature":20.0}"#,

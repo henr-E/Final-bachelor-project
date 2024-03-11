@@ -5,7 +5,7 @@
     "scripts": {
         "proto": "./build-proto.sh",
         "dev": "next dev",
-        "build": "next build",
+        "build": "./build-proto.sh && next build",
         "start": "next start",
         "lint": "next lint"
     },
