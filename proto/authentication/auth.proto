@@ -1,0 +1,57 @@
+// This file defines the `AuthenticationService` that will be implemented by
+// the authentication micro-service.
+
+syntax = "proto3";
+
+package authentication.auth;
+
+// Here the contract is defined that other micro-services can rely on. This
+// contract is implemented by the authentication service and can then be used
+// like it is a normal function call by any other service.
+//
+service AuthenticationService {
+  rpc RegisterUser(RegisterRequest) returns (RegisterResponse);
+
+  rpc LoginUser(LoginRequest) returns (LoginResponse);
+}
+
+// password will be hashed in the RegisterUser before being stored
+// the password is a plaintext
+message User {
+  string username = 1;
+  string password = 2;
+}
+
+// ====================
+//       Register
+// ====================
+
+message RegisterRequest { User user = 1; }
+
+message RegisterResponse {
+  oneof result {
+    RegisterError error = 1;
+    string succes = 2;
+  }
+}
+
+enum RegisterError {
+  USERNAME_TAKEN = 0;
+}
+
+// ====================
+//        Login
+// ====================
+
+message LoginRequest { User user = 1; }
+
+message LoginResponse {
+  oneof result {
+    string token = 1;
+    LoginError error = 2;
+  }
+}
+
+enum LoginError {
+  INVALID_CREDENTIALS = 0;
+}

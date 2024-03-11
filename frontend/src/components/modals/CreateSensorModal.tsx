@@ -279,4 +279,3 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
 }
 
 export default CreateSensorModal;
-

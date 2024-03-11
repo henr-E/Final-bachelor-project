@@ -54,4 +54,3 @@ export function PredictionMap({ twin, eventHandlers = {}, mapItems = []}: Predic
 }
 
 export default PredictionMap;
-

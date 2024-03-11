@@ -49,4 +49,3 @@ function MainNavbar({ openLoginModal, openRegisterModal }: MainNavbarProps) {
 }
 
 export default MainNavbar;
-

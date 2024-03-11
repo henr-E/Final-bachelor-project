@@ -217,4 +217,3 @@ export function MapEditor() {
 }
 
 export default MapEditor;
-

@@ -37,4 +37,3 @@ function DashboardNavbar({openCreateTwinModal }: DashboardNavbarProps) {
 }
 
 export default DashboardNavbar;
-
