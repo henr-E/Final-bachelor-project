@@ -1,5 +1,5 @@
 pub use chrono;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime};
 use simulator_communication::{
     component::ComponentPiece, component_structure::ComponentStructure, Component, ComponentPiece,
     Value,
@@ -26,14 +26,15 @@ impl ComponentPiece for TimeComponent {
 
     fn from_value(value: Value) -> Option<Self> {
         TimeComponentImpl::from_value(value)
-            .map(|v| NaiveDateTime::from_timestamp_millis(v.unix_timestamp_millis))
-            .flatten()
+            .and_then(|v| DateTime::from_timestamp_millis(v.unix_timestamp_millis))
+            .as_ref()
+            .map(DateTime::naive_utc)
             .map(TimeComponent)
     }
 
     fn to_value(&self) -> Value {
         TimeComponentImpl::to_value(&TimeComponentImpl {
-            unix_timestamp_millis: self.0.timestamp_millis(),
+            unix_timestamp_millis: self.0.and_utc().timestamp_millis(),
         })
     }
 }
@@ -56,7 +57,7 @@ pub mod energy {
         // Other fields specific to ConsumerNode
         /// Demand in megawattsper hour (MWh)
         pub demand: f64,
-        /// measure of how demand responds to change in price            
+        /// measure of how demand responds to change in price
         pub demand_elasticity: f64,
     }
 
@@ -66,9 +67,9 @@ pub mod energy {
         pub generic_node: GenericEnergyNode,
         /// Capacity in megawatts
         pub capacity: f64,
-        /// Current energy content in MWh           
+        /// Current energy content in MWh
         pub charge_state: f64,
-        /// Maximum charge rate in MW       
+        /// Maximum charge rate in MW
         pub max_charge_rate: f64,
         /// Maximum discharge rate in MW
         pub max_discharge_rate: f64,
@@ -83,7 +84,7 @@ pub mod energy {
         // Other fields specific to ProducerNode
         /// Capacity in megawatts
         pub capacity: f64,
-        /// Energy produced in MWH          
+        /// Energy produced in MWH
         pub energy_production: f64,
         /// e.g "fossil", "nuclear", "renewable"
         pub power_type: String,
@@ -96,15 +97,15 @@ pub mod energy {
         // Other fields specific to TransmissionNode
         /// Operating voltage in kilovolts (kV)
         pub operating_voltage: f64,
-        /// Maximum capacity in megawatts (MW)      
+        /// Maximum capacity in megawatts (MW)
         pub maximum_power_capacity: f64,
         /// Current capacity in megawatts (MW)
         pub current_capacity: f64,
-        /// Ohms per meter       
+        /// Ohms per meter
         pub resistance_per_meter: f64,
         /// Ohms per meter for AC lines
         pub reactance_per_meter: f64,
-        /// Length of the transmission line in meters (m)   
+        /// Length of the transmission line in meters (m)
         pub length: f64,
     }
 }

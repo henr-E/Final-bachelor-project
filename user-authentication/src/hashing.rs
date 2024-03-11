@@ -71,7 +71,7 @@ mod test_hashing {
 
         let hash = hash_password(password.as_bytes());
 
-        let is_match = verify_password(&password, &hash);
+        let is_match = verify_password(password, &hash);
 
         assert!(is_match.is_ok());
     }
@@ -85,6 +85,6 @@ mod test_hashing {
 
         let is_not_match = verify_password("wrong password", &hash);
 
-        assert_ne!(true, is_not_match.is_ok());
+        assert!(is_not_match.is_err());
     }
 }

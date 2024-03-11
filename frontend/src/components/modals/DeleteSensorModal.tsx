@@ -19,7 +19,7 @@ function DeleteSensorModal({ sensor, cancel, confirm }: DeleteSensorModalProps) 
     }
 
     return <Modal show={sensor !== undefined} onClose={cancel}>
-        <Modal.Header>Delete Sensor "{sensor.name}"</Modal.Header>
+        <Modal.Header>Delete Sensor &quot;{sensor.name}&quot;</Modal.Header>
         <Modal.Body>
             <Alert color="warning" rounded><span>Warning: all data associated with this sensor will be permanently lost.</span></Alert>
         </Modal.Body>
@@ -32,4 +32,3 @@ function DeleteSensorModal({ sensor, cancel, confirm }: DeleteSensorModalProps) 
 }
 
 export default DeleteSensorModal;
-

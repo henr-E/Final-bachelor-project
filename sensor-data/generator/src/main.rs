@@ -1,3 +1,4 @@
+use environment_config::env;
 use proto::sensor_data_ingest::sensor_data_file::FileFormat;
 use proto::sensor_data_ingest::{
     data_ingest_service_client::DataIngestServiceClient, JsonFileFormat, SensorDataFile,
@@ -12,15 +13,17 @@ use crate::sensors::Coordinates;
 mod data_generator;
 mod sensors;
 
-const INGEST_SERVICE_URL: &str = "http://0.0.0.0:8080";
+const DEFAULT_INGEST_SERVICE_URL: &str = "http://0.0.0.0:8080";
 
 #[tokio::main]
 async fn main() {
     // TODO: read address and port from environment
     // connect to DataIngestService
-    let mut client = DataIngestServiceClient::connect(INGEST_SERVICE_URL)
-        .await
-        .unwrap();
+    let mut client = DataIngestServiceClient::connect(dbg!(
+        env("SENSOR_DATA_INGESTOR_URL").unwrap_or(DEFAULT_INGEST_SERVICE_URL)
+    ))
+    .await
+    .unwrap();
 
     // create a SensorDataGenerator object
     let mut sensor_data_generator = SensorDataGenerator::new();

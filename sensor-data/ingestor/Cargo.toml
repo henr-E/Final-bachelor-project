@@ -8,8 +8,11 @@ edition = "2021"
 [dependencies]
 # Binary JSON encoding.
 bson = "2.9.0"
+# Load environment variables from `.env` file.
+environment-config = { workspace = true }
+# Get database config based on environment variables.
+database-config = { workspace = true }
 # Load environment variables from `.env` files in the current dir or up.
-dotenvy = "0.15.7"
 # Protobuf data format (only needed for expanded tonic macros).
 prost = "0.12.3"
 prost-types = "0.12.3"
@@ -36,5 +39,5 @@ tracing-subscriber = "0.3.18"
 ulid = "1.1.2"
 
 [build-dependencies]
-database-config = { path = "../../crates/database-config" }
+database-config = { workspace = true }
 tokio = { version = "1.36.0", features = ["macros", "rt"] }

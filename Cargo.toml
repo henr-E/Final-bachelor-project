@@ -15,4 +15,11 @@ members = [
 # Local crates are added here to avoid having to repeat the entire path.
 # These can be imported in your crate usig `<name>.workspace = true`.
 component-library = { path = "crates/component-library" }
+database-config = { path = "crates/database-config" }
 simulator-communication = { path = "crates/simulator-communication" }
+environment-config = { path = "crates/environment-config" }
+
+[profile.release-small]
+inherits = "release"
+lto = true
+opt-level = 'z'

@@ -364,6 +364,7 @@ impl PartialEq for MessageEntry {
 impl Eq for MessageEntry {}
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use crate::{
         message::{Message, MessageHandler},

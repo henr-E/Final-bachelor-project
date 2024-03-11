@@ -1,0 +1,24 @@
+frontend:build:
+  # Run the job under the `build` stage.
+  stage: build
+  # Add the `docker-exec` tag to run this job in a docker container.
+  tags: [docker-exec]
+  # Allows the job to be interrupted when already started.
+  interruptible: true
+  # Use a previously built `build-env` image as a base. It includes all
+  # dependencies needed to build and test.
+  extends: .build-env-image
+  artifacts:
+    paths:
+      # Nextjs build directory
+      - ./frontend/.next
+  # Start this job as soon as dependencies finish.
+  needs: ["build-env"]
+  # Run these commands before running the actual script.
+  before_script:
+    - cd frontend
+  # Run the following commands. Their failure/success defines pipeline success.
+  script:
+    - npm install
+    # Build the nextjs project using the `package.json` `scripts` section.
+    - npm run build

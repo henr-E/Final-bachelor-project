@@ -1,0 +1,36 @@
+# GitLab CI/CD configuration, heavily inspired by the `Mobility Simulator` group.
+
+variables:
+  BUILD_ENV_BASE_IMAGE_TAG: $CI_REGISTRY_IMAGE/build-env:dev
+  BUILD_ENV_IMAGE_TAG: $CI_REGISTRY_IMAGE/build-env:$CI_COMMIT_REF_SLUG
+
+workflow:
+  auto_cancel:
+    # Cancel jobs on the current pipeline when a new commit comes in.
+    # Only cancels the job when `interruptible` is `true`.
+    on_new_commit: interruptible
+  rules:
+    # Run the pipeline for merge requests only.
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+
+# Define the different stages in which the pipeline is devided.
+stages:
+  # Clean caches if necessary
+  - clean
+  # Create base images (build-env and test-env).
+  - prepare
+  # Try to build all parts of the project. (cargo workspace, nextjs frontend,
+  # proto files, etc.)
+  - build
+  # Run unit/integration and other tests.
+  - test
+  # Build dockerfiles and cache them into containers for deployment.
+  - release
+  # Deploy the project using the cached containers to the server
+  - deploy
+
+include:
+  - local: .gitlab/clean.yml
+  - local: .gitlab/common.yml
+  - local: .gitlab/cargo.yml
+  - local: .gitlab/frontend.yml

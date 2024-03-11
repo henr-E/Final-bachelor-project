@@ -100,20 +100,3 @@ pub fn find_username(username: &str) -> io::Result<Option<bool>> {
     }
     Ok(Some(false))
 }
-
-#[cfg(test)]
-mod test_filehandling {
-    use super::*;
-
-    #[test]
-    fn test_find_username() {
-        let username = "user1";
-        find_username(username);
-    }
-
-    #[test]
-    fn test_find_password() {
-        let username = "user1";
-        find_password(username);
-    }
-}

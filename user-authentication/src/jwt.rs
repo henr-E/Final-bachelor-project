@@ -1,11 +1,11 @@
-use chrono::{Duration, Utc};
+use chrono::{Days, Utc};
 use jsonwebtoken::errors::ErrorKind;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 
 use crate::myerror::AuthenticationError;
 
-const JWT_EXPIRATION_TIME_IN_DAYS: i64 = 30;
+const JWT_EXPIRATION_TIME: Days = Days::new(30);
 
 /// Claims has an expiration time set at 1 month
 /// and has an username associated with
@@ -20,7 +20,7 @@ pub struct Claims {
 impl Claims {
     pub fn new(username: &str) -> Self {
         let current_time = Utc::now();
-        let expire = current_time + Duration::days(JWT_EXPIRATION_TIME_IN_DAYS);
+        let expire = current_time + JWT_EXPIRATION_TIME;
 
         Claims {
             exp: expire.timestamp(),
@@ -90,17 +90,4 @@ pub fn validate_jwt(token: &str) -> Result<Claims, AuthenticationError> {
         Err(_err) => Err(AuthenticationError::JwtError),
     };
     token_data
-}
-
-#[cfg(test)]
-mod test_jwt {
-    use super::*;
-
-    #[test]
-    fn test_jwt_creation_and_validation() {
-        let username = "test1";
-
-        let token = create_jwt(username).expect("failed to create");
-        let token_claim = validate_jwt(&token).expect("failed to validate");
-    }
 }

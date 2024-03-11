@@ -1,9 +1,11 @@
+use database_config::database_url;
+use environment_config::env;
 use proto::sensor_data_ingest::{
     sensor_data_file::FileFormat as ProtoSensorDataFileFormat, DataIngestService,
     DataIngestServiceServer, ParseFailure, ParseFailureReason, ParseResult, SensorDataFile,
     SensorDataLines,
 };
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::PgPool;
 use std::{
     env,
     fmt::Debug,
@@ -13,7 +15,6 @@ use std::{
 use tokio::{
     fs::File,
     io::{AsyncWriteExt, BufWriter},
-    sync::OnceCell,
 };
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{debug, error, info, info_span, Instrument};
@@ -21,17 +22,9 @@ use ulid::Ulid;
 
 mod error;
 
-// these defaults are taken from the default timescaledb docker container configuration.
-const DEFAULT_DATABASE: &str = "sensor_archive";
-const DEFAULT_HOST: &str = "localhost";
-const DEFAULT_PASSWORD: &str = "password";
+/// Default port the application is run on.
 const DEFAULT_PORT: u16 = 8080;
-const DEFAULT_USER: &str = "postgres";
-const MAX_DB_CONNNECTIONS: u32 = 4;
 const UPLOAD_DIR: &str = "uploads";
-
-// Singleton to store once and then retrieve the database url.
-static DATABASE_URL: OnceCell<String> = OnceCell::const_new();
 
 /// Struct on which the service contract will be implemented. Can contain data when needed.
 #[derive(Debug)]
@@ -168,7 +161,7 @@ impl DataIngestService for DataIngestor {
 
     async fn ingest_sensor_data_stream(
         &self,
-        request: Request<Streaming<SensorDataLines>>,
+        _request: Request<Streaming<SensorDataLines>>,
     ) -> Result<Response<ParseResult>, Status> {
         todo!()
     }
@@ -250,38 +243,6 @@ fn proto_file_format_to_parser_file_format(
     })
 }
 
-/// Get or create the connection string for the archival database.
-///
-/// This function uses enviroment variables by default.
-/// If one of them is not defines, constants are used.
-async fn database_url() -> &'static str {
-    // Set the database url once and return the value. Every following call, no string allocation
-    // will be done, instead the previously calculated value is returned.
-    &DATABASE_URL
-        .get_or_init(|| async {
-            // Check if the url is defined in the enviroment variables. This could be the case
-            // since sqlx requires such an url to perform compiletime checks on the queries.
-            if let Ok(url) = env::var("DATABASE_URL") {
-                return url;
-            }
-            // Getting all configuration data ready to connect to the database.
-            let user_name: String =
-                env::var("SENSOR_DATA_INGESTOR_USER").unwrap_or(DEFAULT_USER.to_string());
-            let password: String =
-                env::var("SENSOR_DATA_INGESTOR_PASSWORD").unwrap_or(DEFAULT_PASSWORD.to_string());
-            let host: String =
-                env::var("SENSOR_DATA_INGESTOR_HOST").unwrap_or(DEFAULT_HOST.to_string());
-            let database: String =
-                env::var("SENSOR_DATA_INGESTOR_DATABASE").unwrap_or(DEFAULT_DATABASE.to_string());
-
-            format!(
-                "postgres://{}:{}@{}/{}",
-                user_name, password, host, database
-            )
-        })
-        .await
-}
-
 #[tokio::main]
 async fn main() -> Result<(), crate::error::DataIngestError> {
     // Register a tracing subscriber that will print tracing events standard out.
@@ -289,22 +250,11 @@ async fn main() -> Result<(), crate::error::DataIngestError> {
     // `with_max_level`.
     tracing_subscriber::fmt().init();
 
-    // Load environment variables from .env file in this directory or up. If not present ignore the
-    // error.
-    dotenvy::dotenv().ok();
-
     // Get connection url of the archival database.
-    let database_url = database_url().await;
+    let database_url = database_url("SENSOR_ARCHIVE", "SENSOR", Some("SENSOR"), Some("SENSOR"));
     // Connect to the archival database.
-    let pool = PgPoolOptions::new()
-        .max_connections(MAX_DB_CONNNECTIONS)
-        .connect(database_url)
-        .await?;
-
-    // Run database migrations and handle any errors that occur. The directory location is relative
-    // to the crates `Cargo.toml`.
-    sqlx::migrate!("../../migrations/sensor").run(&pool).await?;
-    info!("successfully connected to the archival database and ran migrations.");
+    let pool = PgPool::connect(&database_url).await?;
+    info!("successfully connected to the archival database.");
 
     // Create upload directory if it doesn't exist. We have to make sure that we always call the
     // the ingest service binary from the same directory, since the upload directory is dependent
@@ -322,7 +272,7 @@ async fn main() -> Result<(), crate::error::DataIngestError> {
     // Create a socket address from environment. Use default if environment variable is not set.
     let socket_address = SocketAddr::from((
         [0, 0, 0, 0],
-        std::env::var("SENSOR_DATA_INGESTOR_PORT")
+        env("SENSOR_DATA_INGESTOR_PORT")
             .ok()
             .and_then(|p| p.parse::<u16>().ok())
             .unwrap_or(DEFAULT_PORT),

@@ -1,5 +1,7 @@
 # Energy Simulator
 
+[![pipeline status](https://gitlab.ilabt.imec.be/r2l/students/bacheloreindwerk2324/energie-simulator/badges/dev/pipeline.svg)](https://gitlab.ilabt.imec.be/r2l/students/bacheloreindwerk2324/energie-simulator/-/commits/dev)
+
 Documentation can be found here: [documentation](./docs/README.md).
 
 ## Conventions
