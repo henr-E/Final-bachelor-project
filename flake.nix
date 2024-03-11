@@ -44,6 +44,8 @@
               docker
               # used to compile `.proto` files
               protobuf
+              # visualize `.dot`
+              graphviz
             ]
             # MacOS specific packages
             ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
