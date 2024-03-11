@@ -61,4 +61,3 @@ A proxy server is needed to use gRPC within a browser: https://www.envoyproxy.io
 - do not hardcode backend URLs
 - `src/store/` should not depend on `src/api/`, `src/app/`, etc.
 - do not commit/push hardcoded URLs in `src/api/urls.ts`
-

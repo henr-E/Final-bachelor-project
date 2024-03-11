@@ -13,4 +13,3 @@ export {
     twinServiceUrl,
     geoServiceUrl
 };
-

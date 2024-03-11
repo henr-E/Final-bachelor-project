@@ -47,6 +47,13 @@ pub mod sensor_data_ingest {
     }
 }
 
+pub mod auth {
+    pub use auth_proto::{authentication_service_client::*, authentication_service_server::*, *};
+    mod auth_proto {
+        tonic::include_proto!("authentication.auth");
+    }
+}
+
 pub mod simulation {
     pub use proto_simulation::*;
 

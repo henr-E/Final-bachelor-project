@@ -62,4 +62,3 @@ export function MapItem( mapItem: any) {
 }
 
 export default MapItem;
-

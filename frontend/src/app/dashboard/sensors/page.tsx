@@ -171,4 +171,3 @@ function SensorPage() {
 }
 
 export default SensorPage;
-

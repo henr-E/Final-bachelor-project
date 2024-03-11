@@ -10,6 +10,10 @@ import {
 import { useContext, useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { useRouter } from 'next/navigation';
+import { createChannel, createClient } from "nice-grpc-web";
+import { AuthenticationServiceDefinition } from '@/proto/authentication/auth';
+import {geoServiceUrl} from "@/api/urls";
+
 
 interface LoginModalProps {
     isLoginModalOpen: boolean;
@@ -41,6 +45,18 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
             const user: User = {
                 username: 'PLACEHOLDER'
             }
+            //todo henri made backend request here
+            const channel = createChannel(geoServiceUrl);
+            const client = createClient(AuthenticationServiceDefinition, channel);
+            try{
+                // @ts-ignore
+                const response = await client.loginUser({user});
+                const token = response.token;
+
+                console.log("token from backend", token)
+            }catch (error){
+                console.error("Failed", error);
+            }
 
             // context: application state is lost on refresh, we are required to persist the user's authorization token somewhere
             // options include: localStorage, (regular) cookies, HttpOnly cookies...
@@ -64,6 +80,8 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
 
         closeLoginModal();
     }
+
+
 
     const handleCancelButtonClick = () => {
         setUsername("");
@@ -99,4 +117,3 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
 }
 
 export default LoginModal;
-

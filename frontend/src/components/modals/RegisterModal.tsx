@@ -67,4 +67,3 @@ function RegisterModal({ isRegisterModalOpen, closeRegisterModal }: RegisterModa
 }
 
 export default RegisterModal;
-
