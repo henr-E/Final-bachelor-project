@@ -1,5 +1,7 @@
 # Energy Simulator
 
+Documentation can be found here: [documentation](./docs/README.md).
+
 ## Conventions
 
 All code should follow the conventions below before it can be merged.
