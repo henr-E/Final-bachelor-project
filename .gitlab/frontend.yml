@@ -8,6 +8,11 @@ frontend:build:
   # Use a previously built `build-env` image as a base. It includes all
   # dependencies needed to build and test.
   extends: .build-env-image
+  cache:
+    - key: $CI_COMMIT_REF_SLUG
+      paths:
+        - ./frontend/.next/cache
+        - ./frontend/node_modules
   artifacts:
     paths:
       # Nextjs build directory
@@ -19,6 +24,6 @@ frontend:build:
     - cd frontend
   # Run the following commands. Their failure/success defines pipeline success.
   script:
-    - npm install
+    - npm ci
     # Build the nextjs project using the `package.json` `scripts` section.
     - npm run build

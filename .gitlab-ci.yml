@@ -12,6 +12,8 @@ workflow:
   rules:
     # Run the pipeline for merge requests only.
     - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    # Run on `dev` and `prod` branch.
+    - if: $CI_COMMIT_REF_SLUG =~ /^(dev|prod)$/
 
 # Define the different stages in which the pipeline is devided.
 stages:
