@@ -42,7 +42,7 @@ function DashboardSidebar() {
                 <SidebarItem href="/dashboard/editor" label="Editor">
                     <MdEdit size={20} />
                 </SidebarItem>
-                <SidebarItem href="/dashboard/realtime" label="Realtime">
+                <SidebarItem href="/dashboard/realtime" label="RealTime">
                     <FaChartArea size={20} />
                 </SidebarItem>
                 <SidebarItem href="/dashboard/sensors" label="Sensors">
@@ -65,9 +65,6 @@ function DashboardSidebar() {
                 <SidebarItem href="/dashboard/zoning" label="Zoning">
                 </SidebarItem>
                 <SidebarItem href="/dashboard/forecasting" label="Forecasting">
-                </SidebarItem>
-                <span className="ms-2 text-gray-500">Law Enforcement</span>
-                <SidebarItem href="/dashboard/crime-monitoring" label="Crime Monitoring">
                 </SidebarItem>
             </div>
             <hr />

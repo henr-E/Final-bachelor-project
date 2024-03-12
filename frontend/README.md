@@ -1,5 +1,4 @@
 # Frontend
-
 ## Running the project
 1. generate the proto files (the files should appear in the frontend/src/proto directory)
 ```

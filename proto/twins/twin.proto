@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package twin;
+
+// The service definition.
+service TwinService {
+    rpc createTwin (createTwinRequest) returns (createTwinResponse);
+    rpc getAllTwins (getAllTwinsRequest) returns (getAllTwinsResponse);
+    rpc getBuildings (getBuildingsRequest) returns (getBuildingsResponse);
+}
+
+//creating twin
+message createTwinRequest {
+    string id = 1;
+    string name = 2;
+    double latitude = 3;
+    double longitude = 4;
+    int64 radius = 5;
+}
+message createTwinResponse {
+    bool createdTwin = 1;
+}
+//get all twins
+message getAllTwinsRequest {}
+
+message getAllTwinsResponse {
+    string twins = 1;
+}
+//get buildings for specific twin
+message getBuildingsRequest {
+    string id = 1;
+}
+message getBuildingsResponse {
+    string buildings = 1;
+}

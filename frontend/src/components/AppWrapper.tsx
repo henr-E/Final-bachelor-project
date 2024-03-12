@@ -2,6 +2,7 @@
 
 import { User, UserContext } from "@/store/user";
 import { useContext, useEffect } from "react";
+import { ToastContainer } from 'react-toastify';
 
 function AppWrapper({ children }: { children: React.ReactNode }) {
     const [userState, dispatchUser] = useContext(UserContext);
@@ -19,10 +20,11 @@ function AppWrapper({ children }: { children: React.ReactNode }) {
                 dispatchUser({ type: 'login', token, user });
             }
         }
-    }, [userState.token, userState.user]);
+    }, [dispatchUser, userState.token, userState.user]);
 
     return (
         <>
+            <ToastContainer />
             {children}
         </>
     );

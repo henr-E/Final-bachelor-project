@@ -3,18 +3,19 @@ import {LatLng, LeafletEventHandlerFnMap} from "leaflet";
 import {Button} from "flowbite-react";
 import {Icon} from "@mdi/react";
 import {
+    mdiCursorMove,
     mdiCursorPointer,
     mdiHomeLightningBoltOutline,
     mdiTransitConnectionHorizontal,
     mdiTransmissionTower,
-    mdiWindTurbine,
-    mdiCursorMove
+    mdiWindTurbine
 } from "@mdi/js";
 import {useContext, useEffect, useRef, useState} from "react";
-import {PredictionMap, PredictionMapProps} from "@/components/maps/PredictionMap"
+import {PredictionMapProps} from "@/components/maps/PredictionMap"
+import dynamic from "next/dynamic";
 import {TwinContext} from "@/store/twins";
 import {LineItem, MapItems, MapItemType, MarkerItem} from "@/components/maps/MapItem";
-import dynamic from "next/dynamic";
+import {PredictionMapMode} from "@/app/dashboard/GlobalVariables";
 
 enum CursorState {
     NONE,
@@ -42,6 +43,8 @@ const cursorToType = {
     [CursorState.PLACE_TURBINE]: MapItems.Turbine,
     [CursorState.CONNECT_ITEMS]: MapItems.Line,
 }
+
+const PredictionMapImport = dynamic<PredictionMapProps>(() => import("@/components/maps/PredictionMap"), { ssr: false });
 
 export function MapEditor() {
     const [twinState, dispatch] = useContext(TwinContext);
@@ -163,12 +166,14 @@ export function MapEditor() {
         click: (e) => {addMapItem(e.latlng);}
     } as LeafletEventHandlerFnMap;
 
-    if((typeof window !== "undefined")){
+
+
+    // if((typeof window !== "undefined")){
         return (
             <div className="flex h-full grid grid-cols-12">
-                <div className="h-full col-span-9" style={{ cursor: `url(${iconPaths[cursor]}), crosshair` }} >
+                <div className="h-full col-span-9" style={{ cursor: `url(${iconPaths[cursor]}) 15 15, crosshair` }} >
                     <div style={{height:"90%"}}>
-                        <PredictionMap twin={twinState.current} eventHandlers={eventHandlers} mapItems={mapItems}/>
+                        <PredictionMapImport twin={twinState.current} eventHandlers={eventHandlers} mapItems={mapItems} mode={PredictionMapMode.EditorMode}/>
                     </div>
                     <div className="flex justify-start gap-2">
                         <div className="bg-white gap-4 p-2 my-1 rounded-md flex justify-start">
@@ -209,10 +214,10 @@ export function MapEditor() {
                 </div>
             </div>
         );
-    }
-    else{
-        return <h1>Need a browser window</h1>
-    }
+    // }
+    // else{
+    //     return <h1>Need a browser window</h1>
+    // }
 
 }
 
