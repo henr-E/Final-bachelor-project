@@ -19,6 +19,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     tonic_build::configure().compile(
+        &[
+            "../../proto/twins/twin.proto"
+        ],
+        &["../../proto/twins"],
+    )?;
+
+    tonic_build::configure().compile(
         &["../../proto/authentication/auth.proto"],
         &["../../proto/authentication"],
     )?;

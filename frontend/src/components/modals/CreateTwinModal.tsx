@@ -1,103 +1,404 @@
 'use client';
-
+import React, {useContext, useEffect, useRef, useState} from 'react';
+import {Circle, MapContainer, Marker, Popup, TileLayer, useMap} from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import {Button, Modal, TextInput} from 'flowbite-react';
 import {Twin, TwinContext} from '@/store/twins';
+import L from 'leaflet';
+import Image from 'next/image';
+import ToastNotification from "@/components/notification/ToastNotification";
+import {createTwin} from "@/components/modals/CreateTwinModalBackend";
 
-import { City, CityContext, CityProvider } from '@/store/city';
-import {
-    Button,
-    Modal,
-    Label,
-    TextInput,
-    Dropdown
-} from 'flowbite-react'
-import { useContext, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import loadingGif from '@/../public/loader/loading.gif';
 
-interface CreateTwinProps {
-    isCreateTwinModalOpen : boolean;
+/**
+ * The icon to put on the map
+ */
+let defaultIcon = L.icon({
+    iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+L.Marker.prototype.options.icon = defaultIcon;
+
+/**
+ * convert the city or place to coordinates
+ * @param place
+ */
+async function geocodePlace(place: string): Promise<{ lat: number; lng: number; displayname: string } | null> {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(place)}`);
+    const data = await response.json();
+    if (data.length > 0) {
+        console.log(data[0])
+        return {
+            lat: Number(data[0].lat),
+            lng: Number(data[0].lon),
+            displayname: data[0].display_name
+        };
+    } else {
+        return null;
+    }
+}
+
+
+/**
+ * convert the coordinates to a city or place
+ * @param coords
+ */
+async function reverseGeocode(coords: [number, number]): Promise<{ displayname: string; } | null> {
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords[0]}&lon=${coords[1]}`);
+    const data = await response.json();
+    if (data && data.address) {
+        return {
+            displayname: data.display_name
+        };
+    } else {
+        return null;
+    }
+}
+
+
+/**
+ * change the view of the map
+ * @param center
+ * @param zoom
+ * @constructor
+ */
+function ChangeView({center, zoom}: { center: [number, number]; zoom: number }) {
+    const map = useMap();
+    map.setView(center, zoom);
+    return null;
+}
+
+export interface CreateTwinModalProps {
+    isCreateTwinModalOpen: boolean;
     closeCreateTwinModal: () => void;
 }
 
-
-function CreateTwinModalProps({ isCreateTwinModalOpen, closeCreateTwinModal}: CreateTwinProps) {
-    /**
-     * This is function is responsible for creating a new twin
-     * The user can select from a list of available cities.
-     */
-
-    const [TwinState, dispatchTwin] = useContext(TwinContext);
-    const [cityState, dispatchCity] = useContext(CityContext);
-
-    const [name, setName] = useState("");
-    const [city, setCity] = useState<City>();
-
-
-
-    const formRef = useRef<HTMLFormElement>(null);
-
-
-    const handleSelectButton = (city: City) => {
-        /**
-         * When a city is being selected it will call dispatchCity to switch the cityState
-         * to the new city
-         */
-        setCity(city)
-
-
-
-        const cityTwin = city.name + " Twin" // adding Twin manually, because it's being selected from City, so Antwerp Twin vs Antwerp
-        setName(cityTwin)
-        dispatchCity({type: 'switch_city', city})
-    }
-
-    const handleCreateTwinButton = () => {
-        /**
-         * This is will first perform a basic check if all field are fill out
-         * and will create a new twin based on the selected city
-         */
-        if (!formRef.current?.checkValidity()) {
-            formRef.current?.reportValidity();
-            return;
-        }
-
-        if(!city){
-            return;
-        }
-
-        // for now ID is hardcoded as it will be decided by the database
-        const twin:Twin = {id: "0", name: name, city:city};
-
-
-        dispatchTwin({type: 'create_twin', twin})
-
-        closeCreateTwinModal();
-    }
-
-
-    const handleCancelButtonClick = () => {
-        closeCreateTwinModal();
-    }
-
-    return (
-        <Modal show={isCreateTwinModalOpen} onClose={closeCreateTwinModal} style={{zIndex: 100}}>
-            <Modal.Header>Create Twin</Modal.Header>
-            <Modal.Body>
-                <form ref={formRef}>
-                <div>
-                <Dropdown pill color="indigo" theme={{ floating: { target: 'enabled:hover:bg-indigo-700 bg-indigo-600 text-white' } }} label={cityState.current?.name ?? 'Select city'} dismissOnClick>
-                    {cityState.cities.map((city, index) => (
-                    <Dropdown.Item key={index} onClick={() => handleSelectButton(city)}>{city.name}</Dropdown.Item>
-                    ))}
-                </Dropdown>
-                </div>
-                </form>
-            </Modal.Body>
-            <Modal.Footer>
-                    <Button pill color="indigo" onClick={handleCreateTwinButton}>Create</Button>
-                    <Button color="gray" onClick={handleCancelButtonClick}>Cancel</Button>
-                </Modal.Footer>
-        </Modal>
-    )
+interface ConfirmCreateTwinModalProps {
+    createTwinLoading: boolean;
+    isOpen: boolean;
+    onClose: () => void;
+    onBack: () => void;
+    data: {
+        place: string;
+        position: [number, number];
+        mapRadius: number;
+        customName: string;
+    };
 }
 
-export default CreateTwinModalProps;
+/**
+ * createTwinModal gives the inputs that are needed to create a new twin
+ * @param isCreateTwinModalOpen
+ * @param closeCreateTwinModal
+ * @constructor
+ */
+function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTwinModalProps) {
+    const [twinContext, dispatchTwin] = useContext(TwinContext)
+    const [place, setPlace] = useState<string>('');
+    const [coords, setCoords] = useState<string>('');
+    const [position, setPosition] = useState<[number, number]>([51.505, -0.09]);
+    const [mapRadius, setMapRadius] = useState<number>(400);
+    const [radiusInput, setRadiusInput] = useState<string>('400');
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [customName, setCustomName] = useState<string>('');
+    const [createTwinLoading, setCreateTwinLoading] = useState<boolean>(false);
+    const handleSearch = async (e: React.FormEvent) => {
+        e.preventDefault();
+        // Search by place if the place input is not empty and coords is empty
+        if (place !== '' && coords === '') {
+            const result = await geocodePlace(place);
+            if (result) {
+                setPosition([result.lat, result.lng]);
+                setCoords(`${result.lat},np ${result.lng}`);
+                setPlace(result.displayname);
+                const beforeComma = result.displayname.split(',')[0];
+                setCustomName(beforeComma);
+                ToastNotification("success", "Succesfully found location")
+            } else {
+                ToastNotification("warning", 'Place not found. Please try another search.');
+            }
+        }
+        // Search by coordinates if the coords input is not empty and place is empty
+        else if (coords !== '' && place === '') {
+            const [lat, lng] = coords.split(',').map(Number);
+            if (!isNaN(lat) && !isNaN(lng)) {
+                const result = await reverseGeocode([lat, lng]);
+                if (result) {
+                    setPosition([lat, lng]);
+                    setPlace(result.displayname);
+                    const beforeComma = result.displayname.split(',')[0];
+                    setCustomName(beforeComma);
+                    ToastNotification("success", "Succesfully found location")
+                } else {
+                    ToastNotification("warning", 'Coordinates not found. Please try another input.');
+                }
+            } else {
+                ToastNotification("warning", 'Invalid coordinates. Please enter in the format "lat, lng".');
+            }
+        }
+    };
+
+    /**
+     * when the focus of the mouse moves away from the radius input,
+     * check if the value is right
+     */
+    const handleRadiusBlur = () => {
+        const radiusValue = Number(radiusInput);
+        if (radiusValue < 400 || isNaN(radiusValue)) {
+            ToastNotification("warning", 'The provided radius is invalid. Using default 400.');
+            setMapRadius(400);
+            setRadiusInput('400');
+        } else {
+            setMapRadius(radiusValue);
+        }
+    };
+
+    /**
+     * open the second modal that asks for confirmation
+     */
+    const openConfirmModal = () => {
+        let twinExists = false;
+        if (place !== '') {
+            //check if the city already exists
+            for (let i = 0; i < twinContext.twins.length; i++) {
+                if (twinContext.twins[i].latitude == position[0] && twinContext.twins[i].longitude == position[1]) {
+                    twinExists = true;
+                    ToastNotification("warning", 'Hmm, looks like this twin already exists.');
+                }
+            }
+            if (!twinExists) {
+                setIsConfirmModalOpen(true);
+            }
+        } else {
+            ToastNotification("warning", 'Oops, you forgot to fill in the place or coordinates.');
+        }
+    };
+
+    /**
+     * backend request when modals are closed
+     */
+    const closeModalsAndCreateTwin = async () => {
+        setCreateTwinLoading(true);
+
+        const latitude = position[0];
+        const longitude = position[1];
+
+        const id = twinContext.twins.length.toString()
+        const response = await createTwin(id, customName, latitude, longitude, mapRadius);
+
+        // Create TWIN
+        if (response) {
+            let twin = {
+                id: twinContext.twins.length.toString(),
+                name: customName,
+                longitude: longitude,
+                latitude: latitude,
+                radius: mapRadius
+            };
+            dispatchTwin({type: 'create_twin', twin: twin})
+
+            setIsConfirmModalOpen(false);
+            closeCreateTwinModal();
+
+            resetAll();
+        }
+
+        setCreateTwinLoading(false);
+    };
+
+    const resetAll = () => {
+        //reset everything
+        setPlace('')
+        setCoords('')
+        setPosition([51.505, -0.09])
+        setMapRadius(400)
+        setRadiusInput('400')
+        setCustomName('')
+    }
+
+    /**
+     * when the confirmation modal is closed, all variables should be reset and all modals closed
+     */
+    const handleBack = () => {
+        setIsConfirmModalOpen(false); // Return to the first modal
+    };
+
+    return (
+        <>
+            {createTwinLoading && (
+                <>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        zIndex: 3000,
+                    }}>
+                        {/* Additional container div for image and text */}
+                        <div style={{textAlign: 'center'}}>
+                            <Image
+                                src={loadingGif} // Corrected path
+                                alt="Loading..."
+                                style={{marginBottom: '10px'}} // Adjust as needed
+                            />
+                            <h1>Creating your twin ...</h1>
+                        </div>
+                    </div>
+                </>
+            )}
+            <>
+                <Modal
+                    show={isCreateTwinModalOpen && !isConfirmModalOpen}
+                    onClose={() => {
+                        resetAll();
+                        closeCreateTwinModal();
+                    }}
+                    style={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        zIndex: 2000,
+                    }}
+                >
+                    <Modal.Header>Create Twin</Modal.Header>
+                    <Modal.Body>
+                        <div style={{display: 'flex', gap: '20px'}}>
+                            {/* Left Side - MapContainer */}
+                            <div style={{flex: 4, height: '400px'}}>
+                                <MapContainer center={position} zoom={12} style={{height: '100%', width: '100%'}}>
+                                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
+                                    <Marker position={position}></Marker>
+                                    <Circle center={position} radius={mapRadius ? Number(mapRadius) : 400}/>
+                                    <ChangeView center={position} zoom={12}/>
+                                </MapContainer>
+                            </div>
+
+                            {/* Right Side - Form Inputs */}
+                            <div style={{flex: 2, display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                                <div>
+                                    Enter a city, place or coordinates. Press Enter or Search.
+                                    <TextInput
+                                        type="text"
+                                        value={place}
+                                        placeholder="City or place"
+                                        onChange={(e) => {
+                                            setPlace(e.target.value);
+                                            if (coords) setCoords('');
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleSearch(e);
+                                        }}
+                                    />
+                                </div>
+                                <div>
+                                    <TextInput
+                                        type="text"
+                                        value={coords}
+                                        placeholder="Coordinates (lat, lng)"
+                                        onChange={(e) => {
+                                            setCoords(e.target.value);
+                                            if (place) setPlace('');
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleSearch(e);
+                                        }}
+                                    />
+                                </div>
+                                <Button onClick={handleSearch}>Search</Button>
+
+                                <div>
+                                    Enter the radius (in meters) and press Enter. Min:400 Max:3000
+                                    <TextInput
+                                        type="number"
+                                        value={radiusInput}
+                                        onChange={(e) => setRadiusInput(e.target.value)}
+                                        onBlur={handleRadiusBlur}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                handleRadiusBlur();
+                                            }
+                                        }}
+                                        max={3000}
+                                        min={400}
+                                    />
+                                </div>
+                                <div>
+                                    Enter a custom name or keep the suggested name.
+                                    <TextInput
+                                        type="text"
+                                        value={customName}
+                                        placeholder={"Custom name"}
+                                        onChange={(e) => {
+                                            setCustomName(e.target.value)
+                                        }}
+                                    />
+                                </div>
+                                <div style={{display: 'flex', gap: '20px'}}>
+                                    <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                                        <Button onClick={openConfirmModal}>Create</Button>
+                                    </div>
+                                    <div style={{flex: 1, display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                                        <Button color="gray" onClick={() => {
+                                            closeCreateTwinModal()
+                                            resetAll()
+                                        }}>Cancel</Button>
+                                    </div>
+
+                                </div>
+
+                            </div>
+                        </div>
+                    </Modal.Body>
+                    <Modal.Footer>
+
+                    </Modal.Footer>
+                </Modal>
+
+                <Modal
+                    show={isConfirmModalOpen}
+                    style={{
+                        filter: createTwinLoading ? "blur(2px)" : "none",
+                        transition: "filter 0.3s ease",
+                        zIndex: 2000,
+                    }}
+                    onClose={() => {
+                        resetAll();
+                        closeCreateTwinModal();
+                    }}
+                >
+                    <Modal.Header>Confirm Creation</Modal.Header>
+                    <Modal.Body>
+                        <b>Are you sure you want to create a twin with the following settings?</b>
+                        <h1>Custom Name: {customName}</h1>
+                        <div>Place: {place}</div>
+                        <div>Position: {position[0]} , {position[1]} </div>
+                        <div>Radius: {mapRadius} meters</div>
+                        <div style={{height: '400px', width: '100%', marginTop: '20px'}}>
+                            <MapContainer center={position} zoom={12} style={{height: '100%', width: '100%'}}>
+                                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
+                                <Marker position={position}></Marker>
+                                <Circle center={position} radius={mapRadius ? Number(mapRadius) : 4000}/>
+                                <ChangeView center={position} zoom={12}/>
+                            </MapContainer>
+                        </div>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button color="red" onClick={closeModalsAndCreateTwin}>Create</Button>
+                        <Button color="gray" onClick={handleBack}>Back</Button>
+                    </Modal.Footer>
+                </Modal>
+            </>
+        </>
+    );
+}
+
+export default CreateTwinModal;

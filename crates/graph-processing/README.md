@@ -60,7 +60,7 @@ impl Vertex for SomeVertex {
 impl MessageHandler<SomeMessage> for SomeVertex {
     fn handle(&mut self, ctx: VertexContext, message: SomeMessage) {
         // Do something to handle the message ...
-        // You can also send messages here. They will be handled in the next superstep.
+        // You can also send notification here. They will be handled in the next superstep.
         // If you would like to use this message in the `do_superstep` function itself, you 
         // could store it in the vertex.
         
@@ -90,7 +90,7 @@ impl MessageHandler<SomeMessage> for SomeVertex {
     }
 }
 
-/// A vertex can handle multiple types of messages.
+/// A vertex can handle multiple types of notification.
 impl MessageHandler<AnotherMessage> for SomeVertex {
     fn handle(&mut self, ctx: VertexContext, message: AnotherMessage) {
         // Ideally you would want to implement something for each handler!

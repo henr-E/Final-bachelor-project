@@ -46,18 +46,29 @@ export function MapItem( mapItem: any) {
         let lineItem = mapItem.itemData as LineItem;
         let positions: Array<LatLngExpression> = [];
         lineItem.items.forEach((marker) => {
-            if(!marker.inactive)
+            if(!marker.inactive) {
                 positions.push(marker.location);
+            }
         });
 
         return (
-            <Polyline eventHandlers={mapItem.itemData.eventHandler} positions={positions} />
+            <Polyline
+                eventHandlers={mapItem.itemData.eventHandler}
+                positions={positions}
+            />
         );
     }
 
     let item = mapItem.itemData as MarkerItem;
     return (
-        <Marker eventHandlers={item.eventHandler} position={item.location} icon={new leafLetIcon({ iconUrl: iconPaths[item.type], iconSize: [38, 45] })} />
+        <Marker
+            eventHandlers={item.eventHandler}
+            position={item.location}
+            icon={new leafLetIcon({
+                iconUrl: iconPaths[item.type],
+                iconSize: [30, 30]
+            })}
+        />
     );
 }
 

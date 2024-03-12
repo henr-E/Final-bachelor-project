@@ -1,19 +1,24 @@
-import MapDataRequest from "@/app/dashboard/realtime/mapDataRequest";
-import StringListRequest from "@/app/dashboard/realtime/stringRequest";
+'use client';
+import {PredictionMapProps} from "@/components/maps/PredictionMap";
+import {useContext} from "react";
+import {TwinContext} from "@/store/twins";
+import dynamic from "next/dynamic";
+import {PredictionMapMode} from "@/app/dashboard/GlobalVariables";
 
-function RealtimePage() {
+const PredictionMapImport = dynamic<PredictionMapProps>(() => import("@/components/maps/PredictionMap"), {ssr: false});
+
+function RealTimePage() {
+    const [twinState, dispatch] = useContext(TwinContext);
+
+    if (!twinState.current) {
+        return <h1>Please select a Twin</h1>
+    }
+
     return (
         <>
-            <p> map data:</p>
-            <MapDataRequest></MapDataRequest>
-
-            <h1>..............................</h1>
-
-
-            <p> string data:</p>
-            <StringListRequest></StringListRequest>
+            <PredictionMapImport twin={twinState.current} mode={PredictionMapMode.RealtimeMode}/>
         </>
-    );
+    )
 }
 
-export default RealtimePage
+export default RealTimePage

@@ -81,3 +81,15 @@ pub mod simulation {
         }
     }
 }
+
+pub mod frontend {
+    pub use proto_twin::twin_service_server::{TwinService, TwinServiceServer};
+    pub use proto_twin::twin_service_client::TwinServiceClient;
+
+    pub mod proto_twin {
+        tonic::include_proto!("twin");
+    }
+}
+
+
+
