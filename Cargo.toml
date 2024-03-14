@@ -6,9 +6,11 @@ members = [
     "manager",
     "sensor-data/ingestor",
     "sensor-data/generator",
-    "sensor-data/crates/parser", 
+    "sensor-data/crates/parser",
+    "simulators/energy-simulator",
+    "simulators/energy-supply-and-demand-simulator",
+    "simulators/time-simulator",
     "user-authentication",
-    "simulators/*",
 ]
 
 [workspace.dependencies]
@@ -17,6 +19,8 @@ members = [
 component-library = { path = "crates/component-library" }
 database-config = { path = "crates/database-config" }
 simulator-communication = { path = "crates/simulator-communication" }
+
+
 environment-config = { path = "crates/environment-config" }
 
 [profile.release-small]

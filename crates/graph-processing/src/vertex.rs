@@ -12,7 +12,7 @@
 //! }
 //! ```
 
-use std::{any::TypeId, marker::PhantomData};
+use std::{any::TypeId, hash::Hash, marker::PhantomData};
 
 use downcast_rs::{impl_downcast, Downcast};
 use thiserror::Error;
@@ -27,6 +27,7 @@ pub trait Vertex: Downcast + Send {
     /// Called on each superstep after processing incoming messages from the previous superstep.
     fn do_superstep(&mut self, ctx: VertexContext);
 }
+
 impl_downcast!(Vertex);
 
 /// Uniquely identifies a vertex of a certain type in the system.
@@ -35,6 +36,7 @@ impl_downcast!(Vertex);
 /// certain vertex.
 #[derive(Debug)]
 pub struct VertexId<V: Vertex> {
+    /// Ref's id
     pub(crate) id: u64,
     /// Needed in order for this struct to compile: we need to use each generic argument at least once.
     pub(crate) phantom: PhantomData<V>,
@@ -49,11 +51,24 @@ impl<V: Vertex> Clone for VertexId<V> {
     }
 }
 
+impl<V: Vertex> PartialEq for VertexId<V> {
+    fn eq(&self, other: &Self) -> bool {
+        self.id.eq(&other.id)
+    }
+}
+impl<V: Vertex> Eq for VertexId<V> {}
+impl<V: Vertex> Hash for VertexId<V> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state)
+    }
+}
+
 /// A reference to a certain vertex. It is guaranteed to always be valid.
 ///
 /// It cannot persist across supersteps. To refer to a vertex over multiple supersteps, look at [`VertexId`].
 #[derive(Debug)]
 pub struct VertexRef<'a, V: Vertex> {
+    /// Ref's id
     id: u64,
     /// Required in order for the struct to compile without needing to use the lifetime in one of the fields.
     phantom: PhantomData<&'a V>,
@@ -147,10 +162,33 @@ impl<'a> VertexContext<'a> {
         Ok(())
     }
 
-    /// Get all the neighbouring vertices of type V. This is, all vertices with an edge between this vertex with the edge facing
+    /// Get all the outgoing neighbouring vertices of type V. This is, all vertices with an edge between this vertex with the edge facing
     /// towards the neighbours.
-    pub fn get_neighbours<V: Vertex>(&self) -> impl Iterator<Item = VertexRef<V>> + 'a {
+    pub fn get_outgoing_neighbours<V: Vertex>(&self) -> impl Iterator<Item = VertexRef<V>> + 'a {
         self.self_item.outgoing_edges.iter().filter_map(|v| {
+            // Make sure the neighbour is of the right type. If not, don't return this neighbour.
+            if self
+                .graph
+                .vertices
+                .get(v)
+                .expect("neighbour to not yet be deleted")
+                .type_id
+                != TypeId::of::<V>()
+            {
+                return None;
+            }
+
+            Some(VertexRef {
+                id: *v,
+                phantom: PhantomData,
+            })
+        })
+    }
+
+    /// Get all the incoming neighbouring vertices of type V. This is, all vertices with an edge between this vertex with the edge facing
+    /// away from the neighbours.
+    pub fn get_incoming_neighbours<V: Vertex>(&self) -> impl Iterator<Item = VertexRef<V>> + 'a {
+        self.self_item.incoming_edges.iter().filter_map(|v| {
             // Make sure the neighbour is of the right type. If not, don't return this neighbour.
             if self
                 .graph

@@ -1,9 +1,9 @@
-# IDE config/cache files
 .idea/
+.vscode/
 .fleet/
 
-# Rust build artifacts
 target/
 
+.DS_Store
 # Environment configuration
 .env
