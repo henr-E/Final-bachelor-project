@@ -23,6 +23,7 @@ function create_database() {
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<- EOSQL
         CREATE USER $database ENCRYPTED PASSWORD '$password';
         CREATE DATABASE $database;
+        ALTER DATABASE $database OWNER TO $database;
         GRANT ALL PRIVILEGES ON DATABASE $database TO $database;
 EOSQL
     # cannot be indented because bash :< This comment can also not be placed on

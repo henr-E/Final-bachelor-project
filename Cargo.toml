@@ -3,7 +3,7 @@ resolver = "2"
 members = [
     "crates/*",
     "ui-backend",
-    "manager",
+    "simulation-manager",
     "sensor-data/ingestor",
     "sensor-data/generator",
     "sensor-data/crates/parser", 
@@ -16,6 +16,8 @@ members = [
 # These can be imported in your crate usig `<name>.workspace = true`.
 component-library = { path = "crates/component-library" }
 database-config = { path = "crates/database-config" }
+prost-value = { path = "crates/prost-value" }
+proto = { path = "crates/proto" }
 simulator-communication = { path = "crates/simulator-communication" }
 environment-config = { path = "crates/environment-config" }
 

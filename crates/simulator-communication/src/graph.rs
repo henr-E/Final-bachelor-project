@@ -3,17 +3,18 @@
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
+    hash::Hash,
     iter,
 };
 
 use crate::{component::Component, proto, simulator::ComponentsInfo, Value};
 
 /// A pointer to a specific Node in the [`Graph`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeId(usize);
 
 /// A pointer to a specific Edge in the [`Graph`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EdgeId(usize);
 
 /// A single node in the world with a location.
@@ -74,9 +75,15 @@ impl ComponentStorageMap {
 pub struct Graph {
     nodes: Vec<Node>,
     edges: Vec<Edge>,
+
     node_components: ComponentStorageMap,
     edge_components: ComponentStorageMap,
     global_components: ComponentStorageMap,
+
+    _edge_manager_id_to_index: HashMap<u64, EdgeId>,
+    edge_index_to_manager_id: HashMap<EdgeId, u64>,
+    _node_manager_id_to_index: HashMap<u64, NodeId>,
+    node_index_to_manager_id: HashMap<NodeId, u64>,
 }
 
 impl Graph {
@@ -337,13 +344,22 @@ impl Graph {
     }
 }
 
-fn create_items_and_components<F, T, I>(
+#[allow(clippy::type_complexity)]
+fn create_items_and_components<F, T, I, ID>(
     from: Vec<F>,
-    to_item: impl Fn(&F) -> T,
+    get_manger_id: impl Fn(&F) -> u64,
+    wrap_index: impl Fn(usize) -> ID,
+    to_item: impl Fn(&F) -> Option<T>,
     get_components: impl Fn(F) -> Option<I>,
     components_info: &ComponentsInfo,
-) -> Option<(Vec<T>, ComponentStorageMap)>
+) -> Option<(
+    Vec<T>,
+    ComponentStorageMap,
+    HashMap<u64, ID>,
+    HashMap<ID, u64>,
+)>
 where
+    ID: Clone + PartialEq + Eq + Hash,
     I: Iterator<Item = (String, Value)>,
 {
     let mut items = Vec::new();
@@ -356,8 +372,17 @@ where
         .map(|(type_id, info)| (*type_id, (Vec::<(usize, Value)>::new(), info)))
         .collect();
 
+    let mut index_to_manager_id = HashMap::new();
+    let mut manager_id_to_index = HashMap::new();
+
     for (i, item) in from.into_iter().enumerate() {
-        items.push(to_item(&item));
+        let manager_id = get_manger_id(&item);
+        let wraped_index = wrap_index(i);
+
+        index_to_manager_id.insert(wraped_index.clone(), manager_id);
+        manager_id_to_index.insert(manager_id, wraped_index);
+
+        items.push(to_item(&item)?);
 
         for (name, component) in get_components(item)? {
             let Some(type_id) = components_info.string_to_typeid.get(&name) else {
@@ -385,7 +410,12 @@ where
         .collect::<Option<_>>()?;
     let item_components = ComponentStorageMap { components };
 
-    Some((items, item_components))
+    Some((
+        items,
+        item_components,
+        manager_id_to_index,
+        index_to_manager_id,
+    ))
 }
 
 impl Graph {
@@ -397,30 +427,42 @@ impl Graph {
         let proto::Graph { nodes, edge } = state.graph?;
         let global_components = state.global_components;
 
-        let (nodes, node_components) = create_items_and_components(
-            nodes,
-            |node| Node {
-                latitude: node.latitude,
-                longitude: node.longitude,
-            },
-            |n| Some(n.components.into_iter()),
-            components_info,
-        )?;
+        let (nodes, node_components, node_manager_id_to_index, node_index_to_manager_id) =
+            create_items_and_components(
+                nodes,
+                |node| node.id,
+                NodeId,
+                |node| {
+                    Some(Node {
+                        latitude: node.latitude,
+                        longitude: node.longitude,
+                    })
+                },
+                |n| Some(n.components.into_iter()),
+                components_info,
+            )?;
 
-        let (edges, edge_components) = create_items_and_components(
-            edge,
-            |edge| Edge {
-                from: NodeId(edge.from as usize),
-                to: NodeId(edge.to as usize),
-            },
-            |e| Some(iter::once((e.component_type, e.component_data?))),
-            components_info,
-        )?;
+        let (edges, edge_components, edge_manager_id_to_index, edge_index_to_manager_id) =
+            create_items_and_components(
+                edge,
+                |edge| edge.id,
+                EdgeId,
+                |edge| {
+                    Some(Edge {
+                        from: *node_manager_id_to_index.get(&edge.from)?,
+                        to: *node_manager_id_to_index.get(&edge.to)?,
+                    })
+                },
+                |e| Some(iter::once((e.component_type, e.component_data?))),
+                components_info,
+            )?;
 
         // TODO: clone not needed if create_items_and_components would not be used like this
-        let (_, global_components) = create_items_and_components(
+        let (_, global_components, _, _) = create_items_and_components(
             vec![()],
-            |()| (),
+            |()| 0,
+            |i| i,
+            |()| Some(()),
             move |()| Some(global_components.clone().into_iter()),
             components_info,
         )?;
@@ -431,6 +473,11 @@ impl Graph {
             node_components,
             edge_components,
             global_components,
+
+            node_index_to_manager_id,
+            _node_manager_id_to_index: node_manager_id_to_index,
+            edge_index_to_manager_id,
+            _edge_manager_id_to_index: edge_manager_id_to_index,
         })
     }
 
@@ -451,9 +498,11 @@ impl Graph {
         let mut nodes: Vec<_> = self
             .nodes
             .into_iter()
-            .map(|n| proto::Node {
+            .enumerate()
+            .map(|(index, n)| proto::Node {
                 longitude: n.longitude,
                 latitude: n.latitude,
+                id: self.node_index_to_manager_id[&NodeId(index)],
                 components: HashMap::new(),
             })
             .collect();
@@ -472,16 +521,7 @@ impl Graph {
             }
         }
 
-        let mut edges: Vec<_> = self
-            .edges
-            .into_iter()
-            .map(|e| proto::Edge {
-                from: e.from.0 as u64,
-                to: e.to.0 as u64,
-                component_type: String::new(),
-                component_data: None,
-            })
-            .collect();
+        let mut edges = Vec::new();
 
         for (type_id, component_storage) in self.edge_components.components {
             let Some(info) = components_info.output_components.get(&type_id) else {
@@ -490,9 +530,14 @@ impl Graph {
             };
 
             for (i, component) in (info.components_to_values)(component_storage) {
-                let edge = edges.get_mut(i)?;
-                edge.component_type = info.name.clone();
-                edge.component_data = Some(component);
+                let edge = &self.edges[i];
+                edges.push(proto::Edge {
+                    from: self.node_index_to_manager_id[&edge.from],
+                    to: self.node_index_to_manager_id[&edge.to],
+                    id: self.edge_index_to_manager_id[&EdgeId(i)],
+                    component_type: info.name.clone(),
+                    component_data: Some(component),
+                });
             }
         }
 
@@ -510,15 +555,18 @@ impl Graph {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::*;
     use crate::{component::ComponentPiece, Component, ComponentPiece};
+
+    use super::*;
 
     #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
     #[component(name = "test-node", ty = "node")]
     struct TestNodeComp(u32);
+
     #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
     #[component(name = "test-edge", ty = "edge")]
     struct TestEdgeComp(u32);
+
     #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
     #[component(name = "test-global", ty = "global")]
     struct TestGlobalComp(u32);
@@ -526,9 +574,11 @@ mod tests {
     #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
     #[component(name = "test-node2", ty = "node")]
     struct TestNodeComp2(u32);
+
     #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
     #[component(name = "test-edge2", ty = "edge")]
     struct TestEdgeComp2(u32);
+
     #[derive(ComponentPiece, Component, Clone, Copy, Debug, PartialEq, Eq)]
     #[component(name = "test-global2", ty = "global")]
     struct TestGlobalComp2(u32);
@@ -548,40 +598,46 @@ mod tests {
             .map(|(i, c)| ::proto::simulation::Node {
                 longitude: (i + 1) as f64,
                 latitude: (i + 1) as f64,
+                id: (i * 2) as u64,
                 components: HashMap::from([(TestNodeComp::get_name(), c.to_value())]),
             })
             .collect();
 
-        let (nodes, node_components) = create_items_and_components(
-            nodes,
-            |node| Node {
-                latitude: node.latitude,
-                longitude: node.longitude,
-            },
-            |n| Some(n.components.into_iter()),
-            &components_info,
-        )
-        .unwrap();
+        let (nodes, node_components, edge_manager_id_to_index, edge_index_to_manager_id) =
+            create_items_and_components(
+                nodes,
+                |node| node.id,
+                NodeId,
+                |node| {
+                    Some(Node {
+                        latitude: node.latitude,
+                        longitude: node.longitude,
+                    })
+                },
+                |n| Some(n.components.into_iter()),
+                &components_info,
+            )
+            .unwrap();
 
         assert_eq!(
             nodes,
             vec![
                 Node {
                     latitude: 1.0,
-                    longitude: 1.0
+                    longitude: 1.0,
                 },
                 Node {
                     latitude: 2.0,
-                    longitude: 2.0
+                    longitude: 2.0,
                 },
                 Node {
                     latitude: 3.0,
-                    longitude: 3.0
+                    longitude: 3.0,
                 },
                 Node {
                     latitude: 4.0,
-                    longitude: 4.0
-                }
+                    longitude: 4.0,
+                },
             ]
         );
 
@@ -595,6 +651,25 @@ mod tests {
         assert_eq!(
             component_storage.components,
             vec![(0, c1), (1, c2), (2, c3), (3, c4)]
+        );
+
+        assert_eq!(
+            edge_manager_id_to_index,
+            HashMap::from([
+                (0, NodeId(0)),
+                (2, NodeId(1)),
+                (4, NodeId(2)),
+                (6, NodeId(3)),
+            ])
+        );
+        assert_eq!(
+            edge_index_to_manager_id,
+            HashMap::from([
+                (NodeId(0), 0),
+                (NodeId(1), 2),
+                (NodeId(2), 4),
+                (NodeId(3), 6),
+            ])
         );
     }
 
@@ -618,6 +693,7 @@ mod tests {
         .map(|(i, c)| ::proto::simulation::Node {
             longitude: (i + 1) as f64,
             latitude: (i + 1) as f64,
+            id: (i * 2) as u64,
             components: HashMap::from([(TestNodeComp::get_name(), c.to_value())]),
         })
         .collect();
@@ -630,15 +706,17 @@ mod tests {
             .insert(TestNodeComp2::get_name(), TestNodeComp2(3).to_value());
 
         let mut edges: Vec<_> = [
-            (0, 1, TestEdgeComp(1)),
-            (1, 2, TestEdgeComp(2)),
-            (3, 2, TestEdgeComp(3)),
-            (0, 2, TestEdgeComp(4)),
+            (0, 2, TestEdgeComp(1)),
+            (2, 4, TestEdgeComp(2)),
+            (6, 4, TestEdgeComp(3)),
+            (0, 4, TestEdgeComp(4)),
         ]
         .into_iter()
-        .map(|(from, to, c)| ::proto::simulation::Edge {
+        .enumerate()
+        .map(|(i, (from, to, c))| ::proto::simulation::Edge {
             from,
             to,
+            id: i as u64,
             component_type: TestEdgeComp::get_name(),
             component_data: Some(c.to_value()),
         })
@@ -646,13 +724,15 @@ mod tests {
 
         edges.push(::proto::simulation::Edge {
             from: 0,
-            to: 1,
+            to: 2,
+            id: 100,
             component_type: TestEdgeComp2::get_name(),
             component_data: Some(TestEdgeComp2(5).to_value()),
         });
         edges.push(::proto::simulation::Edge {
             from: 0,
-            to: 3,
+            to: 6,
+            id: 101,
             component_type: TestEdgeComp2::get_name(),
             component_data: Some(TestEdgeComp2(6).to_value()),
         });
@@ -684,7 +764,7 @@ mod tests {
                     NodeId(0),
                     &Node {
                         latitude: 1.0,
-                        longitude: 1.0
+                        longitude: 1.0,
                     },
                     &TestNodeComp(1)
                 ),
@@ -692,7 +772,7 @@ mod tests {
                     NodeId(1),
                     &Node {
                         latitude: 2.0,
-                        longitude: 2.0
+                        longitude: 2.0,
                     },
                     &TestNodeComp(2)
                 ),
@@ -700,7 +780,7 @@ mod tests {
                     NodeId(2),
                     &Node {
                         latitude: 3.0,
-                        longitude: 3.0
+                        longitude: 3.0,
                     },
                     &TestNodeComp(3)
                 ),
@@ -708,7 +788,7 @@ mod tests {
                     NodeId(3),
                     &Node {
                         latitude: 4.0,
-                        longitude: 4.0
+                        longitude: 4.0,
                     },
                     &TestNodeComp(4)
                 ),
@@ -725,7 +805,7 @@ mod tests {
                     NodeId(0),
                     &Node {
                         latitude: 1.0,
-                        longitude: 1.0
+                        longitude: 1.0,
                     },
                     &TestNodeComp2(1)
                 ),
@@ -733,7 +813,7 @@ mod tests {
                     NodeId(2),
                     &Node {
                         latitude: 3.0,
-                        longitude: 3.0
+                        longitude: 3.0,
                     },
                     &TestNodeComp2(3)
                 ),
@@ -750,7 +830,7 @@ mod tests {
                     EdgeId(0),
                     &Edge {
                         from: NodeId(0),
-                        to: NodeId(1)
+                        to: NodeId(1),
                     },
                     &TestEdgeComp(1)
                 ),
@@ -758,7 +838,7 @@ mod tests {
                     EdgeId(1),
                     &Edge {
                         from: NodeId(1),
-                        to: NodeId(2)
+                        to: NodeId(2),
                     },
                     &TestEdgeComp(2)
                 ),
@@ -766,7 +846,7 @@ mod tests {
                     EdgeId(2),
                     &Edge {
                         from: NodeId(3),
-                        to: NodeId(2)
+                        to: NodeId(2),
                     },
                     &TestEdgeComp(3)
                 ),
@@ -774,7 +854,7 @@ mod tests {
                     EdgeId(3),
                     &Edge {
                         from: NodeId(0),
-                        to: NodeId(2)
+                        to: NodeId(2),
                     },
                     &TestEdgeComp(4)
                 ),
@@ -791,7 +871,7 @@ mod tests {
                     EdgeId(4),
                     &Edge {
                         from: NodeId(0),
-                        to: NodeId(1)
+                        to: NodeId(1),
                     },
                     &TestEdgeComp2(5)
                 ),
@@ -799,7 +879,7 @@ mod tests {
                     EdgeId(5),
                     &Edge {
                         from: NodeId(0),
-                        to: NodeId(3)
+                        to: NodeId(3),
                     },
                     &TestEdgeComp2(6)
                 ),
@@ -859,7 +939,7 @@ mod tests {
                 NodeId(2),
                 &Node {
                     latitude: 3.0,
-                    longitude: 3.0
+                    longitude: 3.0,
                 },
                 &TestEdgeComp(2)
             ),]
@@ -875,7 +955,7 @@ mod tests {
                     NodeId(0),
                     &Node {
                         latitude: 1.0,
-                        longitude: 1.0
+                        longitude: 1.0,
                     },
                     &TestEdgeComp(1)
                 ),
@@ -883,10 +963,10 @@ mod tests {
                     NodeId(2),
                     &Node {
                         latitude: 3.0,
-                        longitude: 3.0
+                        longitude: 3.0,
                     },
                     &TestEdgeComp(2)
-                )
+                ),
             ]
         );
     }

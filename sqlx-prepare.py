@@ -22,6 +22,6 @@ os.mkdir(SQLX_BUILD_DIR)
 
 os.environ["SQLX_OFFLINE"] = "false"
 os.environ["SQLX_OFFLINE_DIR"] = SQLX_BUILD_DIR
-subprocess.run(["cargo", "check", "--workspace"])
+subprocess.run(["cargo", "check", "--workspace", "--tests"])
 
 shutil.copytree(SQLX_BUILD_DIR, SQLX_PREPARE_DIR)

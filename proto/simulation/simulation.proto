@@ -88,16 +88,20 @@ message Node {
   // A mapping of component types (names) to the actual data for those components.
   // The data should be structured as was specified by the simulator.
   map<string, google.protobuf.Value> components = 3;
+  // The id of the node in the database
+  uint64 id = 4;
 }
 
 // Denotes a relation between two different nodes. Contains exactly one component type.
 message Edge {
-  // The node at which the edge starts.
+  // The id of the node at which the edge starts.
   uint64 from = 1;
-  // The node to which the edge arrives.
+  // The id of the node to which the edge arrives.
   uint64 to = 2;
   // The name of the type of component contained in this edge.
   string component_type = 3;
   // The data of the component in this edge.
   google.protobuf.Value component_data = 4;
+  // The id of the edge in the database
+  uint64 id = 5;
 }
