@@ -77,4 +77,3 @@ This is solved by using the [`database-config`](./crates/database-config) crate 
 An example on how to use it can be found in the same directory.
 
 When making use of the `database-config` crate, you can toggle the migrations at compile time with the environment variable `COMPILE_TIME_MIGRATIONS` set in the `.env`.
-

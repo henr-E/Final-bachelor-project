@@ -9,11 +9,11 @@ use std::{
 use crate::{component::Component, proto, simulator::ComponentsInfo, Value};
 
 /// A pointer to a specific Node in the [`Graph`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NodeId(usize);
 
 /// A pointer to a specific Edge in the [`Graph`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EdgeId(usize);
 
 /// A single node in the world with a location.
