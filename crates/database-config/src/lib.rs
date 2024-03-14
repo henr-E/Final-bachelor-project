@@ -3,6 +3,7 @@ use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::Path,
 };
+
 use thiserror::Error;
 
 const SHOULD_DO_MIGRATIONS_VAR: &str = "DO_MIGRATIONS";
@@ -48,7 +49,6 @@ pub async fn do_migrations_if_enabled(
     let migrator = sqlx::migrate::Migrator::new(migrations_path.as_ref()).await?;
     let db_pool = sqlx::PgPool::connect(&db_url).await?;
     migrator.run(&db_pool).await?;
-
     // Set table permissions.
     sqlx::query(&format!(
         "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public to {}",
@@ -82,6 +82,28 @@ pub fn set_database_url(
     println!(
         "cargo:rustc-env=DATABASE_URL={}",
         postgres_database_url(database, password, host_and_port, database)
+    );
+    Ok(())
+}
+
+/// Sets the `DATABASE_URL` rustc environment variable just like set_database_url but for the admin user
+pub fn set_database_url_admin(
+    db_name_env: &str,
+    host_and_port: Option<impl Into<SocketAddr>>,
+) -> Result<(), Error> {
+    let sqlx_offline = env("SQLX_OFFLINE").map(is_truthy).unwrap_or(false);
+    if sqlx_offline {
+        return Ok(());
+    }
+    let database = env(format!("{}{}", db_name_env, "_DB_NAME"))?;
+    println!(
+        "cargo:rustc-env=DATABASE_URL={}",
+        postgres_database_url(
+            "postgres",
+            env("POSTGRES_USER_PASSWORD")?,
+            host_and_port,
+            database
+        )
     );
     Ok(())
 }

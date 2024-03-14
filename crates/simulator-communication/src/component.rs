@@ -220,7 +220,10 @@ mod tests {
         }
 
         assert_eq!(NodeEx::get_name(), "node-example".to_owned());
-        assert_eq!(NodeEx::get_spec().r#type, proto::ComponentType::Node.into());
+        assert_eq!(
+            NodeEx::get_spec().r#type,
+            Into::<i32>::into(proto::ComponentType::Node)
+        );
 
         #[derive(ComponentPiece, Component)]
         #[component(name = "edge-example", ty = "edge")]
@@ -230,7 +233,10 @@ mod tests {
         }
 
         assert_eq!(EdgeEx::get_name(), "edge-example".to_owned());
-        assert_eq!(EdgeEx::get_spec().r#type, proto::ComponentType::Edge.into());
+        assert_eq!(
+            EdgeEx::get_spec().r#type,
+            Into::<i32>::into(proto::ComponentType::Edge)
+        );
 
         #[derive(ComponentPiece, Component)]
         #[component(name = "global-example", ty = "global")]
@@ -242,7 +248,7 @@ mod tests {
         assert_eq!(GlobalEx::get_name(), "global-example".to_owned());
         assert_eq!(
             GlobalEx::get_spec().r#type,
-            proto::ComponentType::Global.into()
+            Into::<i32>::into(proto::ComponentType::Global)
         );
     }
 

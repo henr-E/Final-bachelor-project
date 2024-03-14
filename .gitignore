@@ -7,3 +7,6 @@ target/
 
 # Environment configuration
 .env
+
+# Cargo generated files
+Cargo.lock

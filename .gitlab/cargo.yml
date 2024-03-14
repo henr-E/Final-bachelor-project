@@ -40,7 +40,7 @@ cargo:build:
     # Build binaries, libraries, examples, tests, etc. for the current rust
     # TARGET. The name `all-targets` does not mean all rust targets. It is an
     # alias for `--bins --libs --examples ...`.
-    - cargo build --profile release-small --verbose --locked --workspace --all-targets --all-features # --target $TARGET
+    - cargo build --profile release-small --verbose --locked --workspace --all-targets # --target $TARGET
 
 cargo:clippy:
   # Run the job under the `test` stage.
@@ -61,7 +61,7 @@ cargo:clippy:
     # # Install clippy to the toolchain
     # - rustup component add clippy
     # Run cargo clippy and disallow warnings.
-    - cargo clippy --profile release-small --locked --workspace --all-targets --all-features -- -D warnings
+    - cargo clippy --profile release-small --locked --workspace --all-targets -- -D warnings
 
 # Run all tests in the cargo workspace.
 # This includes unit tests integration and examples.
@@ -81,7 +81,7 @@ cargo:test:all:
     - cargo:build
   # Run the following commands. Their failure/success defines pipeline success.
   script:
-    - cargo test --profile release-small --verbose --locked --workspace --all-targets --all-features
+    - cargo test --profile release-small --verbose --locked --workspace --all-targets
 
 # Run tests in documentation of cargo crates.
 cargo:test:doc:
@@ -100,4 +100,4 @@ cargo:test:doc:
     - cargo:build
   # Run the following commands. Their failure/success defines pipeline success.
   script:
-    - cargo test --profile release-small --verbose --locked --workspace --all-features --doc
+    - cargo test --profile release-small --verbose --locked --workspace --doc

@@ -1,0 +1,25 @@
+[package]
+name = "simulation-manager"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0"
+async-stream = "0.3.5"
+dotenvy = "0.15.7"
+prost-types = "0.12.3"
+prost-value.workspace = true
+proto.workspace = true
+serde_json = "1.0.114"
+sqlx = { version = "0.7.3", features = ["runtime-tokio", "tls-rustls", "postgres", "json", "chrono"] }
+tokio = { version = "1.36.0", features = ["full"] }
+tokio-stream = "0.1.14"
+tonic = "0.11.0"
+
+[build-dependencies]
+database-config.workspace = true
+tokio = { version = "1.36.0", features = ["macros", "rt"] }
+
+[features]
+default = []
+db_test = [] # enable if you want to enable tests with database queries
