@@ -15,6 +15,7 @@ services:
         ${SENSOR_TRANSFORMED_DB_NAME}:${SENSOR_DB_PASSWORD},
         ${SIMULATION_MANAGER_DB_NAME}:${SIMULATION_MANAGER_DB_PASSWORD},
         ${SIMULATION_MANAGER_TEST_DB_NAME}:${SIMULATION_MANAGER_DB_PASSWORD},
+        ${UI_BACKEND_DB_NAME}:${UI_BACKEND_DB_PASSWORD},
       # Store db data in different directory. See `PGDATA` section of
       # https://hub.docker.com/_/postgres/.
       PGDATA: /var/lib/postgresql/data/pgdata
