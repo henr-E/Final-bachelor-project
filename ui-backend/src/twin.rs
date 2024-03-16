@@ -1,19 +1,15 @@
+use proto::frontend::proto_twin::{
+    CreateTwinRequest, CreateTwinResponse, GetAllTwinsRequest, GetAllTwinsResponse,
+    GetBuildingsRequest, GetBuildingsResponse,
+};
+use proto::frontend::TwinService;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value, to_string};
+use serde_json::{json, to_string, Value};
 use std::collections::HashMap;
 use std::path::Path;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tonic::{Request, Response, Status};
-use proto::frontend::proto_twin::{
-    CreateTwinResponse,
-    CreateTwinRequest,
-    GetAllTwinsResponse,
-    GetAllTwinsRequest,
-    GetBuildingsResponse,
-    GetBuildingsRequest,
-};
-use proto::frontend::TwinService;
 
 pub struct MyTwinService;
 
@@ -30,7 +26,9 @@ async fn append_twin_to_file(data: &Twin, file_path: &str) -> Result<(), Status>
     // Appends a twin to a file, creating or updating the file as needed.
     let mut twins = if Path::new(file_path).exists() {
         // Load existing twins from file, or start with empty list if any error.
-        let content = fs::read_to_string(file_path).await.map_err(|e| Status::internal(format!("Failed to read twins file: {}", e)))?;
+        let content = fs::read_to_string(file_path)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to read twins file: {}", e)))?;
         serde_json::from_str::<Vec<Twin>>(&content).unwrap_or_else(|_| vec![])
     } else {
         vec![]
@@ -38,20 +36,34 @@ async fn append_twin_to_file(data: &Twin, file_path: &str) -> Result<(), Status>
 
     twins.push(data.clone()); // Add the new twin to the list.
 
-    let twin_to_write = to_string(&twins).map_err(|e| Status::internal(format!("Failed to serialize twins: {}", e)))?;
+    let twin_to_write = to_string(&twins)
+        .map_err(|e| Status::internal(format!("Failed to serialize twins: {}", e)))?;
 
-    let file = OpenOptions::new().write(true).create(true).truncate(true).open(file_path).await.map_err(|e| Status::internal(format!("Failed to open file for twins: {}", e)))?;
+    let file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(file_path)
+        .await
+        .map_err(|e| Status::internal(format!("Failed to open file for twins: {}", e)))?;
     let mut writer = BufWriter::new(file); // Prepare the file writer.
 
-    writer.write_all(twin_to_write.as_bytes()).await.map_err(|e| Status::internal(format!("Error writing to file for twins: {}", e)))?;
-    writer.flush().await.map_err(|e| Status::internal(format!("Error flushing file for twins: {}", e)))?;
+    writer
+        .write_all(twin_to_write.as_bytes())
+        .await
+        .map_err(|e| Status::internal(format!("Error writing to file for twins: {}", e)))?;
+    writer
+        .flush()
+        .await
+        .map_err(|e| Status::internal(format!("Error flushing file for twins: {}", e)))?;
 
     Ok(())
 }
 
 async fn transform_and_save_geojson(data: &str, file_path: &str) -> Result<(), Status> {
     // Converts API response to GeoJSON and saves it to a file.
-    let api_response: Value = serde_json::from_str(data).map_err(|e| Status::internal(format!("Failed to parse response data: {}", e)))?;
+    let api_response: Value = serde_json::from_str(data)
+        .map_err(|e| Status::internal(format!("Failed to parse response data: {}", e)))?;
 
     let mut node_map: HashMap<i64, (f64, f64)> = HashMap::new(); // Maps node IDs to their lat-lon.
     let mut features: Vec<Value> = vec![]; // Will hold the GeoJSON features.
@@ -70,7 +82,10 @@ async fn transform_and_save_geojson(data: &str, file_path: &str) -> Result<(), S
         for element in elements {
             // Create GeoJSON features for ways using the nodes.
             if let Some("way") = element["type"].as_str() {
-                let nodes = element["nodes"].as_array().unwrap_or(&vec![]).iter()
+                let nodes = element["nodes"]
+                    .as_array()
+                    .unwrap_or(&vec![])
+                    .iter()
                     .filter_map(|node_id| node_map.get(&node_id.as_i64().unwrap()).cloned())
                     .map(|(lat, lon)| vec![lon, lat])
                     .collect::<Vec<_>>();
@@ -94,13 +109,26 @@ async fn transform_and_save_geojson(data: &str, file_path: &str) -> Result<(), S
         "features": features,
     }); // Construct the final GeoJSON object.
 
-    let geojson_to_write = to_string(&geojson).map_err(|e| Status::internal(format!("Failed to serialize GeoJSON: {}", e)))?;
+    let geojson_to_write = to_string(&geojson)
+        .map_err(|e| Status::internal(format!("Failed to serialize GeoJSON: {}", e)))?;
 
-    let file = OpenOptions::new().write(true).create(true).truncate(true).open(file_path).await.map_err(|e| Status::internal(format!("Failed to open file for GeoJSON: {}", e)))?;
+    let file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(file_path)
+        .await
+        .map_err(|e| Status::internal(format!("Failed to open file for GeoJSON: {}", e)))?;
     let mut writer = BufWriter::new(file); // Prepare the file writer for GeoJSON.
 
-    writer.write_all(geojson_to_write.as_bytes()).await.map_err(|e| Status::internal(format!("Error writing GeoJSON to file: {}", e)))?;
-    writer.flush().await.map_err(|e| Status::internal(format!("Error flushing GeoJSON file: {}", e)))?;
+    writer
+        .write_all(geojson_to_write.as_bytes())
+        .await
+        .map_err(|e| Status::internal(format!("Error writing GeoJSON to file: {}", e)))?;
+    writer
+        .flush()
+        .await
+        .map_err(|e| Status::internal(format!("Error flushing GeoJSON file: {}", e)))?;
 
     Ok(())
 }
@@ -115,7 +143,8 @@ impl TwinService for MyTwinService {
         // Handles creation of a digital twin.
         let req = request.into_inner(); // Extracts the inner request object.
 
-        let twin = Twin { // Constructs a Twin instance from the request.
+        let twin = Twin {
+            // Constructs a Twin instance from the request.
             id: req.id,
             name: req.name,
             latitude: req.latitude,
@@ -123,17 +152,21 @@ impl TwinService for MyTwinService {
             radius: req.radius,
         };
 
-        let query = format!( // Builds the Overpass API query.
-                             "[out:json][timeout:25];(\
+        let query = format!(
+            // Builds the Overpass API query.
+            "[out:json][timeout:25];(\
                     way(around:{radius},{lat},{lon})[\"building\"];\
                     relation(around:{radius},{lat},{lon})[\"building\"];\
             );out body; >; out skel qt;",
-                             radius = req.radius, lat = req.latitude, lon = req.longitude
+            radius = req.radius,
+            lat = req.latitude,
+            lon = req.longitude
         );
 
         let url = "https://overpass-api.de/api/interpreter"; // The Overpass API endpoint.
         let client = reqwest::Client::new(); // Instantiates a new HTTP client.
-        let response = client.post(url) // Sends the query to the Overpass API.
+        let response = client
+            .post(url) // Sends the query to the Overpass API.
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(format!("data={}", query))
             .send()
@@ -141,12 +174,15 @@ impl TwinService for MyTwinService {
 
         match response {
             Ok(res) if res.status().is_success() => {
-                let response_data = res.text().await.map_err(|e| {
-                    Status::internal(e.to_string())
-                })?; // Extracts response body.
+                let response_data = res
+                    .text()
+                    .await
+                    .map_err(|e| Status::internal(e.to_string()))?; // Extracts response body.
 
                 let dir_path = "ui-backend/temp-database/"; // Directory for saving files.
-                fs::create_dir_all(dir_path).await.map_err(|e| Status::internal(format!("Failed to create directory for data: {}", e)))?;
+                fs::create_dir_all(dir_path).await.map_err(|e| {
+                    Status::internal(format!("Failed to create directory for data: {}", e))
+                })?;
                 let geojson_file_path = format!("{}{}.buildings.geojson", dir_path, twin.id); // Path for the GeoJSON file.
 
                 transform_and_save_geojson(&response_data, &geojson_file_path).await?; // Transforms and saves GeoJSON.
@@ -154,17 +190,16 @@ impl TwinService for MyTwinService {
                 let all_twins_file_path = "ui-backend/temp-database/all_twins.json"; // Path for the file with all twins.
                 append_twin_to_file(&twin, all_twins_file_path).await?; // Appends the twin to the file.
 
-                Ok(Response::new(
-                    CreateTwinResponse {
-                        created_twin: true,
-                    }
-                ))
+                Ok(Response::new(CreateTwinResponse { created_twin: true }))
             }
-            Ok(res) => Err(Status::internal(format!("Failed to get data from OSM: HTTP {}", res.status()))), // Handles non-success HTTP responses.
+            Ok(res) => Err(Status::internal(format!(
+                "Failed to get data from OSM: HTTP {}",
+                res.status()
+            ))), // Handles non-success HTTP responses.
             Err(e) => {
                 println!("TESTING");
                 Err(Status::internal(e.to_string()))
-            }, // Handles request failures.
+            } // Handles request failures.
         }
     }
 
@@ -183,17 +218,15 @@ impl TwinService for MyTwinService {
                 }
             }
             Err(e) => {
-                return Err(Status::internal(format!("Failed to read file: {:?}", e))); // Handles file read errors.
+                return Err(Status::internal(format!("Failed to read file: {:?}", e)));
+                // Handles file read errors.
             }
         };
 
-        let response = GetAllTwinsResponse {
-            twins: all_twins,
-        };
+        let response = GetAllTwinsResponse { twins: all_twins };
 
         Ok(Response::new(response))
     }
-
 
     async fn get_buildings(
         &self,
@@ -210,7 +243,8 @@ impl TwinService for MyTwinService {
         let buildings_data = match fs::read_to_string(file_path).await {
             Ok(content) => content, // Successfully reads the file content.
             Err(e) => {
-                return Err(Status::internal(format!("Failed to read file: {:?}", e))); // Handles file read errors.
+                return Err(Status::internal(format!("Failed to read file: {:?}", e)));
+                // Handles file read errors.
             }
         };
 

@@ -6,3 +6,4 @@ If you encounter a small inconsistency or something small that is not the way it
 These todos can then be fixed in a single branch/merge-request.
 
 -   [ ] Specify all cargo packages explicitly in `Cargo.toml` instead of using globs.
+-   [ ] Make error modules public. Right now the error type is not visible in generated documentation.

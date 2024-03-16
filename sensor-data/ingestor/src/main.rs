@@ -18,7 +18,7 @@ use tokio::{
 };
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{debug, error, info, info_span, Instrument};
-use ulid::Ulid;
+use uuid::Uuid;
 
 mod error;
 
@@ -47,7 +47,7 @@ impl DataIngestService for DataIngestor {
         async move {
             // Preparing the file where sensor data will be streamed to.
             // The identifier will be used as filename.
-            let path = DataIngestor::get_path(&identifier);
+            let path = DataIngestor::get_path(identifier);
             let mut file = BufWriter::new(File::create(&path).await?);
 
             // Get the sensor data from the request.
@@ -81,7 +81,7 @@ impl DataIngestService for DataIngestor {
             debug!("successfully flushed content to disk.");
 
             // Register the sensor data into the archive database and handle any error.
-            match self.register_to_database(&identifier, &path).await{
+            match self.register_to_database(identifier, &path).await{
                 Ok(()) => {
                     info!("successfully inserted the sensor data file path into the archive database.");
                     Ok(tonic::Response::new(ParseResult::default()))
@@ -108,7 +108,7 @@ impl DataIngestService for DataIngestor {
             let mut stream = request.into_inner();
 
             // Preparing the file where sensor data will be streamed to.
-            let path =  DataIngestor::get_path(&identifier);
+            let path =  DataIngestor::get_path(identifier);
             let file = File::create(&path)
                 .await
                 .expect("The uploads directory is relative to the process's pwd. Please fix me by editing the UPLOAD_DIR constant.");
@@ -146,7 +146,7 @@ impl DataIngestService for DataIngestor {
             info!("successfully flushed content to disk.");
 
             // Register the sensor data into the archive database and handle any error.
-            match self.register_to_database(&identifier, &path).await {
+            match self.register_to_database(identifier, &path).await {
                 Ok(()) => {
                     info!("successfully inserted the sensor data file path into the archive database.");
                     Ok(tonic::Response::new(ParseResult::default()))
@@ -169,16 +169,16 @@ impl DataIngestService for DataIngestor {
 
 impl DataIngestor {
     /// Create an unique identifier to identify the current session.
-    fn generate_identifier() -> String {
-        Ulid::new().to_string()
+    fn generate_identifier() -> Uuid {
+        Uuid::now_v7()
     }
 
     /// Get the absolute path of a sensor data file.
-    fn get_path(identifier: &str) -> PathBuf {
+    fn get_path(identifier: Uuid) -> PathBuf {
         env::current_dir()
             .unwrap()
             .join(UPLOAD_DIR)
-            .join(identifier)
+            .join(identifier.to_string())
     }
     /// Register a sensor data file to the archival database.
     ///
@@ -197,7 +197,7 @@ impl DataIngestor {
     /// ```
     async fn register_to_database(
         &self,
-        identifier: &str,
+        identifier: Uuid,
         path: &Path,
     ) -> Result<(), crate::error::DatabaseRegisterError> {
         // check if the file is indeed a valid file path on disk.
@@ -206,7 +206,7 @@ impl DataIngestor {
         }
 
         // Insert the values in the archive database.
-        sqlx::query!("INSERT INTO archive_sensor_data_file (identifier, time, path, metadata) VALUES ($1::text, now()::timestamp, $2::text, $3::text);", identifier, path.to_str().unwrap(), "")
+        sqlx::query!("INSERT INTO archive_sensor_data_files (identifier, time, path, metadata) VALUES ($1::uuid, now()::timestamp, $2::text, $3::text);", identifier, path.to_str().unwrap(), "")
             .execute(&self.pool)
             .await?;
 
