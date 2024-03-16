@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT alias, quantity AS \"quantity!: Quantity\", unit AS \"unit!: Unit\", prefix FROM sensor_signals WHERE sensor_id = $1::uuid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "alias",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "quantity!: Quantity",
+        "type_info": {
+          "Custom": {
+            "name": "quantity",
+            "kind": {
+              "Enum": [
+                "capacitance",
+                "charge",
+                "current",
+                "energy",
+                "force",
+                "frequency",
+                "illuminance",
+                "length",
+                "luminance",
+                "luminousintensity",
+                "mass",
+                "potential",
+                "power",
+                "pressure",
+                "rainfall",
+                "resistance",
+                "temperature",
+                "timestamp"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "unit!: Unit",
+        "type_info": {
+          "Custom": {
+            "name": "unit",
+            "kind": {
+              "Enum": [
+                "candela",
+                "celsius",
+                "coulomb",
+                "fahrenheit",
+                "farad",
+                "hertz",
+                "joule",
+                "kelvin",
+                "kilogram",
+                "metre",
+                "mile",
+                "newton",
+                "nits",
+                "pascal",
+                "pound",
+                "volt",
+                "watt"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "prefix",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "45c3145031acc87847d86eb02f74fb8dd37a47c466d6e0937593a8e9dc54264f"
+}

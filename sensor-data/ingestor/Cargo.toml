@@ -22,7 +22,12 @@ proto = { path = "../../crates/proto" }
 # Custom sensor data parsing libary.
 sensor-data-parser = { path = "../crates/parser" }
 # Compile-time checked queries crate.
-sqlx = { version = "0.7.3", features = ["chrono", "postgres", "runtime-tokio"] }
+sqlx = { version = "0.7.3", features = [
+    "chrono",
+    "postgres",
+    "runtime-tokio",
+    "uuid",
+] }
 # Convert library error types to single custom error type.
 thiserror = "1.0.57"
 # Enables the ues of aysnc. Does so by providing a context in which `Futures`
@@ -36,7 +41,7 @@ tracing = "0.1.40"
 # with them. For example, printing to console.
 tracing-subscriber = "0.3.18"
 # Universal unique identifier crate.
-ulid = "1.1.2"
+uuid = { version = "1.7.0", features = ["v7"] }
 
 [build-dependencies]
 database-config = { workspace = true }
