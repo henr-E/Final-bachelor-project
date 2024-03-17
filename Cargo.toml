@@ -9,7 +9,6 @@ members = [
     "sensor-data/crates/parser",
     "sensor-data/crates/sensor-store",
     "user-authentication",
-    "simulation-manager",
     "simulators/*",
 ]
 

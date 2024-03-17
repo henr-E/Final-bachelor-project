@@ -2,7 +2,7 @@ use std::ffi::c_double;
 use std::sync::{Arc};
 use tokio::sync::{ Mutex};
 use tonic::{Request, Response, Status};
-use proto::frontend::{SimulationInterfaceService, CreateSimulationParams, CreateSimulationResponse, SimulationId, Simulations, Simulation, TwinId};
+use proto::frontend::{SimulationInterfaceService, CreateSimulationParams, CreateSimulationResponse, Simulations, Simulation, TwinId};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tonic::transport::Channel;
 use uuid::Uuid;
@@ -71,8 +71,9 @@ impl SimulationInterfaceService for SimulationService {
 
         let id: String = Uuid::new_v4().to_string();
 
+        let time_steps = ((req.end_date_time - req.start_date_time) as f64 / req.time_step_delta) as u64;
 
-        let success = self.create_simulation_manager(id.clone(), req.graph, req.time_steps, req.time_step_delta).await.is_ok();
+        let success = self.create_simulation_manager(id.clone(), req.graph, time_steps, req.time_step_delta).await.is_ok();
         let response = CreateSimulationResponse {
             success,
         };
@@ -120,11 +121,11 @@ impl SimulationInterfaceService for SimulationService {
     //TODO implement this function
     async fn get_simulation(
         &self,
-        request: Request<SimulationId>,
+        request: Request<simulation_manager::SimulationId>,
     ) -> Result<Response<Simulation>, Status> {
         let req = request.into_inner();
 
-        let name = req.id;
+        let name = req.uuid;
 
         debug!("returning simulation {}", name);
 
