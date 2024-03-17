@@ -1,7 +1,7 @@
 use crate::quantity::Quantity;
 
 /// Represents a unit a [`Quantity`] can be measured in.
-#[derive(sqlx::Type, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(sqlx::Type, enumset::EnumSetType, Debug, Hash)]
 #[sqlx(type_name = "unit", rename_all = "lowercase")]
 pub enum Unit {
     Ampere,

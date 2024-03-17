@@ -2,7 +2,7 @@ use crate::unit::Unit;
 use std::collections::HashSet;
 
 /// Kind of signal the sensor is measuring.
-#[derive(sqlx::Type, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(sqlx::Type, enumset::EnumSetType, Debug, Hash)]
 #[sqlx(type_name = "quantity", rename_all = "lowercase")]
 pub enum Quantity {
     Capacitance,
@@ -29,7 +29,7 @@ impl Quantity {
     pub fn associated_base_unit(self) -> Unit {
         match self {
             Quantity::Capacitance => Unit::Farad,
-            Quantity::Charge => Unit::Watt,
+            Quantity::Charge => Unit::Coulomb,
             Quantity::Current => Unit::Ampere,
             Quantity::Energy => Unit::Joule,
             Quantity::Force => Unit::Newton,
@@ -52,7 +52,7 @@ impl Quantity {
     pub fn associated_units(self) -> HashSet<Unit> {
         HashSet::from_iter(match self {
             Quantity::Capacitance => vec![Unit::Farad],
-            Quantity::Charge => vec![Unit::Watt],
+            Quantity::Charge => vec![Unit::Coulomb],
             Quantity::Current => vec![Unit::Ampere],
             Quantity::Energy => vec![Unit::Joule],
             Quantity::Force => vec![Unit::Newton],

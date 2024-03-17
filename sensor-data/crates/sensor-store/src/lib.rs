@@ -84,3 +84,61 @@ impl SensorStore {
         Ok(sensor.build())
     }
 }
+
+#[cfg(test)]
+mod unit_quantity_tests {
+    use super::{Quantity, Unit};
+    use enumset::EnumSet;
+
+    /// Ensure that every unit belongs to a quantity and vica versa. This is done to find unused
+    /// quantities and wrongly associated units.
+    #[test]
+    fn complete_set() {
+        let all_units = EnumSet::<Unit>::all();
+        let all_quantities = EnumSet::<Quantity>::all();
+
+        assert_eq!(
+            all_quantities
+                .iter()
+                .flat_map(|q| q.associated_units())
+                .collect::<EnumSet<_>>(),
+            all_units
+        );
+
+        assert_eq!(
+            all_units
+                .iter()
+                .map(|u| u.associated_quantity())
+                .collect::<EnumSet<_>>(),
+            all_quantities
+        );
+    }
+
+    /// Ensure that every quantities base unit is also an associated unit.
+    #[test]
+    fn base_unit_in_associated_units() {
+        let all_quantities = EnumSet::<Quantity>::all();
+
+        assert!(all_quantities
+            .into_iter()
+            .all(|q| q.associated_units().contains(&q.associated_base_unit())))
+    }
+
+    #[test]
+    fn associated_unit_sets_are_disjoint_or_equal() {
+        let all_quantities = EnumSet::<Quantity>::all();
+
+        let unit_sets = all_quantities
+            .iter()
+            .map(|q| q.associated_units())
+            .collect::<Vec<_>>();
+
+        // Not an optimal implementation as this will do double work.
+        // Should be fine as this is a test case.
+        for unit_set in unit_sets.iter() {
+            assert!(unit_sets
+                .iter()
+                .all(|s| s == unit_set || s.is_disjoint(unit_set)));
+        }
+    }
+}
