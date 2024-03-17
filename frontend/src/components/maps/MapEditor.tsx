@@ -10,10 +10,10 @@ import {
     mdiTransmissionTower,
     mdiWindTurbine
 } from "@mdi/js";
-import {useContext, useEffect, useRef, useState} from "react";
+import {useContext, useEffect, useRef, useState, Ref, MutableRefObject} from "react";
 import {PredictionMapProps} from "@/components/maps/PredictionMap"
 import dynamic from "next/dynamic";
-import {TwinContext} from "@/store/twins";
+import {Twin, TwinContext} from "@/store/twins";
 import {LineItem, MapItems, MapItemType, MarkerItem} from "@/components/maps/MapItem";
 import {PredictionMapMode} from "@/app/dashboard/GlobalVariables";
 
@@ -44,9 +44,13 @@ const cursorToType = {
     [CursorState.CONNECT_ITEMS]: MapItems.Line,
 }
 
+export interface MapEditorProps {
+    mapItemRef?: MutableRefObject<MapItemType[] | undefined>
+};
+
 const PredictionMapImport = dynamic<PredictionMapProps>(() => import("@/components/maps/PredictionMap"), { ssr: false });
 
-export function MapEditor() {
+export function MapEditor({ mapItemRef }: MapEditorProps)  {
     const [twinState, dispatch] = useContext(TwinContext);
     const [cursor, setCursor] = useState<CursorState>(CursorState.GRAB);
     const [mapItems, setMapItems] = useState<Array<MapItemType>>([]);
@@ -60,7 +64,11 @@ export function MapEditor() {
         mapItemsRef.current = mapItems;
         cursorRef.current = cursor;
         selectedItemsRef.current = selectedItems;
-    }, [mapItems, cursor, selectedItems]);
+        if(mapItemRef)
+            mapItemRef.current = mapItems;
+
+    }, [mapItems, cursor, selectedItems, mapItemRef]);
+
 
     if (!twinState.current) {
         return <h1>Please select a Twin</h1>
@@ -90,6 +98,7 @@ export function MapEditor() {
         if (selectedItemsRef.current.length == 0){
             const newItem: LineItem = {
                 name: "item: " + mapItemsRef.current.length.toString(),
+                id:  mapItemsRef.current.length,
                 items: [mapItemsRef.current[id] as MarkerItem],
                 type: MapItems.Line,
                 eventHandler: { click: (e) => console.log("item clicked")}}
@@ -98,6 +107,7 @@ export function MapEditor() {
             return;
         }
         (mapItemsRef.current[mapItemsRef.current.length - 1] as LineItem).items.push(mapItemsRef.current[id] as MarkerItem);
+        changeCursor(CursorState.GRAB);
     }
 
     const changeCursor = (cursor: CursorState) => {
@@ -119,7 +129,8 @@ export function MapEditor() {
         }
 
         const newItem: MarkerItem = {
-            name: "item: " + mapItems.length.toString(),
+            name: "item: " + mapItemsRef.current.length.toString(),
+            id: mapItemsRef.current.length,
             location: latlng,
             type: cursorToType[cursor],
             eventHandler: { click: (e) => selectItemMap(mapItems.length), contextmenu: (e) => removeMapItem(mapItems.length)}}
@@ -167,8 +178,6 @@ export function MapEditor() {
     } as LeafletEventHandlerFnMap;
 
 
-
-    // if((typeof window !== "undefined")){
         return (
             <div className="flex h-full grid grid-cols-12">
                 <div className="h-full col-span-9" style={{ cursor: `url(${iconPaths[cursor]}) 15 15, crosshair` }} >
@@ -214,11 +223,8 @@ export function MapEditor() {
                 </div>
             </div>
         );
-    // }
-    // else{
-    //     return <h1>Need a browser window</h1>
-    // }
 
 }
 
 export default MapEditor;
+

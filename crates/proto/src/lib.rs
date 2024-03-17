@@ -83,10 +83,22 @@ pub mod simulation {
 }
 
 pub mod frontend {
-    pub use proto_twin::twin_service_client::TwinServiceClient;
+    use crate::simulation;
+
+    pub use proto_frontend_simulation::{
+        simulation_interface_service_client::*, simulation_interface_service_server::*, *,
+    };
+
     pub use proto_twin::twin_service_server::{TwinService, TwinServiceServer};
+    pub use proto_twin::twin_service_client::TwinServiceClient;
+
+    mod proto_frontend_simulation {
+        tonic::include_proto!("simulation.frontend");
+    }
 
     pub mod proto_twin {
         tonic::include_proto!("twin");
     }
 }
+
+

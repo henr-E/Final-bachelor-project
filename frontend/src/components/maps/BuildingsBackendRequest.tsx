@@ -1,7 +1,7 @@
 // BuildingsBackendRequest.tsx:
 import {createChannel, createClient} from "nice-grpc-web";
 import {TwinServiceDefinition, getBuildingsRequest} from '@/proto/twins/twin';
-import {geoServiceUrl} from "@/api/urls";
+import {uiBackendServiceUrl} from "@/api/urls";
 
 interface BuildingFeature {
     type: string;
@@ -18,7 +18,7 @@ interface GeoJSONBuildingResponse {
 }
 
 async function BuildingsBackendRequest(id: string | undefined): Promise<GeoJSONBuildingResponse> {
-    const channel = createChannel(geoServiceUrl);
+    const channel = createChannel(uiBackendServiceUrl);
     const client = createClient(TwinServiceDefinition, channel);
     const request = { id: id };
 

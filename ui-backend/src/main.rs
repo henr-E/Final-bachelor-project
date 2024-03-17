@@ -1,8 +1,9 @@
 use std::net::SocketAddr;
-use tonic::transport::Server;
-
+use tonic::{transport::Server};
+use proto::frontend::{SimulationInterfaceServiceServer, TwinServiceServer};
+use crate::simulation_service::SimulationService;
+mod simulation_service;
 use crate::twin::MyTwinService;
-use proto::frontend::TwinServiceServer;
 mod twin;
 
 const PORT: u16 = 8080;
@@ -15,9 +16,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let addr = SocketAddr::from(([127, 0, 0, 1], PORT));
 
+    let simulation_service = SimulationInterfaceServiceServer::new(SimulationService::new().await);
     let twin_service = TwinServiceServer::new(MyTwinService);
 
     Server::builder()
+        .add_service(simulation_service)
         .add_service(twin_service)
         .serve(addr)
         .await?;

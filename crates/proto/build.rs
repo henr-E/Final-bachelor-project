@@ -25,6 +25,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &["../../proto/authentication"],
     )?;
 
+    tonic_build::configure().compile(
+        &["../../proto/simulation/frontend.proto", ],
+        &["../../proto/simulation"],
+    )?;
+
     // Compile another subproject proto files.
     // NOTE: This separation is done to prevent cross subproject imports in proto files.
     // INSERT HERE

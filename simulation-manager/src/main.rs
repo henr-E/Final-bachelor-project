@@ -31,7 +31,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Set up runner on a seperate thread
     // TODO: add simulators, change to mut
-    let server_connections: Vec<SimulatorClient<Channel>> = Vec::default();
+    let mut server_connections: Vec<SimulatorClient<Channel>> = Vec::default();
+    server_connections.push(
+        SimulatorClient::connect("http://127.0.0.1:8101")
+            .await
+            .unwrap(),
+    );
+
     let server_connections_clone = server_connections.clone();
 
     let (notif_sender, notif_receiver) = mpsc::channel(1);

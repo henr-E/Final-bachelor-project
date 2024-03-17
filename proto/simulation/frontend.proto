@@ -1,0 +1,57 @@
+syntax = "proto3";
+import "google/protobuf/empty.proto";
+import "simulation.proto";
+
+package simulation.frontend;
+
+// The service definition.
+service SimulationInterfaceService {
+    rpc CreateSimulation (CreateSimulationParams) returns (CreateSimulationResponse);
+    rpc GetAllSimulations (TwinId) returns (Simulations);
+    rpc GetSimulation (SimulationId) returns (Simulation);
+}
+
+enum SimulationStatus {
+    // The simulation is awaiting to be simulated.
+    PENDING = 0;
+    // The simulation is currently being computed.
+    COMPUTING = 1;
+    // The simulation has been fully computed.
+    FINISHED = 2;
+}
+
+message CreateSimulationResponse {
+    bool success = 1;
+}
+
+message CreateSimulationParams {
+    string name = 1;
+    string twin_id = 2;
+    int32 start_date_time = 3;//unix timestamp
+    int32 end_date_time = 4;//unix timestamp
+    uint64 time_steps = 5;
+    double time_step_delta = 6;
+    simulation.Graph graph = 7;
+}
+
+message Simulations {
+    repeated Simulation item = 1;
+}
+
+message Simulation {
+    string name = 1;
+    string id = 2; //id of simulation
+    int32 start_date_time = 3;//unix timestamp
+    int32 end_date_time = 4;//unix timestamp
+    int32 creation_date_time = 5;//unix timestamp
+    int32 frames_loaded = 6;//amount of ms it took to run the simulation
+    SimulationStatus status = 7;
+}
+
+message SimulationId {
+    string id = 1;
+}
+
+message TwinId {
+    string twin_id = 1;
+}

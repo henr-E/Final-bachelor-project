@@ -27,10 +27,10 @@ export interface PredictionMapProps {
     twin: Twin;
     eventHandlers?: LeafletEventHandlerFnMap;
     mapItems?: MapItemType[];
-    mode: PredictionMapMode;
+    mode?: PredictionMapMode;
 }
 
-export function PredictionMap({twin, eventHandlers = {}, mapItems = [], mode}: PredictionMapProps) {
+export function PredictionMap({twin, eventHandlers = {}, mapItems = [], mode = PredictionMapMode.RealtimeMode}: PredictionMapProps) {
     const [cityName, setCityName] = useState<string>(twin.name);
     const [buildings, setBuildings] = useState<BuildingFeature[]>([]);
     const [buildingsLoading, setBuildingsLoading] = useState<boolean>(false);
