@@ -26,25 +26,6 @@ function SimulationPage() {
     useEffect(() => {
         selectedItemsRef.current = currentTime;
     }, [currentTime]);
-    
-    async function loadGraph () {
-        /*
-        const channel = createChannel("http://127.0.0.1:8081");
-        const client = createClient(SimulationManagerDefinition, channel);
-
-        let frameRequestProps = {
-            simulationId: params.id,
-            frameNr: currentTime
-        };
-        // @ts-ignore
-        const stream = client.getSimulationFrames(frameRequestProps);
-
-        for await (const message of stream) {
-            // @ts-ignore
-            console.log(message.state.graph);
-        }*/
-        //TODO
-    }
 
     if (!twinState.current) {
         return <h1>Please select a Twin</h1>

@@ -1,8 +1,6 @@
 'use client';
 
 import { useContext, useState, useRef } from 'react';
-import { Sensor, SensorContext, Quantity, quantityBaseUnits } from '@/store/sensor';
-import { v4 as uuidv4 } from 'uuid';
 import {
     Button,
     Modal,
@@ -37,7 +35,6 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
     const [endDate, setEndDate] = useState<Date>(new Date(Date.now()));
     const [startTime, setStartTime] = useState<string>("");
     const [endTime, setEndTime] = useState<string>("");
-    const [timeSteps, setTimeSteps] = useState<number>(0);
     const [timeStepDelta, setTimeStepDelta] = useState<number>(0);
     const [step, setStep] = useState<number>(0);
     const mapItemsRef = useRef<Array<MapItemType>>();
@@ -97,7 +94,6 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
                 nodes: nodes,
                 edge: edges
             },
-            timeSteps: timeSteps,
             timeStepDelta: timeStepDelta
         };
 
@@ -208,15 +204,7 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
                                 <div className="flex flex-row w-full space-x-3 pt-3">
                                     <div className="basis-1/2">
                                         <div className="mb-2 block">
-                                            <Label htmlFor="timesteps" value="Timesteps"/>
-                                        </div>
-                                        <TextInput id="timesteps" type="number" value={timeSteps} placeholder={"0"}
-                                                   maxLength={200} required
-                                                   onChange={(e) => setTimeSteps(+e.target.value)}/>
-                                    </div>
-                                    <div className="basis-1/2">
-                                        <div className="mb-2 block">
-                                            <Label htmlFor="timestepdelta" value="Timestep delta"/>
+                                            <Label htmlFor="timestepdelta" value="Timestep delta (seconds)"/>
                                         </div>
                                         <TextInput id="timesteps" value={timeStepDelta} placeholder={"0"}
                                                    maxLength={200} required
