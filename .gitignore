@@ -5,6 +5,8 @@
 # Rust build artifacts
 target/
 
+ui-backend/temp-database/*
+
 # Environment configuration
 .env
 

@@ -48,6 +48,9 @@ function DashboardSidebar() {
                 <SidebarItem href="/dashboard/sensors" label="Sensors">
                     <MdSensors size={20} />
                 </SidebarItem>
+                <SidebarItem href="/dashboard/simulation" label="Simulation">
+                    <MdSensors size={20} />
+                </SidebarItem>
                 <div className="flex items-center">
                     <span className="ms-2 text-gray-500">Grid Operation</span>
                 </div>

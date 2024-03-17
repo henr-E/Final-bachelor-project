@@ -24,6 +24,7 @@ const iconPaths = {
 
 export interface MapItemType {
     name: string;
+    id: number;
     eventHandler?: LeafletEventHandlerFnMap;
     type: MapItems
     inactive?: boolean
@@ -73,3 +74,4 @@ export function MapItem( mapItem: any) {
 }
 
 export default MapItem;
+

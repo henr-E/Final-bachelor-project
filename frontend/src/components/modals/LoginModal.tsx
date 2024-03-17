@@ -12,7 +12,7 @@ import { jwtDecode } from 'jwt-decode';
 import { useRouter } from 'next/navigation';
 import { createChannel, createClient } from "nice-grpc-web";
 import { AuthenticationServiceDefinition } from '@/proto/authentication/auth';
-import {geoServiceUrl} from "@/api/urls";
+import {uiBackendServiceUrl} from "@/api/urls";
 
 
 interface LoginModalProps {
@@ -46,7 +46,7 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
                 username: 'PLACEHOLDER'
             }
             //todo henri made backend request here
-            const channel = createChannel(geoServiceUrl);
+            const channel = createChannel(uiBackendServiceUrl);
             const client = createClient(AuthenticationServiceDefinition, channel);
             try{
                 // @ts-ignore

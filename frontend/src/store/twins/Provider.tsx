@@ -2,7 +2,7 @@
 import React, {createContext, useEffect, useReducer} from "react";
 import {createChannel, createClient} from "nice-grpc-web";
 import {TwinServiceDefinition} from '@/proto/twins/twin';
-import {geoServiceUrl} from "@/api/urls";
+import {uiBackendServiceUrl} from "@/api/urls";
 import ToastNotification from "@/components/notification/ToastNotification";
 
 
@@ -72,7 +72,7 @@ const initialState: TwinState = {
 }
 
 async function getTwinsFromBackend(){
-    const channel = createChannel(geoServiceUrl);
+    const channel = createChannel(uiBackendServiceUrl);
     const client = createClient(TwinServiceDefinition, channel);
 
     try{
