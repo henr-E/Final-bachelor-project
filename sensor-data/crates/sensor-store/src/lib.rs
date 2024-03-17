@@ -1,5 +1,4 @@
-//! ORM-like crate to interact with the sensor database. Useful to retrieve sensor fields, units,
-//! etc. Might be expanded to support sensor- and sensor-data CRUD as well.
+#![doc = include_str!("../README.md")]
 
 use crate::{error::Error, quantity::*, sensor::Sensor, unit::*};
 use database_config::database_url;
@@ -12,6 +11,7 @@ pub mod quantity;
 pub mod sensor;
 pub mod unit;
 
+/// Sensor database wrapper.
 pub struct SensorStore {
     db_pool: PgPool,
 }
@@ -32,18 +32,23 @@ pub struct Signal<'a> {
 }
 
 impl SensorStore {
+    /// Create a new [`SensorStore`] using environment variables from the `.env` file.
+    ///
+    /// See [`database_config::database_url`] for more info.
     pub async fn new() -> Result<Self, Error> {
         let db_url = database_url("SENSOR_ARCHIVE", "SENSOR", None, None);
         let db_pool = PgPool::connect(&db_url).await?;
         Ok(Self { db_pool })
     }
 
+    /// Create a [`SensorStore`] from an already created postgres connection.
     pub fn from_pg_pool(db_pool: &PgPool) -> Self {
         Self {
             db_pool: db_pool.clone(),
         }
     }
 
+    /// Get a single [`Sensor`] from the database given its id.
     pub async fn get(&self, sensor_id: uuid::Uuid) -> Result<Sensor<'static>, Error> {
         let sensor = sqlx::query!(
             "SELECT name, description FROM sensors WHERE id = $1::uuid",
@@ -53,7 +58,16 @@ impl SensorStore {
         .await?;
 
         let mut sensor = Sensor::builder(sensor.name, sensor.description);
-        for sensor_signal in sqlx::query!(r#"SELECT alias, quantity AS "quantity!: Quantity", unit AS "unit!: Unit", prefix FROM sensor_signals WHERE sensor_id = $1::uuid"#,
+        for sensor_signal in sqlx::query!(
+            r#"
+                SELECT
+                    alias,
+                    quantity AS "quantity!: Quantity",
+                    unit AS "unit!: Unit",
+                    prefix
+                FROM sensor_signals
+                WHERE sensor_id = $1::uuid
+            "#,
             sensor_id
         )
         .fetch_all(&self.db_pool)

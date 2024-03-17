@@ -6,13 +6,20 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# Get database config based on environment variables.
 database-config = { workspace = true }
+# Compile-time checked sql queries.
 sqlx = { version = "0.7.4", features = ["postgres", "bigdecimal"] }
+# Convert library error types to single custom error type.
 thiserror = "1.0.58"
+# Universal unique identifier crate.
 uuid = "1.7.0"
 
 [build-dependencies]
+# Get database config based on environment variables.
 database-config = { workspace = true }
+# Enables the ues of aysnc. Does so by providing a context in which `Futures`
+# can be run to completion.
 tokio = { version = "1.36.0", default-features = false, features = [
     "macros",
     "rt",

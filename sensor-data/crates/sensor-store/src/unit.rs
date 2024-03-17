@@ -1,5 +1,6 @@
 use crate::quantity::Quantity;
 
+/// Represents a unit a [`Quantity`] can be measured in.
 #[derive(sqlx::Type, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[sqlx(type_name = "unit", rename_all = "lowercase")]
 pub enum Unit {
@@ -27,6 +28,7 @@ pub enum Unit {
 }
 
 impl Unit {
+    /// Returns the [`Quantity`] that is measured in this unit.
     pub fn associated_quantity(self) -> Quantity {
         match self {
             Unit::Ampere => Quantity::Current,
