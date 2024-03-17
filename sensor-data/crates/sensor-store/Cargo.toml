@@ -8,8 +8,9 @@ edition = "2021"
 [dependencies]
 # Get database config based on environment variables.
 database-config = { workspace = true }
+enumset = "1.1.3"
 # Compile-time checked sql queries.
-sqlx = { version = "0.7.4", features = ["postgres", "bigdecimal"] }
+sqlx = { version = "0.7.4", features = ["postgres", "bigdecimal", "uuid"] }
 # Convert library error types to single custom error type.
 thiserror = "1.0.58"
 # Universal unique identifier crate.
