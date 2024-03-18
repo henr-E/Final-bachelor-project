@@ -2,9 +2,9 @@
 
 use crate::{error::Error, quantity::*, sensor::Sensor, unit::*};
 use database_config::database_url;
-use sqlx::types::BigDecimal;
+use futures::stream::Stream;
+use sensor::SensorBuilder;
 use sqlx::PgPool;
-use std::{borrow::Cow, collections::HashSet};
 
 pub mod error;
 pub mod quantity;
@@ -14,21 +14,6 @@ pub mod unit;
 /// Sensor database wrapper.
 pub struct SensorStore {
     db_pool: PgPool,
-}
-
-pub type Signals<'a> = HashSet<Signal<'a>>;
-
-/// Represents a signal field when ingesting sensor data.
-#[derive(PartialEq, Eq, Hash)]
-pub struct Signal<'a> {
-    /// Name of the field in the data.
-    pub name: Cow<'a, str>,
-    /// quantity of the signal.
-    pub quantity: Quantity,
-    /// Unit of the field in the data.
-    pub unit: Unit,
-    /// Prefix of the value compared to the unit.
-    pub prefix: BigDecimal,
 }
 
 impl SensorStore {
@@ -49,7 +34,7 @@ impl SensorStore {
     }
 
     /// Get a single [`Sensor`] from the database given its id.
-    pub async fn get(&self, sensor_id: uuid::Uuid) -> Result<Sensor<'static>, Error> {
+    pub async fn get_sensor(&self, sensor_id: uuid::Uuid) -> Result<Sensor<'static>, Error> {
         let sensor = sqlx::query!(
             "SELECT name, description FROM sensors WHERE id = $1::uuid",
             sensor_id
@@ -57,7 +42,35 @@ impl SensorStore {
         .fetch_one(&self.db_pool)
         .await?;
 
-        let mut sensor = Sensor::builder(sensor.name, sensor.description);
+        let sensor = Sensor::builder(sensor_id, sensor.name, sensor.description);
+        Ok(self.add_signals_to_builder(sensor).await?.build())
+    }
+
+    /// Get all sensors from the database.
+    pub async fn get_all_sensors(
+        &self,
+    ) -> Result<impl Stream<Item = Result<Sensor, Error>>, Error> {
+        use futures::stream::{self, StreamExt};
+
+        let sensors = sqlx::query!("SELECT id, name, description FROM sensors")
+            .fetch_all(&self.db_pool)
+            .await?
+            .into_iter()
+            .map(|s| Sensor::builder(s.id, s.name, s.description));
+
+        let sensors = stream::iter(sensors).then(|s| async {
+            self.add_signals_to_builder(s)
+                .await
+                .map(SensorBuilder::build)
+        });
+
+        Ok(sensors)
+    }
+
+    async fn add_signals_to_builder<'a>(
+        &self,
+        mut sensor_builder: SensorBuilder<'a>,
+    ) -> Result<SensorBuilder<'a>, Error> {
         for sensor_signal in sqlx::query!(
             r#"
                 SELECT
@@ -68,12 +81,12 @@ impl SensorStore {
                 FROM sensor_signals
                 WHERE sensor_id = $1::uuid
             "#,
-            sensor_id
+            sensor_builder.id
         )
         .fetch_all(&self.db_pool)
         .await?
         {
-            sensor.add_signal(
+            sensor_builder.add_signal(
                 sensor_signal.alias,
                 sensor_signal.quantity,
                 sensor_signal.unit,
@@ -81,7 +94,7 @@ impl SensorStore {
             );
         }
 
-        Ok(sensor.build())
+        Ok(sensor_builder)
     }
 }
 

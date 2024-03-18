@@ -23,7 +23,7 @@ async fn main() -> Result {
         set_database_url("SENSOR_ARCHIVE", "SENSOR", None::<std::net::SocketAddr>)?;
 
         // Configure cargo to recompile the crate when the following directories/files contain changes.
-        configure_recompile(MIGRTIONS_PATH, "../../.env");
+        configure_recompile(MIGRTIONS_PATH, "../../../.env");
 
         Ok(())
     }
