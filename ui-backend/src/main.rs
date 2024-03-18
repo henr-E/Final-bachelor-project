@@ -1,7 +1,7 @@
-use std::net::SocketAddr;
-use tonic::{transport::Server};
-use proto::frontend::{SimulationInterfaceServiceServer, TwinServiceServer};
 use crate::simulation_service::SimulationService;
+use proto::frontend::{SimulationInterfaceServiceServer, TwinServiceServer};
+use std::net::SocketAddr;
+use tonic::transport::Server;
 mod simulation_service;
 use crate::twin::MyTwinService;
 mod twin;

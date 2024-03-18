@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     tonic_build::configure().compile(
-        &["../../proto/simulation/frontend.proto", ],
+        &["../../proto/simulation/frontend.proto"],
         &["../../proto/simulation"],
     )?;
 
