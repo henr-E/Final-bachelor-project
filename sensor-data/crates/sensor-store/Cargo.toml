@@ -8,7 +8,10 @@ edition = "2021"
 [dependencies]
 # Get database config based on environment variables.
 database-config = { workspace = true }
+# Operation on enums as if they are sets of values.
 enumset = "1.1.3"
+# Enables async iterators (can do more :))
+futures = "0.3.30"
 # Compile-time checked sql queries.
 sqlx = { version = "0.7.4", features = ["postgres", "bigdecimal", "uuid"] }
 # Convert library error types to single custom error type.
