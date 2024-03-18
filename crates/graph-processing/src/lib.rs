@@ -27,6 +27,7 @@ pub struct Graph {
     ///
     /// Used to determine whether the current timestep is odd or not. This changes which message queue is used in vertices.
     timestep: u64,
+    /// Stores vertices as binary tree
     vertices: BTreeMap<u64, VertexItem>,
     /// Allows vertices to handle type erased messages.
     message_handler_funcs: Mutex<AHashMap<(TypeId, TypeId), MessageHandlerFunc>>,
@@ -144,6 +145,44 @@ impl Graph {
                 .remove(&id);
         }
         Ok(())
+    }
+
+    /// Returns `Ok(true)` if there is an edge going from the first vertex to the second vertex. Returns an error
+    /// if either vertex does not exist.
+    ///
+    /// ```rust
+    /// # use graph_processing::{Graph, vertex::{Vertex, VertexContext}};
+    /// # struct MyVertex;
+    /// # impl Vertex for MyVertex {
+    /// #     fn do_superstep(&mut self, ctx: VertexContext) { todo!() }
+    /// # }
+    /// let mut graph = Graph::new();
+    /// let from = graph.insert_vertex(MyVertex);
+    /// let to = graph.insert_vertex(MyVertex);
+    /// graph.insert_edge_directed(from.clone(), to.clone()).ok();
+    ///
+    /// assert_eq!(Ok(true), graph.has_edge_directed(from.clone(), to.clone()));
+    /// assert_eq!(Ok(false), graph.has_edge_directed(to, from));
+    /// ```
+    pub fn has_edge_directed<A, B>(
+        &self,
+        from: VertexId<A>,
+        to: VertexId<B>,
+    ) -> Result<bool, VertexResolveError>
+    where
+        A: Vertex,
+        B: Vertex,
+    {
+        // This function does not type check vertices as it should not be possible for them to be of the wrong type.
+        if !self.vertices.contains_key(&to.id) {
+            return Err(VertexResolveError::NotFound);
+        }
+        Ok(self
+            .vertices
+            .get(&from.id)
+            .ok_or(VertexResolveError::NotFound)?
+            .outgoing_edges
+            .contains(&to.id))
     }
 
     /// Inserts an edge from the first vertex towards the second vertex.
@@ -390,17 +429,17 @@ mod tests {
     impl Vertex for SomeVertex {
         fn do_superstep(&mut self, ctx: VertexContext) {
             // We can update the Vertex in each superstep.
-            self.amount_of_neighbours = ctx.get_neighbours::<SomeVertex>().count() as u32;
+            self.amount_of_neighbours = ctx.get_outgoing_neighbours::<SomeVertex>().count() as u32;
 
             // Send a message to all the neighbouring nodes of type `SomeVertex`. The program will fail to compile if it
             // does not implement MessageHandler for that message.
             ctx.send_message(
-                ctx.get_neighbours::<SomeVertex>(),
+                ctx.get_outgoing_neighbours::<SomeVertex>(),
                 SomeMessage { some_data: 1 },
             );
 
             // We can get a reference to some neighbour vertex like this:
-            let Some(neighbour) = ctx.get_neighbours::<SomeVertex>().next() else {
+            let Some(neighbour) = ctx.get_outgoing_neighbours::<SomeVertex>().next() else {
                 // Return if there were no neighbours (the next neighbour was None).
                 return;
             };

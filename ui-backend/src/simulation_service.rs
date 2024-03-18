@@ -1,16 +1,21 @@
-use std::ffi::c_double;
-use std::sync::{Arc};
-use tokio::sync::{ Mutex};
-use tonic::{Request, Response, Status};
-use proto::frontend::{SimulationInterfaceService, CreateSimulationParams, CreateSimulationResponse, Simulations, Simulation, TwinId};
-use std::time::{SystemTime, UNIX_EPOCH};
-use tonic::transport::Channel;
-use uuid::Uuid;
-use proto::simulation;
-use proto::simulation::{Graph, simulation_manager};
-use proto::simulation::simulation_manager::{ComponentsInfo, PushSimulationRequest, SimulationData, SimulationManagerClient};
 use futures::future::join_all;
+use proto::frontend::{
+    CreateSimulationParams, CreateSimulationResponse, Simulation, SimulationInterfaceService,
+    Simulations, TwinId,
+};
+use proto::simulation;
+use proto::simulation::simulation_manager::{
+    ComponentsInfo, PushSimulationRequest, SimulationData, SimulationManagerClient,
+};
+use proto::simulation::{simulation_manager, Graph};
+use std::ffi::c_double;
+use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::Mutex;
+use tonic::transport::Channel;
+use tonic::{Request, Response, Status};
 use tracing::debug;
+use uuid::Uuid;
 
 pub struct SimulationService {
     simulation_items: Arc<Mutex<Vec<Simulation>>>,
@@ -21,32 +26,58 @@ impl SimulationService {
     pub async fn new() -> Self {
         Self {
             simulation_items: Arc::new(Mutex::new(Vec::new())),
-            client: SimulationManagerClient::new(tonic::transport::Channel::from_static("http://127.0.0.1:8100")
-                .connect()
-                .await.expect("Error could not connect to simulation manager")),
+            client: SimulationManagerClient::new(
+                tonic::transport::Channel::from_static("http://127.0.0.1:8100")
+                    .connect()
+                    .await
+                    .expect("Error could not connect to simulation manager"),
+            ),
         }
     }
-    async fn create_simulation_manager(&self, id: String, graph: Option<Graph>, timesteps: u64, timestep_delta: c_double) -> Result<(), Box<dyn std::error::Error>> {
-        self.client.clone().push_simulation(PushSimulationRequest {
-            id: Option::from(simulation_manager::SimulationId { uuid: id.to_string() }),
-            initial_state: Option::from(simulation::State { graph, global_components: Default::default() }),
-            timesteps,
-            timestep_delta,
-        }).await?;
+    async fn create_simulation_manager(
+        &self,
+        id: String,
+        graph: Option<Graph>,
+        timesteps: u64,
+        timestep_delta: c_double,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.client
+            .clone()
+            .push_simulation(PushSimulationRequest {
+                id: Option::from(simulation_manager::SimulationId {
+                    uuid: id.to_string(),
+                }),
+                initial_state: Option::from(simulation::State {
+                    graph,
+                    global_components: Default::default(),
+                }),
+                timesteps,
+                timestep_delta,
+            })
+            .await?;
 
         Ok(())
     }
 
     ///Get a simulation by id
-    async fn get_simulation_manager(&self, id: String) -> Result<SimulationData, Box<dyn std::error::Error>> {
-
+    async fn get_simulation_manager(
+        &self,
+        id: String,
+    ) -> Result<SimulationData, Box<dyn std::error::Error>> {
         // sending request and waiting for response
-        Ok(self.client.clone().get_simulation(simulation_manager::SimulationId {
-            uuid: id.to_string()
-        }).await?.into_inner())
+        Ok(self
+            .client
+            .clone()
+            .get_simulation(simulation_manager::SimulationId {
+                uuid: id.to_string(),
+            })
+            .await?
+            .into_inner())
     }
 
-    pub async fn _get_components_manager(&self) -> Result<Response<ComponentsInfo>, Box<dyn std::error::Error>> {
+    pub async fn _get_components_manager(
+        &self,
+    ) -> Result<Response<ComponentsInfo>, Box<dyn std::error::Error>> {
         // sending request and waiting for response
         let response = self.client.clone().get_components(()).await?;
         Ok(response)
@@ -63,7 +94,10 @@ impl SimulationInterfaceService for SimulationService {
         let req = request.into_inner();
 
         //add GRPC request for creating simulationxvc
-        debug!("new simulation added {}, {}, {}, {}", req.name, req.start_date_time, req.end_date_time, req.twin_id);
+        debug!(
+            "new simulation added {}, {}, {}, {}",
+            req.name, req.start_date_time, req.end_date_time, req.twin_id
+        );
 
         let creation_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -71,12 +105,14 @@ impl SimulationInterfaceService for SimulationService {
 
         let id: String = Uuid::new_v4().to_string();
 
-        let time_steps = ((req.end_date_time - req.start_date_time) as f64 / req.time_step_delta) as u64;
+        let time_steps =
+            ((req.end_date_time - req.start_date_time) as f64 / req.time_step_delta) as u64;
 
-        let success = self.create_simulation_manager(id.clone(), req.graph, time_steps, req.time_step_delta).await.is_ok();
-        let response = CreateSimulationResponse {
-            success,
-        };
+        let success = self
+            .create_simulation_manager(id.clone(), req.graph, time_steps, req.time_step_delta)
+            .await
+            .is_ok();
+        let response = CreateSimulationResponse { success };
 
         let new_simulation = Simulation {
             name: req.name,
@@ -85,7 +121,7 @@ impl SimulationInterfaceService for SimulationService {
             end_date_time: req.end_date_time,
             creation_date_time: creation_time.as_secs() as i32, // Assuming this is provided or generated here
             frames_loaded: 0, // Assuming this is calculated or provided
-            status: 0, // Assuming this is set correctly here
+            status: 0,        // Assuming this is set correctly here
         };
 
         let mut simulations = self.simulation_items.lock().await;
@@ -102,19 +138,27 @@ impl SimulationInterfaceService for SimulationService {
 
         debug!("get all simulations {}", req.twin_id);
 
-        let items = join_all( self.simulation_items.lock().await.iter().map(move |item| async {
-            let id: String = item.id.to_string();
-            let simulation_item = self.get_simulation_manager(id).await.expect("Failed to get a simulation");
+        let items = join_all(
+            self.simulation_items
+                .lock()
+                .await
+                .iter()
+                .map(move |item| async {
+                    let id: String = item.id.to_string();
+                    let simulation_item = self
+                        .get_simulation_manager(id)
+                        .await
+                        .expect("Failed to get a simulation");
 
-            let mut item = item.clone();
-            item.status = simulation_item.status;
-            item.frames_loaded = simulation_item.timestep_count as i32;
-            item
-        })).await;
+                    let mut item = item.clone();
+                    item.status = simulation_item.status;
+                    item.frames_loaded = simulation_item.timestep_count as i32;
+                    item
+                }),
+        )
+        .await;
 
-        let response = Simulations {
-            item: items
-        };
+        let response = Simulations { item: items };
         Ok(Response::new(response))
     }
 
@@ -138,7 +182,6 @@ impl SimulationInterfaceService for SimulationService {
             frames_loaded: 0,
             status: 0,
         };
-
 
         Ok(Response::new(response))
     }

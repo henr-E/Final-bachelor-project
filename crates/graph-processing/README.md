@@ -49,7 +49,7 @@ impl Vertex for SomeVertex {
         // Send a message to all the neighbouring nodes of type `SomeVertex`. The program will 
         // fail to compile if it does not implement MessageHandler for that message.
         ctx.send_message(
-            ctx.get_neighbours::<SomeVertex>(),
+            ctx.get_outgoing_neighbours::<SomeVertex>(),
             SomeMessage { some_data: 1 },
         );
     }
