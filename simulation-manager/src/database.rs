@@ -32,7 +32,7 @@ impl SimulationsDB {
     /// Create a new connection to the database. Uses the credentials from the `SIMULATIONS`
     /// environment variable.
     pub async fn connect() -> Result<Self> {
-        let url = database_url("SIMULATIONS", "SIMULATIONS", None, None);
+        let url = database_url("simulation_manager");
         let pool = PgPool::connect(&url).await?;
         Ok(Self {
             pool,
