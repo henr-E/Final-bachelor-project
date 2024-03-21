@@ -8,6 +8,7 @@ use proto::simulation::simulation_manager::{
     ComponentsInfo, PushSimulationRequest, SimulationData, SimulationManagerClient,
 };
 use proto::simulation::{simulation_manager, Graph};
+use std::env;
 use std::ffi::c_double;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -27,10 +28,15 @@ impl SimulationService {
         Self {
             simulation_items: Arc::new(Mutex::new(Vec::new())),
             client: SimulationManagerClient::new(
-                tonic::transport::Channel::from_static("http://127.0.0.1:8100")
-                    .connect()
-                    .await
-                    .expect("Error could not connect to simulation manager"),
+                tonic::transport::Channel::builder(
+                    env::var("SIMULATION_MANAGER_ADDR")
+                        .unwrap_or_else(|_| "http://127.0.0.1:8100".to_string())
+                        .parse()
+                        .expect("A valid simulation manager URI"),
+                )
+                .connect()
+                .await
+                .expect("Error could not connect to simulation manager"),
             ),
         }
     }

@@ -7,7 +7,8 @@ const nextConfig = {
             destination: '/dashboard/overview',
             permanent: false
         }
-    ]
+    ],
+    output: 'standalone',
 };
 
 export default nextConfig;

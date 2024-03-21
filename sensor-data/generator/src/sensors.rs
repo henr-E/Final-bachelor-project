@@ -264,7 +264,8 @@ pub mod energy {
         }
     }
 
-    /// Specific implementation for the concrete temperature sensor called [SensorTemperature].
+    /// Specific implementation for the concrete temperature sensor called
+    /// [SensorTemperature](temperature::SensorTemperature).
     impl SensorPower {
         // TODO: Remove this
         #[allow(unused)]

@@ -43,8 +43,6 @@ pub fn hash_password(password: &[u8]) -> String {
 /// # Errors
 ///
 /// Returns an `AuthenticationError::HashingError` if an error occurs during verification.
-///
-/// ```
 pub fn verify_password(password: &str, hash: &str) -> Result<(), Error> {
     let _verifier = Argon2::default();
 

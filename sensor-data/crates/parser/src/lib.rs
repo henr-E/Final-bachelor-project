@@ -7,7 +7,7 @@ mod error;
 // database.
 
 /// Input formats supported by the parser. These formats should line up with the formats defined in
-/// [`sensor_data_ingest::sensor_data::FileFormat`](proto::sensor_data_ingest::sensor_data::FileFormat).
+/// [`sensor_data_ingest::sensor_data::FileFormat`](proto::sensor_data_ingest::sensor_data_file::FileFormat).
 pub enum FileFormat {
     /// Csv file format where records are seperated using the `delimiter`.
     Csv { delimiter: u8 },

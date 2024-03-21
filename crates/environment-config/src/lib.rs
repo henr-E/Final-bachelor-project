@@ -1,5 +1,4 @@
-//! Crate for retrieving environment variable from dotenv file. Does not take into account the
-//! users shell environment to maintain a single source of truth.
+//! Crate for retrieving environment variable from dotenv file.
 
 pub use crate::{get_env_variable as env, value_is_truthy as is_truthy};
 
@@ -23,9 +22,9 @@ pub enum Error {
 }
 
 /// Check if an environment variable has a truthy value.
-pub fn value_is_truthy(val: &str) -> bool {
+pub fn value_is_truthy(val: impl AsRef<str>) -> bool {
     // Implementation taken from https://github.com/sagiegurari/envmnt/blob/master/src/util.rs
-    let val = val.to_lowercase();
+    let val = val.as_ref().to_lowercase();
     !val.is_empty() && val != "0" && val != "false" && val != "no"
 }
 
@@ -35,16 +34,30 @@ fn get_env_variables() -> Result<&'static HashMap<String, String>, Error> {
             // Collect the variables in the file into a `HashMap`. Handle errors that might occur
             // because the file was not found, could not be read, contains a syntax error, etc.
             match dotenvy::dotenv_iter().map(|i| i.collect::<Result<HashMap<_, _>, _>>()) {
-                Ok(env_vars) => env_vars,
-                Err(err) => {
-                    return Err(AnyhowError::new(err)
-                        .context("error loading `.env` file")
-                        .into())
-                }
+                Ok(env_vars) => Ok(env_vars?),
+                Err(err) if err.not_found() => Err(Error::EnvFileNotFound),
+                Err(err) => Err(AnyhowError::new(err)
+                    .context("error loading `.env` file")
+                    .into()),
             }
         }
-        // `?` not used here to avoid wrapping the block in an `Ok`.
-        .map_err(Error::from)
+        // Check if the user has enabled the use of environment variables.
+        .or_else(|err| match err {
+            Error::EnvFileNotFound => {
+                let env_impure = std::env::var("ENV_IMPURE")
+                    .map(value_is_truthy)
+                    .unwrap_or(false);
+
+                if !env_impure {
+                    return Err(err);
+                }
+
+                // Insert current environment variables. (not from `.env`)
+                let vals = std::env::vars().collect::<HashMap<_, _>>();
+                Ok(vals)
+            }
+            e => Err(e),
+        })
     })
 }
 

@@ -26,7 +26,7 @@ pub mod runner;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
     // Create database connection with provided environment variables
-    let database_url = std::env::var("DATABASE_URL")?;
+    let database_url = database_config::database_url("simulation_manager");
     let pool = PgPool::connect(&database_url).await?;
     let pool_clone = pool.clone();
 

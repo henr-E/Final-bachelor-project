@@ -251,7 +251,7 @@ async fn main() -> Result<(), crate::error::DataIngestError> {
     tracing_subscriber::fmt().init();
 
     // Get connection url of the archival database.
-    let database_url = database_url("SENSOR_ARCHIVE", "SENSOR", Some("SENSOR"), Some("SENSOR"));
+    let database_url = database_url("sensor_archive");
     // Connect to the archival database.
     let pool = PgPool::connect(&database_url).await?;
     info!("successfully connected to the archival database.");

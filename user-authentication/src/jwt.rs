@@ -47,7 +47,7 @@ pub type Jwt = String;
 /// 'AuthenticationError::InvalidToken'
 
 pub fn create_jwt(username: &str) -> Result<Jwt, ErrorKind> {
-    let secret = dotenvy::var("JWT_SECRET").expect("failed to create secret");
+    let secret = secrets::secret("JWT_SECRET").expect("failed to create secret");
 
     let claims = Claims::new(username);
 
@@ -77,7 +77,7 @@ pub fn create_jwt(username: &str) -> Result<Jwt, ErrorKind> {
 /// 'AuthenticationError::InvalidToken'
 
 pub fn validate_jwt(token: &str) -> Result<Claims, AuthenticationError> {
-    let secret = dotenvy::var("JWT_SECRET").expect("failed to create secret");
+    let secret = secrets::secret("JWT_SECRET").expect("failed to create secret");
 
     let token_data = match decode::<Claims>(
         token,
