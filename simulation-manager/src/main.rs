@@ -12,6 +12,7 @@ use proto::simulation::simulation_manager::SimulationManagerServer;
 use proto::simulation::simulator::simulator_client::SimulatorClient;
 use runner::Runner;
 
+pub mod database;
 pub mod manager;
 pub mod runner;
 
