@@ -9,5 +9,8 @@ ui-backend/temp-database/*
 # Environment configuration
 .env
 
-# Cargo generated files
-Cargo.lock
+# Secrets folder
+.secrets
+
+# Nix output
+result

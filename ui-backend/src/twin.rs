@@ -243,8 +243,8 @@ impl TwinService for MyTwinService {
         let buildings_data = match fs::read_to_string(file_path).await {
             Ok(content) => content, // Successfully reads the file content.
             Err(e) => {
-                return Err(Status::internal(format!("Failed to read file: {:?}", e)));
                 // Handles file read errors.
+                return Err(Status::internal(format!("Failed to read file: {:?}", e)));
             }
         };
 

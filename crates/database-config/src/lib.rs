@@ -1,14 +1,11 @@
 use environment_config::{env, is_truthy, Error as EnvError};
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    path::Path,
-};
-
+use secrets::secret;
+use std::path::Path;
 use thiserror::Error;
+use tracing::warn;
 
 const SHOULD_DO_MIGRATIONS_VAR: &str = "DO_MIGRATIONS";
-const POSTGRES_USER_PASSWORD_VAR: &str = "POSTGRES_USER_PASSWORD";
-const DEFAULT_HOST: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 5432);
+const POSTGRES_USER_PASSWORD_VAR: &str = "DATABASE_PASSWORD";
 
 /// Error type for this crate. Any public function that returns a `Result` returns this error as
 /// the error value.
@@ -26,11 +23,10 @@ pub enum Error {
 /// environment variables. User "postgres" will be used for authentication.
 ///
 /// * database: $`db_name_env`_DB_NAME
-/// * password: $POSTGRES_USER_PASSWORD
+/// * password: $DATABASE_PASSWORD
 pub async fn do_migrations_if_enabled(
     migrations_path: impl AsRef<Path>,
-    db_name_env: &str,
-    host_and_port: Option<impl Into<SocketAddr>>,
+    db_name: &str,
 ) -> Result<(), Error> {
     let should_do_migrations = match env(SHOULD_DO_MIGRATIONS_VAR) {
         Ok(val) => is_truthy(val),
@@ -42,23 +38,22 @@ pub async fn do_migrations_if_enabled(
         return Ok(());
     }
 
-    let database = env(format!("{}{}", db_name_env, "_DB_NAME"))?;
-    let postgres_user_password = env(POSTGRES_USER_PASSWORD_VAR)?;
-    let db_url = postgres_database_url("postgres", postgres_user_password, host_and_port, database);
+    let db_url = database_url(db_name);
 
     let migrator = sqlx::migrate::Migrator::new(migrations_path.as_ref()).await?;
     let db_pool = sqlx::PgPool::connect(&db_url).await?;
     migrator.run(&db_pool).await?;
     // Set table permissions.
+    let user = database_user();
     sqlx::query(&format!(
         "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public to {}",
-        database
+        user
     ))
     .execute(&db_pool)
     .await?;
     sqlx::query(&format!(
         "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public to {}",
-        database
+        user,
     ))
     .execute(&db_pool)
     .await?;
@@ -68,50 +63,20 @@ pub async fn do_migrations_if_enabled(
 
 /// Sets the `DATABASE_URL` rustc environment variable. This needs to be set to compile [`sqlx`]
 /// queries. Will do nothing if `SQLX_OFFLINE` is enabled.
-pub fn set_database_url(
-    db_name_env: &str,
-    db_pass_env: &str,
-    host_and_port: Option<impl Into<SocketAddr>>,
-) -> Result<(), Error> {
+pub fn set_database_url(db_name: &str) -> Result<(), Error> {
     let sqlx_offline = env("SQLX_OFFLINE").map(is_truthy).unwrap_or(false);
     if sqlx_offline {
         return Ok(());
     }
-    let database = env(format!("{}{}", db_name_env, "_DB_NAME"))?;
-    let password = env(format!("{}{}", db_pass_env, "_DB_PASSWORD"))?;
-    println!(
-        "cargo:rustc-env=DATABASE_URL={}",
-        postgres_database_url(database, password, host_and_port, database)
-    );
-    Ok(())
-}
-
-/// Sets the `DATABASE_URL` rustc environment variable just like set_database_url but for the admin user
-pub fn set_database_url_admin(
-    db_name_env: &str,
-    host_and_port: Option<impl Into<SocketAddr>>,
-) -> Result<(), Error> {
-    let sqlx_offline = env("SQLX_OFFLINE").map(is_truthy).unwrap_or(false);
-    if sqlx_offline {
-        return Ok(());
-    }
-    let database = env(format!("{}{}", db_name_env, "_DB_NAME"))?;
-    println!(
-        "cargo:rustc-env=DATABASE_URL={}",
-        postgres_database_url(
-            "postgres",
-            env("POSTGRES_USER_PASSWORD")?,
-            host_and_port,
-            database
-        )
-    );
+    println!("cargo:rustc-env=DATABASE_URL={}", database_url(db_name));
     Ok(())
 }
 
 /// Configures cargo to recompile the crate when any of the paths contain an updated file.
-pub fn configure_recompile(migrations_path: &str, dotenv_path: &str) {
+pub fn configure_recompile(migrations_path: &str, dotenv_path: &str, databases_path: &str) {
     println!("cargo:rerun-if-changed={}", migrations_path);
     println!("cargo:rerun-if-changed={}", dotenv_path);
+    println!("cargo:rerun-if-changed={}", databases_path);
 }
 
 /// Returns a postgres database url for use at runtime.
@@ -119,44 +84,43 @@ pub fn configure_recompile(migrations_path: &str, dotenv_path: &str) {
 /// take variables from. This is done to maintain a single source of truth.
 ///
 /// * database: $`db_name_env`_DB_NAME
-/// * password: $`db_pass_env`_DB_PASSWORD
 /// * host: $`db_host_env`_DB_HOST
 /// * port: $`db_port_env`_DB_PORT
 ///
 /// If a variable is `None` or does not exist, the postgres default will be assumed.
-pub fn database_url(
-    db_name_env: &str,
-    db_pass_env: &str,
-    db_host_env: Option<&str>,
-    db_port_env: Option<&str>,
-) -> String {
-    let database = env(format!("{}{}", db_name_env, "_DB_NAME")).unwrap_or("postgres");
-    let password = env(format!("{}{}", db_pass_env, "_DB_PASSWORD")).unwrap_or("postgres");
-    let host = db_host_env
-        .and_then(|h| env(format!("{}{}", h, "_DB_HOST")).ok())
-        .unwrap_or("localhost");
-    let port = db_port_env
-        .and_then(|h| env(format!("{}{}", h, "_DB_PORT")).ok())
-        .unwrap_or("5432");
+pub fn database_url(db_name: &str) -> String {
+    let password = secret(POSTGRES_USER_PASSWORD_VAR)
+        .unwrap_or_else(|| {
+            let default = "postgres".to_string();
+            warn!("Secret variable {POSTGRES_USER_PASSWORD_VAR} not found, using default value `{default}`");
+            default
+        });
+    let user = database_user();
+    let host = env("DATABASE_HOST").unwrap_or_else(|_| {
+        let default = "localhost";
+        warn!("Environment variable \"DATABASE_HOST\" not found, using default value `{default}`");
+        default
+    });
+    let port = env("DATABASE_PORT").unwrap_or_else(|_| {
+        let default = "5432";
+        warn!("Environment variable \"DATABASE_PORT\" not found, using default value `{default}`");
+        default
+    });
 
     format!(
         "postgres://{}:{}@{}:{}/{}",
-        database, password, host, port, database
+        user, password, host, port, db_name
     )
 }
 
-/// Constructs a postgres database url from the given values.
-fn postgres_database_url(
-    user: &str,
-    password: &str,
-    host_and_port: Option<impl Into<SocketAddr>>,
-    database: &str,
-) -> String {
-    format!(
-        "postgres://{}:{}@{}/{}",
-        user,
-        password,
-        host_and_port.map(|h| h.into()).unwrap_or(DEFAULT_HOST),
-        database
-    )
+fn database_user() -> String {
+    env("DATABASE_USER")
+        .unwrap_or_else(|_| {
+            let default = "postgres";
+            warn!(
+                "Environment variable \"DATABASE_USER\" not found, using default value `{default}`"
+            );
+            default
+        })
+        .to_string()
 }

@@ -186,24 +186,24 @@ export function MapEditor({ mapItemRef }: MapEditorProps)  {
                     </div>
                     <div className="flex justify-start gap-2">
                         <div className="bg-white gap-4 p-2 my-1 rounded-md flex justify-start">
-                            <Button outline={cursor !== CursorState.GRAB} onClick={e => changeCursor(CursorState.GRAB)}>
+                            <Button outline={cursor !== CursorState.GRAB} onClick={(_: any) => changeCursor(CursorState.GRAB)}>
                                 <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiCursorPointer} size={1} /></span>
                             </Button>
-                            <Button outline={cursor !== CursorState.PLACE_TOWER} onClick={e => changeCursor(CursorState.PLACE_TOWER)}>
+                            <Button outline={cursor !== CursorState.PLACE_TOWER} onClick={(_: any) => changeCursor(CursorState.PLACE_TOWER)}>
                                 <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiTransmissionTower} size={1.2} /></span>
                             </Button>
-                            <Button outline={cursor !== CursorState.PLACE_BOLT} onClick={e => changeCursor(CursorState.PLACE_BOLT)}>
+                            <Button outline={cursor !== CursorState.PLACE_BOLT} onClick={(_: any) => changeCursor(CursorState.PLACE_BOLT)}>
                                 <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiHomeLightningBoltOutline} size={1.2} /></span>
                             </Button>
-                            <Button outline={cursor !== CursorState.PLACE_TURBINE} onClick={e => changeCursor(CursorState.PLACE_TURBINE)}>
+                            <Button outline={cursor !== CursorState.PLACE_TURBINE} onClick={(_: any) => changeCursor(CursorState.PLACE_TURBINE)}>
                                 <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiWindTurbine} size={1.2} /></span>
                             </Button>
                         </div>
                         <div className="bg-white grid-cols-12 gap-4 p-2 my-1 rounded-md flex">
-                            <Button outline={cursor !== CursorState.CONNECT_ITEMS} onClick={e => changeCursor(CursorState.CONNECT_ITEMS)}>
+                            <Button outline={cursor !== CursorState.CONNECT_ITEMS} onClick={(_: any) => changeCursor(CursorState.CONNECT_ITEMS)}>
                                 <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiTransitConnectionHorizontal} size={1.2} /></span>
                             </Button>
-                            <Button outline={cursor !== CursorState.MOVE_ITEMS} onClick={e => changeCursor(CursorState.MOVE_ITEMS)}>
+                            <Button outline={cursor !== CursorState.MOVE_ITEMS} onClick={(_: any) => changeCursor(CursorState.MOVE_ITEMS)}>
                                 <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiCursorMove } size={1.2} /></span>
                             </Button>
                         </div>
@@ -227,4 +227,3 @@ export function MapEditor({ mapItemRef }: MapEditorProps)  {
 }
 
 export default MapEditor;
-

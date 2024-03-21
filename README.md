@@ -15,6 +15,7 @@ The following conventions apply everywhere:
 -   Code should be reviewed before merging. Be sure to always get at least one review. Two (or more) reviews is preferred for more sizeable merge requests.
 -   Try to remain explicit when naming functions, variables, etc. This makes it easier for others to understand your code.
 -   Don't shy away from writing comments in your code. Explaining why you did something a certain way is also helpful.
+-   Unit tests should be 'pure': they should not rely on network calls or environment variables.
 
 ### Branch conventions
 
@@ -52,23 +53,40 @@ TODO for someone currently working on the frontend
 
 ### Defining a new database
 
-To add a new database to the project's postgres instance, define the following environment variables in `.env.example`:
+To add a new database to the project's postgres instance, add the following to
+`docker/databases.toml`, replacing `<db_name>` with the name of the database:
 
--   `<subproject-name>_<db-name>_DB_NAME`: Name of the new database.
--   `<subproject-name>_<db-name>_PASSWORD`: Password used for the database.
-
-Then add an entry of the form `${<subproject-name>_<db-name>_DB_NAME}:${<subproject-name>_<db-name>_PASSWORD}` to the `docker-compose.yml` under `services -> database -> environment -> POSTGRES_DATABASES`.
+```toml
+[databases.<db_name>]
+migrations = "migrations/<db_name>"
+```
 
 If done correctly, a new database should be set up under the given name with a user that has the same name as the database.
 
-### Creating migrations
+### Migrating all databases
+
+Migrating all databases in your setup - including adding new databases defined in the
+`databases.toml/toml` - can be done by running the following command:
+```bash
+$ ./tools/run-migrations.sh
+```
+This works provided you have the rust toolchain installed. You may need to specify some environment
+variables in your setup as defined in `.env.example`.
+
+NOTE: If your local database was still using the old database setup, you will have to first clear
+it using `docker compose down --volumes`.
+
+### Creating database migrations
 
 To create a migration, use the `sqlx` cli that can be installed with `cargo install sqlx-cli --locked`.
 Use a separate dedicated directory under the root `migrations` directory per database. Use subdirectories to group database migrations if appropriate.
 
 **NOTE**: When writing a service in a language other than rust, `sqlx-cli` can still be used.
 
-### Executing migrations
+### Executing database migrations
+
+Per-database migrations should have already been executed when using the migrator tool
+(`tools/run-migrations.sh`).
 
 When compiling crates that use `sqlx` queries, and other compile time checked SQL statements, `sqlx` requires a running database that has the required tables created.
 This is normally done by first running the migrations manually.
@@ -77,3 +95,9 @@ This is solved by using the [`database-config`](./crates/database-config) crate 
 An example on how to use it can be found in the same directory.
 
 When making use of the `database-config` crate, you can toggle the migrations at compile time with the environment variable `COMPILE_TIME_MIGRATIONS` set in the `.env`.
+
+## Secret management
+
+All secrets are defined in the `tools/generate-secrets.sh` script. This script will look at your
+`$SECRET_ROOT` folder (if unset: `.secrets/`) and make a file for any of the secrets that have not
+been defined. Take a look at the `crates/secrets` crate to read secrets at runtime.

@@ -21,7 +21,7 @@ impl SensorStore {
     ///
     /// See [`database_config::database_url`] for more info.
     pub async fn new() -> Result<Self, Error> {
-        let db_url = database_url("SENSOR_ARCHIVE", "SENSOR", None, None);
+        let db_url = database_url("sensor_archive");
         let db_pool = PgPool::connect(&db_url).await?;
         Ok(Self { db_pool })
     }
