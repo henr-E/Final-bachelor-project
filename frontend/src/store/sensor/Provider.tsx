@@ -1,4 +1,4 @@
-import React, { createContext, useReducer } from "react";
+import React, { createContext, useReducer } from 'react';
 
 enum Quantity {
     // SI base quantities
@@ -32,7 +32,7 @@ enum Quantity {
     CATALYTIC_ACTIVITY,
     // non-SI quantities (utility)
     RAINFALL,
-    ELECTRICITY_CONSUMPTION
+    ELECTRICITY_CONSUMPTION,
 }
 
 enum Unit {
@@ -66,7 +66,7 @@ enum Unit {
     SIEVERT,
     KATAL,
     // non-SI units (utility)
-    WATT_HOUR // using Wh instead of kWh, see https://en.wikipedia.org/wiki/Coherence_(units_of_measurement)
+    WATT_HOUR, // using Wh instead of kWh, see https://en.wikipedia.org/wiki/Coherence_(units_of_measurement)
 }
 
 enum Prefix {
@@ -94,7 +94,7 @@ enum Prefix {
     ZEPTO,
     YOCTO,
     RONTO,
-    QUECTO
+    QUECTO,
 }
 
 const prefixExponents: Record<Prefix, number> = {
@@ -123,7 +123,7 @@ const prefixExponents: Record<Prefix, number> = {
     [Prefix.YOCTO]: -24,
     [Prefix.RONTO]: -27,
     [Prefix.QUECTO]: -30,
-}
+};
 
 const quantityBaseUnits: Record<Quantity, Unit> = {
     [Quantity.TIME]: Unit.SECOND,
@@ -154,8 +154,8 @@ const quantityBaseUnits: Record<Quantity, Unit> = {
     [Quantity.EQUIVALENT_DOSE]: Unit.SIEVERT,
     [Quantity.CATALYTIC_ACTIVITY]: Unit.KATAL,
     [Quantity.RAINFALL]: Unit.METRE,
-    [Quantity.ELECTRICITY_CONSUMPTION]: Unit.WATT_HOUR
-}
+    [Quantity.ELECTRICITY_CONSUMPTION]: Unit.WATT_HOUR,
+};
 
 const quantities: Array<Quantity> = [
     Quantity.TIME,
@@ -186,7 +186,7 @@ const quantities: Array<Quantity> = [
     Quantity.EQUIVALENT_DOSE,
     Quantity.CATALYTIC_ACTIVITY,
     Quantity.RAINFALL,
-    Quantity.ELECTRICITY_CONSUMPTION
+    Quantity.ELECTRICITY_CONSUMPTION,
 ];
 
 const prefixes: Array<Prefix> = [
@@ -214,8 +214,8 @@ const prefixes: Array<Prefix> = [
     Prefix.ZEPTO,
     Prefix.YOCTO,
     Prefix.RONTO,
-    Prefix.QUECTO
-]
+    Prefix.QUECTO,
+];
 
 interface Signal {
     quantity: Quantity;
@@ -232,12 +232,12 @@ interface Sensor {
     name: string;
     description: string;
     signals: Signal[];
-    location: { lat: number, lng: number }
+    location: { lat: number; lng: number };
 }
 
 interface SensorState {
     sensors: Sensor[];
-};
+}
 
 interface LoadSensorsAction {
     type: 'load_sensors';
@@ -260,37 +260,43 @@ interface UpdateSensorAction {
     sensor: Sensor;
 }
 
-type SensorAction = LoadSensorsAction | CreateSensorAction | DeleteSensorAction | UpdateSensorAction;
+type SensorAction =
+    | LoadSensorsAction
+    | CreateSensorAction
+    | DeleteSensorAction
+    | UpdateSensorAction;
 
 function reducer(state: SensorState, action: SensorAction): SensorState {
     switch (action.type) {
         case 'create_sensor': {
             return {
                 ...state,
-                sensors: state.sensors.concat([action.sensor])
+                sensors: state.sensors.concat([action.sensor]),
             };
         }
         case 'load_sensors': {
             return {
                 ...state,
-                sensors: action.sensors
-            }
+                sensors: action.sensors,
+            };
         }
         case 'delete_sensor': {
             return {
                 ...state,
-                sensors: state.sensors.filter(s => s.id !== action.sensorId)
-            }
+                sensors: state.sensors.filter(s => s.id !== action.sensorId),
+            };
         }
         case 'update_sensor': {
             return {
                 ...state,
-                sensors: state.sensors.filter(s => s.id !== action.sensorId).concat([action.sensor])
-            }
+                sensors: state.sensors
+                    .filter(s => s.id !== action.sensorId)
+                    .concat([action.sensor]),
+            };
         }
         default: {
             return {
-                ...state
+                ...state,
             };
         }
     }
@@ -308,30 +314,31 @@ const initialState: SensorState = {
                     unit: quantityBaseUnits[Quantity.TEMPERATURE],
                     ingestionUnit: quantityBaseUnits[Quantity.TEMPERATURE],
                     ingestionPrefix: Prefix.CENTI,
-                    ingestionColumnAlias: 'TEMP-COL'
+                    ingestionColumnAlias: 'TEMP-COL',
                 },
             ],
             location: {
                 lat: 51.1842469,
-                lng: 4.4203308
-            }
+                lng: 4.4203308,
+            },
         },
         {
             id: 'd256fe98-53aa-47cb-8169-ac6f30addca5',
             name: 'SENSOR-2',
             description: 'Pluviometer campus Middelheim',
-            signals: [{
-                quantity:
-                    Quantity.RAINFALL,
-                unit: quantityBaseUnits[Quantity.RAINFALL],
-                ingestionUnit: quantityBaseUnits[Quantity.RAINFALL],
-                ingestionPrefix: Prefix.ONE,
-                ingestionColumnAlias: 'RAINFALL-COL'
-            }],
+            signals: [
+                {
+                    quantity: Quantity.RAINFALL,
+                    unit: quantityBaseUnits[Quantity.RAINFALL],
+                    ingestionUnit: quantityBaseUnits[Quantity.RAINFALL],
+                    ingestionPrefix: Prefix.ONE,
+                    ingestionColumnAlias: 'RAINFALL-COL',
+                },
+            ],
             location: {
                 lat: 51.1842469,
-                lng: 4.4203308
-            }
+                lng: 4.4203308,
+            },
         },
         {
             id: '9bb1c650-3e71-4688-8ab5-a6dd4a8639c3',
@@ -343,34 +350,33 @@ const initialState: SensorState = {
                     unit: Unit.WATT_HOUR,
                     ingestionUnit: quantityBaseUnits[Quantity.ELECTRICITY_CONSUMPTION],
                     ingestionPrefix: Prefix.CENTI,
-                    ingestionColumnAlias: 'KWH-COL'
+                    ingestionColumnAlias: 'KWH-COL',
                 },
                 {
                     quantity: Quantity.ELECTRIC_CURRENT,
                     unit: quantityBaseUnits[Quantity.ELECTRIC_CURRENT],
                     ingestionUnit: quantityBaseUnits[Quantity.ELECTRIC_CURRENT],
                     ingestionPrefix: Prefix.CENTI,
-                    ingestionColumnAlias: 'AMP-COL'
-                }
+                    ingestionColumnAlias: 'AMP-COL',
+                },
             ],
             location: {
                 lat: 51.1842469,
-                lng: 4.4203308
-            }
-        }
-    ]
-}
+                lng: 4.4203308,
+            },
+        },
+    ],
+};
 
-const SensorContext = createContext<[SensorState, React.Dispatch<SensorAction>]>([initialState, () => { }]);
+const SensorContext = createContext<[SensorState, React.Dispatch<SensorAction>]>([
+    initialState,
+    () => {},
+]);
 
 function SensorProvider({ children }: { children: React.ReactNode }) {
     const [state, dispatch] = useReducer(reducer, initialState);
 
-    return (
-        <SensorContext.Provider value={[state, dispatch]}>
-            {children}
-        </SensorContext.Provider>
-    );
+    return <SensorContext.Provider value={[state, dispatch]}>{children}</SensorContext.Provider>;
 }
 
 export {
@@ -384,5 +390,5 @@ export {
     quantities,
     prefixes,
     SensorProvider,
-    SensorContext
+    SensorContext,
 };

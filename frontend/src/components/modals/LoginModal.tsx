@@ -1,19 +1,13 @@
 'use client';
 
-import { User, UserContext } from '@/store/user';
-import {
-    Button,
-    Modal,
-    Label,
-    TextInput
-} from 'flowbite-react';
-import { useContext, useState } from 'react';
+import { Button, Modal, Label, TextInput, HelperText } from 'flowbite-react';
+import { useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { useRouter } from 'next/navigation';
-import { createChannel, createClient } from "nice-grpc-web";
-import { AuthenticationServiceDefinition } from '@/proto/authentication/auth';
-import {uiBackendServiceUrl} from "@/api/urls";
-
+import { login } from '@/lib/authentication';
+import { setCookie } from 'typescript-cookie';
+import ToastNotification from '@/components/notification/ToastNotification';
+import { JsonFileFormat } from '@/proto/sensor/data-ingest';
 
 interface LoginModalProps {
     isLoginModalOpen: boolean;
@@ -21,96 +15,87 @@ interface LoginModalProps {
 }
 
 function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
-    const [userState, dispatch] = useContext(UserContext);
-
     const router = useRouter();
 
-    const [username, setUsername] = useState("");
-    const [password, setPassword] = useState("");
-
-    const handleLoginButtonClick = async () => {
-        // no need to validate here, add validation attributes to components (check the username and password fields)
-
-        try {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
 
 
-            // NOTE: a JWT is not 'encrypted', meaning that anyone can decode the JWT claims
-            // do not put sensitive information in JWT claims (passwords)
-            // even usernames should not be in claims
 
-            // const token = data.token;
-            // const user = jwtDecode<User>(token);
+    const handleSubmit = async () => {
+        let formdata = new FormData();
+        formdata.append('username', username);
+        formdata.append('password', password);
 
-            const token = "PLACEHOLDER";
-            const user: User = {
-                username: 'PLACEHOLDER'
-            }
-            //todo henri made backend request here
-            const channel = createChannel(uiBackendServiceUrl);
-            const client = createClient(AuthenticationServiceDefinition, channel);
-            try{
-                // @ts-ignore
-                const response = await client.loginUser({user});
-                const token = response.token;
-
-                console.log("token from backend", token)
-            }catch (error){
-                console.error("Failed", error);
-            }
-
-            // context: application state is lost on refresh, we are required to persist the user's authorization token somewhere
-            // options include: localStorage, (regular) cookies, HttpOnly cookies...
-
-            // storing JWT as httponly cookie (set by server) vs localStorage
-            // the main disadvantage of using localStorage is that malicious third party scripts can access the contents of localStorage (such as in XSS)
-            // on the other hand: httponly cookies make it more difficult for non-browser clients to send requests to authenticated endpoints
-            // lastly: browser clients cannot authenticate/authorize gRPC calls, because they cannot read httponly cookies. gRPC does not 'support cookies'
-
-            // using localStorage for now
-
-            localStorage.setItem("authToken", token);
-
-            // store token and user data in the application state
-            dispatch({ type: 'login', token, user });
-
+        const response = await login(formdata);
+        if (response.ok) {
+            // set the jwt token in the cookie
+            const token = response.val;
+            const decoded = jwtDecode(token);
+            const expiration_date = decoded.exp;
+            setCookie('auth', token, { expires: expiration_date });
+            ToastNotification('success', 'welcome ' + username);
             router.push('/dashboard');
-        } catch (e) {
-            // TODO: show error message to user
+            closeLoginModal();
+        } else {
+            ToastNotification('error', response.val.message);
+            return;
         }
+    };
 
-        closeLoginModal();
-    }
-
-
+    const setToDefault = () => {
+        setPassword('');
+        setUsername('');
+    };
 
     const handleCancelButtonClick = () => {
-        setUsername("");
-        setPassword("");
+        setToDefault();
         closeLoginModal();
-    }
+    };
 
     return (
         <>
             <Modal show={isLoginModalOpen} onClose={closeLoginModal}>
-                <Modal.Header>Login</Modal.Header>
-                <Modal.Body>
-                    <div>
-                        <div className="mb-2 block">
-                            <Label htmlFor="email" value="Your email" />
+                <form action={handleSubmit}>
+                    <Modal.Header>Login</Modal.Header>
+                    <Modal.Body>
+                        <div>
+                            <div className='mb-2 block'>
+                                <Label htmlFor='username' value='Your username' />
+                            </div>
+                            <TextInput
+                                id='username'
+                                type='username'
+                                value={username}
+                                placeholder='username'
+                                required
+                                onChange={e => setUsername(e.target.value)}
+                                style={{ marginBottom: '10px' }}
+                            />
                         </div>
-                        <TextInput id="email" type="email" value={username} placeholder="email" required onChange={(e) => setUsername(e.target.value)} style={{ marginBottom: '10px' }} />
-                    </div>
-                    <div>
-                        <div className="mb-2 block">
-                            <Label htmlFor="password" value="Your password" />
+                        <div>
+                            <div className='mb-2 block'>
+                                <Label htmlFor='password' value='Your password' />
+                            </div>
+                            <TextInput
+                                id='password'
+                                type='password'
+                                value={password}
+                                placeholder={'password'}
+                                required
+                                onChange={e => setPassword(e.target.value)}
+                            />
                         </div>
-                        <TextInput id="password" type="password" value={password} placeholder={"password"} required onChange={(e) => setPassword(e.target.value)} />
-                    </div>
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button onClick={handleLoginButtonClick}>Login</Button>
-                    <Button color="gray" onClick={handleCancelButtonClick}>Cancel</Button>
-                </Modal.Footer>
+                    </Modal.Body>
+                    <Modal.Footer>
+                        <Button color='indigo' type='submit'>
+                            Login
+                        </Button>
+                        <Button color='gray' onClick={handleCancelButtonClick}>
+                            Cancel
+                        </Button>
+                    </Modal.Footer>
+                </form>
             </Modal>
         </>
     );

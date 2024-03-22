@@ -1,7 +1,5 @@
 function EffectAnalysisPage() {
-    return (
-        <p>Effect Analysis</p>
-    );
+    return <p>Effect Analysis</p>;
 }
 
-export default EffectAnalysisPage
+export default EffectAnalysisPage;

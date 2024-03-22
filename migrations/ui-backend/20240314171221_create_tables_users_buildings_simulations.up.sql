@@ -7,9 +7,9 @@ CREATE TABLE buildings
 
 CREATE TABLE users
 (
-    id SERIAL PRIMARY KEY,
+    id uuid PRIMARY KEY,
     username VARCHAR(255) UNIQUE NOT NULL,
-    hash VARCHAR(1024) NOT NULL
+    password_hash VARCHAR(1024) NOT NULL
 );
 
 CREATE TABLE twins
@@ -20,4 +20,3 @@ CREATE TABLE twins
     latitude FLOAT8 NOT NULL,
     radius INT NOT NULL
 );
-

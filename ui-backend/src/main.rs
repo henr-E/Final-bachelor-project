@@ -1,11 +1,20 @@
 use crate::simulation_service::SimulationService;
+use proto::frontend::{
+    AuthenticationServiceServer, SimulationInterfaceServiceServer, TwinServiceServer,
+};
+
 use crate::twin::MyTwinService;
-use proto::frontend::SimulationInterfaceServiceServer;
-use proto::frontend::TwinServiceServer;
+use server::MyAuthenticationService;
 use std::env;
 use tonic::transport::Server;
-use tracing::info;
 
+// sqlx
+use sqlx::postgres::PgPool;
+
+pub mod error;
+mod hashing;
+mod jwt;
+mod server;
 mod simulation_service;
 mod twin;
 
@@ -17,19 +26,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     dotenvy::dotenv().ok();
 
+    // Create database connection with provided environment variables
+    let database_url = database_config::database_url("ui_backend");
+    let pool = PgPool::connect(&database_url).await?;
+    let pool_clone = pool.clone();
+
     let addr = env::var("UI_BACKEND_ADDR")
         .unwrap_or("127.0.0.1:8080".to_string())
         .parse()
         .expect("A valid bind address");
 
-    let simulation_service = SimulationInterfaceServiceServer::new(SimulationService::new().await);
     let twin_service = TwinServiceServer::new(MyTwinService);
-
-    info!("Listening on {addr}");
+    let simulation_service = SimulationInterfaceServiceServer::new(SimulationService::new().await);
+    let authentication_service =
+        AuthenticationServiceServer::new(MyAuthenticationService::new(pool_clone));
 
     Server::builder()
         .add_service(simulation_service)
         .add_service(twin_service)
+        .add_service(authentication_service)
         .serve(addr)
         .await?;
     Ok(())

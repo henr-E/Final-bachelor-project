@@ -1,9 +1,7 @@
 use chrono::{Days, Utc};
 use jsonwebtoken::errors::ErrorKind;
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
-
-use crate::myerror::AuthenticationError;
 
 const JWT_EXPIRATION_TIME: Days = Days::new(30);
 
@@ -60,34 +58,4 @@ pub fn create_jwt(username: &str) -> Result<Jwt, ErrorKind> {
         Err(_err) => Err(ErrorKind::InvalidToken),
     };
     token
-}
-/// validate a json web token
-/// This function was written for testing purpose
-///
-/// # Arguments
-///
-/// * 'token' - &str
-///
-/// # Returns
-///
-/// Returns a 'Result' containing the claim if succes, or an 'AuthenticationError::InvalidToken if an error occurs
-///
-/// # Errors
-///
-/// 'AuthenticationError::InvalidToken'
-
-pub fn validate_jwt(token: &str) -> Result<Claims, AuthenticationError> {
-    let secret = secrets::secret("JWT_SECRET").expect("failed to create secret");
-
-    let token_data = match decode::<Claims>(
-        token,
-        &DecodingKey::from_secret(secret.as_ref()),
-        &Validation::new(Algorithm::HS256),
-    )
-    .map(|data| data.claims)
-    {
-        Ok(c) => Ok(c),
-        Err(_err) => Err(AuthenticationError::JwtError),
-    };
-    token_data
 }

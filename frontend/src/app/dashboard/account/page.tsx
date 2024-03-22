@@ -1,7 +1,5 @@
 function AccountPage() {
-        return (
-            <p>account page</p>
-        );
+    return <p>account page</p>;
 }
 
-export default AccountPage
+export default AccountPage;

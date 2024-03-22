@@ -1,7 +1,5 @@
 function LoadBalancingPage() {
-    return (
-        <p>Load Balancing</p>
-    );
+    return <p>Load Balancing</p>;
 }
 
-export default LoadBalancingPage
+export default LoadBalancingPage;

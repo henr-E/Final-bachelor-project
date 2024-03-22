@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 function OverviewPage() {
     return (
@@ -8,4 +8,4 @@ function OverviewPage() {
     );
 }
 
-export default OverviewPage
+export default OverviewPage;

@@ -1,10 +1,9 @@
-'use client'
-import React, {createContext, useEffect, useReducer} from "react";
-import {createChannel, createClient} from "nice-grpc-web";
-import {TwinServiceDefinition} from '@/proto/twins/twin';
-import {uiBackendServiceUrl} from "@/api/urls";
-import ToastNotification from "@/components/notification/ToastNotification";
-
+'use client';
+import React, { createContext, useEffect, useReducer } from 'react';
+import { createChannel, createClient } from 'nice-grpc-web';
+import { TwinServiceDefinition } from '@/proto/twins/twin';
+import { uiBackendServiceUrl } from '@/api/urls';
+import ToastNotification from '@/components/notification/ToastNotification';
 
 // TODO: replace with auto-gen interface from backend protobuffers
 interface Twin {
@@ -18,12 +17,12 @@ interface Twin {
 interface TwinState {
     current?: Twin;
     twins: Twin[];
-};
+}
 
 interface SwitchTwinAction {
     type: 'switch_twin';
     twin: Twin;
-};
+}
 
 interface LoadTwinsAction {
     type: 'load_twins';
@@ -42,13 +41,13 @@ function reducer(state: TwinState, action: TwinAction): TwinState {
         case 'switch_twin': {
             return {
                 ...state,
-                current: action.twin
+                current: action.twin,
             };
         }
         case 'load_twins': {
             return {
                 ...state,
-                twins: action.twins
+                twins: action.twins,
             };
         }
         case 'create_twin': {
@@ -56,35 +55,37 @@ function reducer(state: TwinState, action: TwinAction): TwinState {
             return {
                 ...state,
                 current: action.twin,
-                twins: updatedTwins
+                twins: updatedTwins,
             };
         }
         default: {
             return {
-                ...state
+                ...state,
             };
         }
     }
 }
 
 const initialState: TwinState = {
-    twins: []
-}
+    twins: [],
+};
 
-async function getTwinsFromBackend(){
+async function getTwinsFromBackend() {
     const channel = createChannel(uiBackendServiceUrl);
     const client = createClient(TwinServiceDefinition, channel);
 
-    try{
+    try {
         // Notification("info", "All twins are being loaded.")
         return await client.getAllTwins({});
-
-    }catch (error){
-        console.error("Failed to fetch all twins:", error);
+    } catch (error) {
+        console.error('Failed to fetch all twins:', error);
     }
 }
 
-const TwinContext = createContext<[TwinState, React.Dispatch<TwinAction>]>([initialState, () => { }]);
+const TwinContext = createContext<[TwinState, React.Dispatch<TwinAction>]>([
+    initialState,
+    () => {},
+]);
 
 function TwinProvider({ children }: { children: React.ReactNode }) {
     const [state, dispatch] = useReducer(reducer, initialState);
@@ -94,17 +95,19 @@ function TwinProvider({ children }: { children: React.ReactNode }) {
             const twinsFromBackend = await getTwinsFromBackend();
 
             //check if empty => no twins
-            if(twinsFromBackend?.twins == ""){
+            if (twinsFromBackend?.twins == '') {
                 //todo twins should be loaded when the dashboard is loaded and not when the page is loaded
                 // ToastNotification("info", "You haven't created a twin yet!")
                 dispatch({ type: 'load_twins', twins: [] });
-            }
-            else{
-                ToastNotification("info", "All twins have been loaded.")
+            } else {
+                ToastNotification('info', 'All twins have been loaded.');
                 //check if undefined
                 if (twinsFromBackend?.twins != null) {
                     const twinsFromBackendJSON: Twin[] = JSON.parse(twinsFromBackend?.twins);
-                    dispatch({ type: 'load_twins', twins: twinsFromBackendJSON });
+                    dispatch({
+                        type: 'load_twins',
+                        twins: twinsFromBackendJSON,
+                    });
                 }
             }
         }
@@ -112,11 +115,7 @@ function TwinProvider({ children }: { children: React.ReactNode }) {
         fetchTwins();
     }, []);
 
-    return (
-        <TwinContext.Provider value={[state, dispatch]}>
-            {children}
-        </TwinContext.Provider>
-    );
+    return <TwinContext.Provider value={[state, dispatch]}>{children}</TwinContext.Provider>;
 }
 
 export { type Twin, TwinProvider, TwinContext };

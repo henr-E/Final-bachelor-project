@@ -6,10 +6,6 @@ pub enum AuthenticationError {
     #[error("invalid username or password")]
     InvalidUsernameOrPassword,
 
-    /// AuthenticationError indicating that username already exist
-    #[error("the username {0} already exist")]
-    UsernameExist(String),
-
     /// AuthenticationError when a hashing error occurs
     #[error("hashing error")]
     HashingError,

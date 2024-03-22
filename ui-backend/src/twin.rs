@@ -141,6 +141,7 @@ impl TwinService for MyTwinService {
         request: Request<CreateTwinRequest>,
     ) -> Result<Response<CreateTwinResponse>, Status> {
         // Handles creation of a digital twin.
+
         let req = request.into_inner(); // Extracts the inner request object.
 
         let twin = Twin {

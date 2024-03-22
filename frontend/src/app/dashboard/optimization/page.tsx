@@ -1,7 +1,5 @@
 function OptimizationPage() {
-    return (
-        <p></p>
-    );
+    return <p></p>;
 }
 
-export default OptimizationPage
+export default OptimizationPage;
