@@ -12,7 +12,7 @@ function DashboardNavbar({ openCreateTwinModal }: DashboardNavbarProps) {
     const [twinState, dispatch] = useContext(TwinContext);
 
     const onTwinSelect = (twin: Twin) => {
-        localStorage.setItem('selectedTwinID', twin.id);
+        localStorage.setItem("selectedTwinID", String(twin.id));
         dispatch({ type: 'switch_twin', twin: twin });
     };
 

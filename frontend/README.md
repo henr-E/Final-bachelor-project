@@ -1,47 +1,52 @@
 # Frontend
+## before running the project
+### install envoy
+##### linux:
+   https://www.envoyproxy.io/docs/envoy/latest/start/install#install-envoy-on-ubuntu-linux
+##### mac
+    brew install envoy
+
+### env file
+rename `.env.example` to `.env`
+
+#### github
+if you get following error:
+error: The following untracked working tree files would be overwritten by checkout
+
+you can delete all changes by using:
+git clean  -d  -f .
+
+
+
+
 ## Running the project
 1. generate the proto files (the files should appear in the frontend/src/proto directory)
+#### in the root directory run:
 ```
-cd frontend
-./build-proto.sh
+docker compose down --volumes
+tools/generate-secrets.sh
+docker compose up
+tools/run-migrations.sh
+cargo clean
+cargo build
+
+cargo run --bin energy-simulator
+cargo run --bin simulation-manager
+cargo run --bin ui-backend
 ```
-2. run envoy service (root directory): `envoy -c envoy.yaml`
-3. start the backend:
-`cargo run --bin ui-backend`
-4. start the frontend:
+#### in the frontend directory run:
 ```
-cd frontend
-npm install
-npm run dev
+yarn proto
+yarn install
+yarn run build
+yarn run dev
 ```
-5. navigate to the http://localhost:3000
-6. The envoy.yaml file is configured such that the admin access can be found through http://127.0.0.1:9901/
-7. to check if envoy is running correctly run `lsof -i :9901`
 
-## Getting Started
-1. rename `.env.copy` to `.env` 
-2. fill in `.env` with backend URLs
-3. load `.env` file into terminal session (eg. `export $(cat .env | xargs)`)
-4. `npm i`
-5. `npm run dev`
-6. navigate to http://localhost:3000
+navigate to the http://localhost:3000
 
-Fill in your backend URLs in `src/api/urls.ts` to avoid repeating step 3 (do not commit changes to this file).
+The envoy.yaml file is configured such that the admin access can be found through http://127.0.0.1:9901/
 
-### Installing Envoy
-
-A proxy server is needed to use gRPC within a browser: https://www.envoyproxy.io/
-
-## Learning
-
-1. https://react.dev/learn 
-2. https://www.typescriptlang.org/docs/
-3. https://nextjs.org/
-4. https://react-leaflet.js.org/
-5. https://www.flowbite-react.com/
-6. https://react.dev/learn/passing-data-deeply-with-context
-7. https://react.dev/reference/react/hooks
-8. https://nextjs.org/docs/app/building-your-application/routing/defining-routes
+to check if envoy is running correctly run `lsof -i :9901`
 
 ## Project structure
 

@@ -11,7 +11,7 @@ import {
     CreateSimulationParams,
 } from '@/proto/simulation/frontend';
 import { TwinContext } from '@/store/twins';
-import { LineItem, MapItemType, MarkerItem } from '@/components/maps/MapItem';
+import { LineItem, MapItemType, NodeItem } from '@/components/maps/MapItem';
 import { Edge, Node } from '@/proto/simulation/simulation';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { uiBackendServiceUrl } from '@/api/urls';
@@ -35,7 +35,7 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
     const formRef = useRef<HTMLFormElement>(null);
 
     const CreateSimulation = async () => {
-        console.log(startTime, startDate);
+        // console.log(startTime, startDate);
         const startTimeSplit = startTime.split(':');
         let startDateTime = startDate;
         startDateTime.setHours(+startTimeSplit[0], +startTimeSplit[1], +startTimeSplit[2]);
@@ -48,7 +48,7 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
         let nodes = new Array<Node>();
         let edges = new Array<Edge>();
         mapItemsRef.current?.map(item => {
-            console.log(item);
+            //console.log(item);
             if (item.type == 3) {
                 let lineItem = item as LineItem;
                 edges.push(
@@ -63,7 +63,7 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
                 );
                 return;
             }
-            let markerItem = item as MarkerItem;
+            let markerItem = item as NodeItem;
             nodes.push(
                 Node.create({
                     components: {},
@@ -293,3 +293,4 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
 }
 
 export default CreateSimulationModal;
+

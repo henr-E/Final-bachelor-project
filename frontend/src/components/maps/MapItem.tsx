@@ -1,40 +1,27 @@
 'use client';
 import 'leaflet/dist/leaflet.css';
-import { Twin, TwinContext } from '@/store/twins';
-import { useContext, useEffect, useId, useState } from 'react';
 import {
-    MapContainer,
-    TileLayer,
     Marker,
-    Popup,
-    useMap,
     Polyline,
-    useMapEvents,
-    SVGOverlay,
-} from 'react-leaflet';
-import { Icon as leafLetIcon, LatLngExpression, LatLng, LeafletEventHandlerFnMap } from 'leaflet';
-import { Button } from 'flowbite-react';
-import {
-    mdiTransmissionTower,
-    mdiCursorPointer,
-    mdiHomeLightningBoltOutline,
-    mdiWindTurbine,
-} from '@mdi/js';
-import { Icon } from '@mdi/react';
-import mapItem from '@/components/maps/MapItem';
+    Polygon,
+} from 'react-leaflet'
+import { Icon as leafLetIcon, LatLngExpression, LeafletEventHandlerFnMap } from 'leaflet';
+
 export enum MapItems {
     TransformerHouse,
     Tower,
     Turbine,
     Line,
+    Building
 }
 
 const iconPaths = {
-    [MapItems.TransformerHouse]: '/icons/home-lightning-bolt-outline.svg',
-    [MapItems.Tower]: '/icons/transmission-tower.svg',
-    [MapItems.Turbine]: '/icons/wind-turbine.svg',
-    [MapItems.Line]: '/icons/transit-connection-horizontal.svg',
-};
+    [MapItems.TransformerHouse]: "/icons/home-lightning-bolt-outline.svg",
+    [MapItems.Tower]: "/icons/transmission-tower.svg",
+    [MapItems.Turbine]: "/icons/wind-turbine.svg",
+    [MapItems.Line]: "/icons/transit-connection-horizontal.svg",
+    [MapItems.Building]: "",
+}
 
 export interface MapItemType {
     name: string;
@@ -44,12 +31,23 @@ export interface MapItemType {
     inactive?: boolean;
 }
 
-export interface MarkerItem extends MapItemType {
+export interface NodeItem extends MapItemType {
     location: LatLngExpression;
 }
 
 export interface LineItem extends MapItemType {
-    items: [MarkerItem];
+    items: [NodeItem];
+}
+
+export interface BuildingItem extends NodeItem {
+    id: number;
+    street: string;
+    houseNumber: string;
+    postcode: string;
+    city: string;
+    coordinates: number[][];
+    color: string;
+    visible: boolean;
 }
 
 export function MapItem(mapItem: any) {
@@ -66,10 +64,26 @@ export function MapItem(mapItem: any) {
             }
         });
 
-        return <Polyline eventHandlers={mapItem.itemData.eventHandler} positions={positions} />;
+        return (
+            <Polyline
+                eventHandlers={mapItem.itemData.eventHandler}
+                positions={positions}
+            />
+        );
+    } else if (mapItem.itemData.type === MapItems.Building) {
+        let buildingItem = mapItem.itemData as BuildingItem;
+        return (
+            < Polygon
+                key = {buildingItem.id}
+                positions={buildingItem.coordinates.map(coordinate => [coordinate[0], coordinate[1]])}
+                color={buildingItem.color}
+                eventHandlers={buildingItem.eventHandler}
+            />
+        )
+
     }
 
-    let item = mapItem.itemData as MarkerItem;
+    let item = mapItem.itemData as NodeItem;
     return (
         <Marker
             eventHandlers={item.eventHandler}
@@ -85,3 +99,4 @@ export function MapItem(mapItem: any) {
 }
 
 export default MapItem;
+

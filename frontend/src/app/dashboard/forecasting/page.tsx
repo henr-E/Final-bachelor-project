@@ -1,12 +1,10 @@
 'use client';
 
-import { Twin, TwinContext } from '@/store/twins';
-import { useContext, useState } from 'react';
-import { Accordion, Button, Label, TextInput } from 'flowbite-react';
-import { PredictionMapProps } from '@/components/maps/PredictionMap';
-import dynamic from 'next/dynamic';
-import { PredictionMapMode } from '@/app/dashboard/GlobalVariables';
-
+import {Twin, TwinContext} from '@/store/twins';
+import {useContext, useState} from 'react';
+import {Accordion, Button, Label, TextInput} from 'flowbite-react';
+import {PredictionMapProps} from "@/components/maps/PredictionMap";
+import dynamic from "next/dynamic";
 const PredictionMapImport = dynamic<PredictionMapProps>(
     () => import('@/components/maps/PredictionMap'),
     { ssr: false }
@@ -33,10 +31,7 @@ function ForecastingPage() {
             </div>
             <div className='grid grid-cols-12 grow'>
                 <div className='col-span-9'>
-                    <PredictionMapImport
-                        twin={twinState.current}
-                        mode={PredictionMapMode.ForeCastingMode}
-                    />
+                    <PredictionMapImport twin={twinState.current}/>
                 </div>
                 <div className='col-span-3 mx-6'>
                     <div className='flex flex-col h-full'>
