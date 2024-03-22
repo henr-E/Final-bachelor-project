@@ -2188,6 +2188,7 @@ dependencies = [
 name = "sensor-store"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "database-config",
  "enumset",
  "futures",
