@@ -9,6 +9,7 @@ use sqlx::PgPool;
 pub mod error;
 pub mod quantity;
 pub mod sensor;
+pub mod signal;
 pub mod unit;
 
 /// Sensor database wrapper.
@@ -74,6 +75,7 @@ impl SensorStore {
         for sensor_signal in sqlx::query!(
             r#"
                 SELECT
+                    sensor_signal_id AS id,
                     alias,
                     quantity AS "quantity!: Quantity",
                     unit AS "unit!: Unit",
@@ -87,6 +89,7 @@ impl SensorStore {
         .await?
         {
             sensor_builder.add_signal(
+                sensor_signal.id,
                 sensor_signal.alias,
                 sensor_signal.quantity,
                 sensor_signal.unit,

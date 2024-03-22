@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    value,\n                    timestamp\n                FROM sensor_values\n                WHERE\n                    sensor_signal_id = $1::int\n                    AND timestamp > now() - $2::interval\n                    AND timestamp < now()\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "value",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Interval"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "e732e6fd402bd89704d9faf7f91f919cdc9c087fd8f5e60b2b156cae99d83960"
+}
