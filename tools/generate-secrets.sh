@@ -35,7 +35,7 @@ mkdir -p $SECRETS_ROOT
   do
     if [ ! -f $secret_name ]; then
       echo "Generating new secret: \`$secret_name\`"
-      echo ${secrets[$secret_name]} >> $secret_name
+      echo -n ${secrets[$secret_name]} >> $secret_name
     else
       echo "Secret exists: \`$secret_name\`"
     fi

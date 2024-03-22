@@ -13,7 +13,27 @@ pub fn secret(key: &str) -> Option<String> {
         return Some(var);
     }
     if let Ok(var) = std::fs::read_to_string(format!("/run/secrets/{key}")) {
-        return Some(var);
+        return Some(var.trim_end().to_string());
     }
-    std::fs::read_to_string(format!(".secrets/{key}")).ok()
+    walk_dir_tree_for_secrets(key).map(|s| s.trim_end().to_string())
+}
+
+/// Walk the directory tree until it finds the `.secrets/{key}` file.
+///
+/// Stops when it runs into permission errors or it cannot go up an further.
+fn walk_dir_tree_for_secrets(key: &str) -> Option<String> {
+    let file = std::path::PathBuf::from(format!(".secrets/{key}"));
+    let mut current_dir = std::env::current_dir().ok()?;
+
+    while !current_dir.join(&file).exists() {
+        // Go up a directory.
+        current_dir = current_dir.join("../");
+
+        if !current_dir.exists() {
+            // We cannot go higher up the tree.
+            return None;
+        }
+    }
+
+    std::fs::read_to_string(current_dir.join(file)).ok()
 }
