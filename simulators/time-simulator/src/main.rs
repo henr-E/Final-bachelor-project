@@ -1,6 +1,6 @@
 use std::{env, net::SocketAddr, process::ExitCode};
 
-use component_library::TimeComponent;
+use component_library::global::TimeComponent;
 use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
 use tracing::{error, info};
 
