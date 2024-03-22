@@ -1,11 +1,13 @@
-import type { Metadata } from "next";
-import "./globals.css";
-import AppWrapper from "@/components/AppWrapper";
-import Provider from "@/store/Provider";
+import type { Metadata } from 'next';
+import './globals.css';
+import AppWrapper from '@/components/AppWrapper';
+import Provider from '@/store/Provider';
+
+
 
 export const metadata: Metadata = {
-    title: "Digital Twin",
-    description: "Gain realtime insight into how your city uses energy.",
+    title: 'Digital Twin',
+    description: 'Gain realtime insight into how your city uses energy.',
 };
 
 export default function RootLayout({
@@ -14,14 +16,11 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="en">
-            <head>
-            </head>
+        <html lang='en'>
+            <head></head>
             <body>
                 <Provider>
-                    <AppWrapper>
-                        {children}
-                    </AppWrapper>
+                    <AppWrapper>{children}</AppWrapper>
                 </Provider>
             </body>
         </html>

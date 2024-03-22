@@ -1,7 +1,5 @@
 function OutageDiagnosisPage() {
-    return (
-        <p>Outage Diagnosis</p>
-    );
+    return <p>Outage Diagnosis</p>;
 }
 
-export default OutageDiagnosisPage
+export default OutageDiagnosisPage;

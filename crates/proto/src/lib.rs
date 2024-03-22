@@ -47,13 +47,6 @@ pub mod sensor_data_ingest {
     }
 }
 
-pub mod auth {
-    pub use auth_proto::{authentication_service_client::*, authentication_service_server::*, *};
-    mod auth_proto {
-        tonic::include_proto!("authentication.auth");
-    }
-}
-
 pub mod simulation {
     pub use proto_simulation::*;
 
@@ -92,6 +85,12 @@ pub mod frontend {
 
     pub use proto_twin::twin_service_client::TwinServiceClient;
     pub use proto_twin::twin_service_server::{TwinService, TwinServiceServer};
+
+    pub use auth_proto::{authentication_service_client::*, authentication_service_server::*, *};
+
+    mod auth_proto {
+        tonic::include_proto!("authentication.auth");
+    }
 
     mod proto_frontend_simulation {
         tonic::include_proto!("simulation.frontend");

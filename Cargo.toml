@@ -8,8 +8,6 @@ members = [
     "sensor-data/generator",
     "sensor-data/crates/parser",
     "sensor-data/crates/sensor-store",
-    "user-authentication",
-    "simulation-manager",
     "simulators/*",
     "tools/database-migrator",
 ]

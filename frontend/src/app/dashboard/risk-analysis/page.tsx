@@ -1,7 +1,5 @@
 function RiskAnalysisPage() {
-    return (
-        <p></p>
-    );
+    return <p></p>;
 }
 
-export default RiskAnalysisPage
+export default RiskAnalysisPage;

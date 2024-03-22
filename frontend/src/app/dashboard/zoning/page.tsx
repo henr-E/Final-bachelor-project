@@ -1,7 +1,5 @@
 function ZoningPage() {
-    return (
-        <p>Zoning</p>
-    );
+    return <p>Zoning</p>;
 }
 
-export default ZoningPage
+export default ZoningPage;
