@@ -1,11 +1,9 @@
 'use client';
 
-import { Button, Modal, Label, TextInput, Checkbox } from 'flowbite-react';
+import { Button, Modal, Label, TextInput } from 'flowbite-react';
 
-import { Result, Err, Ok } from 'ts-results';
-import { useContext, useState } from 'react';
-import { jwtDecode } from 'jwt-decode';
-import { register, RegisterError } from '@/lib/authentication';
+import { useState } from 'react';
+import { register } from '@/lib/authentication';
 import { FaUser } from 'react-icons/fa';
 import { RiLockPasswordFill } from 'react-icons/ri';
 import { removeCookie } from 'typescript-cookie';

@@ -1,13 +1,12 @@
 'use client';
 
-import { Button, Modal, Label, TextInput, HelperText } from 'flowbite-react';
+import { Button, Modal, Label, TextInput } from 'flowbite-react';
 import { useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { useRouter } from 'next/navigation';
 import { login } from '@/lib/authentication';
 import { setCookie } from 'typescript-cookie';
 import ToastNotification from '@/components/notification/ToastNotification';
-import { JsonFileFormat } from '@/proto/sensor/data-ingest';
 
 interface LoginModalProps {
     isLoginModalOpen: boolean;

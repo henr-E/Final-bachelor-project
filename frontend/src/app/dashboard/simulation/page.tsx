@@ -29,7 +29,7 @@ function SimulationOverviewPage() {
         const channel = createChannel(uiBackendServiceUrl);
         const client = createClient(SimulationInterfaceServiceDefinition, channel);
 
-        client.getAllSimulations({ twinId: twinState.current?.id }).then((r: Simulations) => {
+        client.getAllSimulations({ twinId: String(twinState.current?.id)}).then((r: Simulations) => {
             setSimulations(r);
         });
     }, [twinState]);

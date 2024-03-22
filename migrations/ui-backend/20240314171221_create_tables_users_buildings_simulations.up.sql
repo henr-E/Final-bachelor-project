@@ -1,10 +1,3 @@
-CREATE TABLE buildings
-(
-    id SERIAL PRIMARY KEY,
-    longitude FLOAT8 NOT NULL,
-    latitude FLOAT8 NOT NULL
-);
-
 CREATE TABLE users
 (
     id uuid PRIMARY KEY,
@@ -15,8 +8,21 @@ CREATE TABLE users
 CREATE TABLE twins
 (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(256) NOT NULL,
+    name TEXT NOT NULL,
     longitude FLOAT8 NOT NULL,
     latitude FLOAT8 NOT NULL,
-    radius INT NOT NULL
+    radius FLOAT8 NOT NULL
+);
+
+CREATE TABLE buildings
+(
+    id SERIAL PRIMARY KEY,
+    street TEXT,
+    house_number TEXT,
+    postcode TEXT,
+    city TEXT,
+    coordinates JSONB,
+    visible BOOLEAN,
+    twin_id INTEGER NOT NULL,
+    FOREIGN KEY (twin_id) REFERENCES twins(id)
 );
