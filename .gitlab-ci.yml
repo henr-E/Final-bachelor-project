@@ -34,6 +34,8 @@ variables:
   # container. Also speeds up the pipeline as it does not require the image to be pulled more than
   # once.
   CACHIX_IMAGE: docker.nix-community.org/nixpkgs/cachix-flakes@sha256:a41434503903c1cda87a7d67d6dd45a96b51404faccbcde332c0e97582437da6
+  # Allow (hopefully) for color in the terminal.
+  TERM: 'xterm-256color'
 
 checks:
   image:
@@ -48,7 +50,8 @@ checks:
   before_script:
     - cachix use "$CACHIX_CACHE_NAME"
   script:
-    - cachix watch-exec $CACHIX_CACHE_NAME -- nix flake check -L
+    - cachix watch-store $CACHIX_CACHE_NAME &
+    - nix flake check -L
 
 release:
   image:
