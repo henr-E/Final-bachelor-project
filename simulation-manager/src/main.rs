@@ -12,7 +12,10 @@ use proto::simulation::simulation_manager::SimulationManagerServer;
 use proto::simulation::simulator::simulator_client::SimulatorClient;
 use runner::Runner;
 
+use database_buffer::{DatabaseBuffer, Transport};
+
 pub mod database;
+mod database_buffer;
 pub mod manager;
 pub mod runner;
 
@@ -28,7 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create database connection with provided environment variables
     let database_url = database_config::database_url("simulation_manager");
     let pool = PgPool::connect(&database_url).await?;
-    let pool_clone = pool.clone();
+    let pool_clone1 = pool.clone();
+    let pool_clone2 = pool.clone();
 
     // Set up runner on a seperate thread
     // TODO: add simulators, change to mut
@@ -42,10 +46,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let server_connections_clone = server_connections.clone();
 
     let (notif_sender, notif_receiver) = mpsc::channel(1);
+    let (state_sender, state_receiver) = mpsc::unbounded_channel::<Transport>();
 
     tokio::spawn(async move {
-        let mut runner = Runner::new(pool_clone, server_connections_clone, notif_receiver);
+        let mut runner = Runner::new(
+            pool_clone1,
+            server_connections_clone,
+            notif_receiver,
+            state_sender,
+        )
+        .await;
         let _err = runner.start().await;
+    });
+
+    tokio::spawn(async move {
+        let database_buffer = DatabaseBuffer::new(pool_clone2, state_receiver).await;
+        let _err = database_buffer.start().await;
     });
 
     // Set up GRPC server listening on provided address or default localhost:8100

@@ -2532,6 +2532,7 @@ dependencies = [
  "async-stream",
  "database-config",
  "dotenvy",
+ "futures",
  "prost-types",
  "prost-value",
  "proto",

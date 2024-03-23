@@ -1,42 +1,44 @@
-use std::collections::HashMap;
+use futures::future;
 use std::time::Duration;
 
-use prost_types::Value;
+// sqlx
 use sqlx::PgPool;
+// tokio
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 // tonic
 use tonic::transport::Channel;
 
-use prost_value::*;
-//sqlx
-use proto::simulation::{Edge, Graph, Node, State};
 // proto
-use proto::simulation::simulator::{
-    simulator_client::SimulatorClient, InitialState, IoConfigRequest,
-};
+use crate::database::SimulationsDB;
+use crate::database_buffer::Transport;
+use proto::simulation::simulator::{simulator_client::SimulatorClient, InitialState};
+use proto::simulation::{Graph, State};
 
 /// The runner contains all the functionality to interface with all the different simulators.
 ///
 /// The runner holds a database connection, a vector of known simulators and a receiver for the
 /// asynchronous channel created in main.rs
 pub struct Runner {
-    pool: PgPool,
+    connection: SimulationsDB,
     simulators: Vec<SimulatorClient<Channel>>,
     notif_receiver: mpsc::Receiver<()>,
+    state_sender: mpsc::UnboundedSender<Transport>,
 }
 
 impl Runner {
     /// Create a new Runner
-    pub fn new(
+    pub async fn new(
         pool: PgPool,
         simulators: Vec<SimulatorClient<Channel>>,
         notif_receiver: mpsc::Receiver<()>,
+        state_sender: mpsc::UnboundedSender<Transport>,
     ) -> Self {
         Self {
-            pool,
+            connection: SimulationsDB::from_pg_pool(pool).await.unwrap(),
             simulators,
             notif_receiver,
+            state_sender,
         }
     }
 
@@ -49,18 +51,9 @@ impl Runner {
     /// if during this wait time a message is received over the asynchronous channel.
     pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         loop {
-            if let Some(top) = sqlx::query!("SELECT simulation_id FROM queue ORDER BY id ASC")
-                .fetch_optional(&self.pool)
-                .await?
-            {
-                let simulation_id = top.simulation_id;
-                let mut transaction = self.pool.begin().await?;
-                sqlx::query!("DELETE FROM queue WHERE simulation_id = $1", simulation_id)
-                    .execute(&mut *transaction)
-                    .await?;
+            if let Some(simulation_id) = self.connection.dequeue().await.unwrap() {
                 self.set_up(simulation_id).await?;
                 self.start_simulation(simulation_id).await?;
-                transaction.commit().await?;
             } else {
                 tokio::select! {
                     _ = sleep(Duration::from_secs(30)) => {},
@@ -72,123 +65,57 @@ impl Runner {
 
     /// Set up a simulation based on simulation id.
     ///
-    /// The setup for a simulation consists of creating an initial state for every simulator.
+    /// The setup for a simulation consists of creating an initial state.
     /// The runner assumes all data needed to run a simulation is present in the database. This means
     /// every node and edge along with its components and the global components should be
     /// present with time_step == 0.
     /// The runner will get all these nodes, edges and components, compose a proto::simulation::Graph
     /// and then put this graph along with the step size into a state. This state is then sent to the
     /// simulators.
-    async fn set_up(&self, simulation_id: i32) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set_up(&mut self, simulation_id: i32) -> Result<(), Box<dyn std::error::Error>> {
         // get tick delta
-        let delta = sqlx::query!(
-            "SELECT step_size_ms FROM simulations WHERE id = $1",
-            simulation_id
-        )
-        .fetch_one(&self.pool)
-        .await?
-        .step_size_ms;
+        let delta = self.connection.get_delta(simulation_id).await.unwrap();
+        let mut graph = Graph {
+            nodes: vec![],
+            edge: vec![],
+        };
 
-        // setup of simulators
-        for server in &mut self.simulators.clone() {
-            let io_config_request = tonic::Request::new(IoConfigRequest {});
-            let _io_config_response = server.get_io_config(io_config_request).await?.into_inner();
-            // use io_config_response to figure out which data to get from the database and create an initial state
-            let mut graph = Graph {
-                nodes: vec![],
-                edge: vec![],
-            };
+        // get current simulation nodes at timestep 0 and add to graph
+        let mut nodes = self.connection.get_nodes(simulation_id, 0).await.unwrap();
+        graph.nodes.append(&mut nodes);
 
-            // select current simulation nodes at timestep 0
-            let nodes = sqlx::query!(
-                "SELECT * FROM nodes WHERE simulation_id = $1 AND time_step = 0",
-                simulation_id
-            )
-            .fetch_all(&self.pool)
-            .await?;
+        // get current simulation edges at timestep 0 and add to graph
+        let mut edges = self.connection.get_edges(simulation_id, 0).await.unwrap();
+        graph.edge.append(&mut edges);
 
-            // for every node get its components and add to graph
-            for node in nodes {
-                let id = node.id; // id of the node in the database for given time step and simulation
-                let node_id = node.node_id; // the actual id of the node
-                let longitude = node.longitude;
-                let latitude = node.latitude;
-                let mut grpc_node = Node {
-                    longitude,
-                    latitude,
-                    components: Default::default(),
-                    id: node_id as u64,
-                };
+        // add all global components to the graph
+        let globals = self
+            .connection
+            .get_global_components(simulation_id, 0)
+            .await
+            .unwrap();
 
-                // look for node components based on the database id of the node
-                let components =
-                    sqlx::query!("SELECT * FROM node_components Where node_id = $1", id)
-                        .fetch_all(&self.pool)
-                        .await?;
-
-                for component in components {
-                    let name = component.name;
-                    let data = component.component_data;
-                    grpc_node.components.insert(name, serde_json_to_prost(data));
-                }
-
-                graph.nodes.push(grpc_node);
-            }
-
-            // for each edge, add it to graph
-            let edges = sqlx::query!(
-                "SELECT * FROM edges WHERE simulation_id = $1 AND time_step = 0",
-                simulation_id
-            )
-            .fetch_all(&self.pool)
-            .await?;
-
-            for edge in edges {
-                let edge_id = edge.edge_id; // the actual id of the edge
-                let from: i32 = edge.from_node;
-                let to: i32 = edge.to_node;
-                let component_type = edge.component_type;
-                let component_data = edge.component_data;
-
-                let grpc_edge = Edge {
-                    id: edge_id as u64,
-                    from: from as u64,
-                    to: to as u64,
-                    component_type,
-                    component_data: Option::from(prost_value::serde_json_to_prost(component_data)),
-                };
-                graph.edge.push(grpc_edge);
-            }
-
-            // add all global components to the graph
-            let globals = sqlx::query!(
-                "SELECT * FROM global_components where simulation_id = $1 and time_step = 0",
-                simulation_id
-            )
-            .fetch_all(&self.pool)
-            .await?;
-
-            let mut global: HashMap<String, Value> = HashMap::new();
-            for component in globals {
-                let component_name = component.name;
-                let component_data = serde_json_to_prost(component.component_data);
-
-                global.insert(component_name, component_data);
-            }
-
-            // create initial state
-            let initial_state = State {
+        // create initial state
+        let initial_state = InitialState {
+            initial_state: Some(State {
                 graph: Some(graph),
-                global_components: global,
-            };
+                global_components: globals,
+            }),
+            timestep_delta: delta as u64,
+        };
 
-            // send it to the server
-            let setup_request = tonic::Request::new(InitialState {
-                timestep_delta: delta as u64,
-                initial_state: Option::from(initial_state),
-            });
-            let _setup_response = server.setup(setup_request).await?;
-        }
+        // // setup of simulators
+        future::join_all(
+            self.simulators
+                .clone()
+                .into_iter()
+                .map(|server| (initial_state.clone(), server))
+                .map(|(initial_state, mut server)| async move {
+                    let setup_request = tonic::Request::new(initial_state);
+                    let _setup_response = server.setup(setup_request).await.unwrap();
+                }),
+        )
+        .await;
         Ok(())
     }
 
@@ -196,237 +123,142 @@ impl Runner {
     ///
     /// For each tick in the simulation the runner will execute a timestep for each simulator.
     /// The runner will get all the needed components (nodes, edges and components) from the previous
-    /// timestep from the database and compose a state from them. Then it will send this state to
-    /// the simulator using grpc and wait for a response. When the runner receives a response from the
-    /// simulator, it will decompose the received state and put all the components back into the database
-    /// at timestep +1
+    /// timestep and send this state to the simulators using grpc and wait for a response. This now
+    /// happens in parallel to improve performance and decrease the time it takes to run a full simulation.
+    /// When the runner receives a response from a simulator, it will create a Transport object. Once
+    /// All simulators have responded. These different transport objects are returned as a vector.
+    /// The runner then combines all these responses into one big state and sends this to the
+    /// database buffer using the async channel. The buffer will then write the timestep to the database.
+    /// Writing to the database is done on a seperate thread so that the runner does not need to spend
+    /// time waiting on the database. The async channel has an unbounded queue of messages so the
+    /// runner can keep queueing finished timeframes if it takes a long time for the database buffer
+    /// to process them.
     /// In the case that a simulator does not return all components the components that weren't sent
     /// back will be duplicated into the next timestep so that they are available in the next tick
-    async fn start_simulation(&self, simulation_id: i32) -> Result<(), Box<dyn std::error::Error>> {
+    async fn start_simulation(
+        &mut self,
+        simulation_id: i32,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // get amount of iterations to run the simulation for
-        let iterations = sqlx::query!(
-            "SELECT max_steps FROM simulations WHERE id = $1",
-            simulation_id
-        )
-        .fetch_one(&self.pool)
-        .await?
-        .max_steps;
+        let iterations = self.connection.get_iterations(simulation_id).await.unwrap();
+
+        // get initial state
+        let mut graph = Graph {
+            nodes: vec![],
+            edge: vec![],
+        };
+        let mut nodes_send = self.connection.get_nodes(simulation_id, 0).await.unwrap();
+        graph.nodes.append(&mut nodes_send);
+
+        let mut edges_send = self.connection.get_edges(simulation_id, 0).await.unwrap();
+        graph.edge.append(&mut edges_send);
+
+        let globals = self
+            .connection
+            .get_global_components(simulation_id, 0)
+            .await
+            .unwrap();
+
+        let mut prev: State = State {
+            graph: Some(graph),
+            global_components: globals,
+        };
 
         for i in 0..iterations {
-            let mut edge_ids_send: Vec<i32> = Vec::new();
-            let mut global_ids_send: Vec<String> = Vec::new();
-            let mut node_ids_send: Vec<i32> = Vec::new();
-            let mut edge_ids_received: Vec<i32> = Vec::new();
-            let mut global_ids_received: Vec<String> = Vec::new();
-            let mut node_ids_received: Vec<i32> = Vec::new();
-            let mut transaction = self.pool.begin().await?;
-            for server in &mut self.simulators.clone() {
-                // get needed data from database
-                let mut graph = Graph {
-                    nodes: vec![],
-                    edge: vec![],
-                };
-                let nodes_send = sqlx::query!(
-                    "SELECT * FROM nodes WHERE simulation_id = $1 AND time_step = $2",
-                    simulation_id,
-                    i
-                )
-                .fetch_all(&mut *transaction)
-                .await?;
+            // parallel execution of the simulators in the simulation for the current time step
+            let results = future::join_all(
+                self.simulators
+                    .clone()
+                    .into_iter()
+                    .map(|server| (prev.clone(), server))
+                    .map(|(prev, mut server)| async move {
+                        // get values from state
+                        let graph = prev.clone().graph.unwrap();
+                        let grpc_global = prev.clone().global_components;
+                        let nodes = graph.nodes.clone();
+                        let edges = graph.edge.clone();
 
-                for node in nodes_send {
-                    let id = node.id; // id of the node for the given time step and simulation
-                    let node_id = node.node_id; // the actual id of the node
-                    let longitude = node.longitude;
-                    let latitude = node.latitude;
-                    let mut grpc_node = Node {
-                        longitude,
-                        latitude,
-                        components: Default::default(),
-                        id: node_id as u64,
-                    };
-                    // look for the node components based on the database id of the node
-                    let components =
-                        sqlx::query!("SELECT * FROM node_components Where node_id = $1", id)
-                            .fetch_all(&mut *transaction)
-                            .await?;
+                        let mut edge_ids_sent = Vec::new();
+                        for edge in edges {
+                            edge_ids_sent.push(edge.id as i32);
+                        }
+                        let mut node_ids_sent = Vec::new();
+                        for node in nodes {
+                            node_ids_sent.push(node.id as i32);
+                        }
+                        let mut global_ids_sent = Vec::new();
+                        for (key, _value) in grpc_global.clone() {
+                            global_ids_sent.push(key);
+                        }
 
-                    for component in components {
-                        let name = component.name;
-                        let data = component.component_data;
-                        grpc_node.components.insert(name, serde_json_to_prost(data));
-                    }
+                        // send to server and do time step
+                        let do_time_step_request = tonic::Request::new(State {
+                            graph: Some(graph.clone()),
+                            global_components: grpc_global.clone(),
+                        });
+                        let do_time_step_response =
+                            server.do_timestep(do_time_step_request).await.unwrap();
 
-                    graph.nodes.push(grpc_node);
-                    // keep track of all send nodes
-                    if !node_ids_send.contains(&node_id) {
-                        node_ids_send.push(node_id);
-                    }
+                        // read out results of simulator
+                        let output_state = do_time_step_response.into_inner().output_state.unwrap();
+
+                        // place results into Transport struct
+                        Transport {
+                            simulation_id,
+                            iteration: i,
+                            state: output_state,
+                        }
+                    }),
+            )
+            .await;
+
+            // make copy of previous state
+            let new_graph = prev.graph.as_ref().unwrap().clone();
+            let mut new_nodes = new_graph.nodes.clone();
+            let mut new_edges = new_graph.edge.clone();
+            let mut new_globals = prev.global_components.clone();
+
+            // merge previous state with all output states
+            for result in results {
+                // Replace previous node with the version that has been returned by the simulator.
+                // Since simulators can not edit the same nodes, this will always work.
+                // Nodes that were not returned by any simulator will also still be present
+                for node in result.state.graph.as_ref().unwrap().clone().nodes {
+                    let index = new_nodes.iter().position(|x| x.id == node.id).unwrap();
+                    new_nodes[index] = node.clone();
                 }
 
-                let edges_send = sqlx::query!(
-                    "SELECT * FROM edges WHERE simulation_id = $1 AND time_step = $2",
-                    simulation_id,
-                    i
-                )
-                .fetch_all(&mut *transaction)
-                .await?;
-
-                for edge in edges_send {
-                    let edge_id = edge.edge_id; // the actual id of the edge
-                    let from = edge.from_node;
-                    let to = edge.to_node;
-                    let component_type = edge.component_type;
-                    let component_data = edge.component_data;
-
-                    let grpc_edge = Edge {
-                        from: from as u64,
-                        to: to as u64,
-                        component_type,
-                        component_data: Option::from(serde_json_to_prost(component_data)),
-                        id: edge_id as u64,
-                    };
-                    graph.edge.push(grpc_edge);
-                    // keep track of all send edges
-                    if !edge_ids_send.contains(&edge_id) {
-                        edge_ids_send.push(edge_id);
-                    }
+                // Idem for edges
+                for edge in result.state.graph.as_ref().unwrap().clone().edge {
+                    let index = new_edges.iter().position(|x| x.id == edge.id).unwrap();
+                    new_edges[index] = edge.clone();
                 }
 
-                let globals = sqlx::query!(
-                    "SELECT * FROM global_components WHERE simulation_id = $1",
-                    simulation_id
-                )
-                .fetch_all(&mut *transaction)
-                .await?;
-
-                let mut grpc_global: HashMap<String, Value> = HashMap::new();
-
-                for component in globals {
-                    let component_name = component.name;
-                    let component_data = component.component_data;
-                    global_ids_send.push(component_name.clone());
-                    grpc_global.insert(component_name, serde_json_to_prost(component_data));
-                }
-
-                // send to server and do time step
-                let do_time_step_request = tonic::Request::new(State {
-                    graph: Some(graph),
-                    global_components: grpc_global,
-                });
-                let do_time_step_response = server.do_timestep(do_time_step_request).await?;
-
-                // write results back to database
-                let output_state = do_time_step_response.into_inner().output_state.unwrap();
-                let graph = output_state.graph.unwrap();
-                let global = output_state.global_components;
-                let nodes = graph.nodes;
-                let edges = graph.edge;
-
-                for node in nodes {
-                    // write node to db
-                    let node_id = node.id as i32;
-                    let id = sqlx::query!("INSERT INTO nodes (node_id, simulation_id, time_step, longitude, latitude) VALUES($1, $2, $3, $4, $5) RETURNING id", node_id, simulation_id, i+1, node.longitude, node.latitude)
-                        .map(|row| { row.id })
-                        .fetch_one(&mut *transaction).await?;
-
-                    // keep track of which nodes have been returned from the simulation
-                    node_ids_received.push(node.id as i32);
-
-                    // write node components to db
-                    for (component_name, component_value) in node.components {
-                        sqlx::query!("INSERT INTO node_components (name, node_id, component_data) Values ($1, $2, $3)", component_name, id, prost_to_serde_json(component_value))
-                            .execute(&mut *transaction).await?;
-                    }
-                }
-
-                for edge in edges {
-                    let from_node = edge.from as i32;
-                    let to_node = edge.to as i32;
-                    let edge_id = edge.id as i32;
-                    // write edge to db
-                    sqlx::query!("INSERT INTO edges (edge_id, simulation_id, time_step, from_node, to_node, component_data, component_type) VALUES ($1, $2, $3, $4, $5, $6, $7)", edge_id, simulation_id, i+1, from_node, to_node,prost_to_serde_json(edge.component_data.unwrap()), edge.component_type)
-                        .execute(&mut *transaction).await?;
-
-                    // keep track of which edges have been returned from the simulation
-                    edge_ids_received.push(edge.id as i32);
-                }
-
-                for (key, value) in global {
-                    global_ids_received.push(key.clone());
-                    sqlx::query!("INSERT INTO global_components (name, simulation_id, time_step, component_data) VALUES ($1, $2, $3, $4)", key, simulation_id, i+1, prost_to_serde_json(value))
-                        .execute(&mut *transaction).await?;
-                }
-            }
-            // duplicate not returned nodes from the simulator to the next time step
-            for node_id in node_ids_send {
-                if !node_ids_received.contains(&node_id) {
-                    // get node from current time step
-                    let duplicate_node = sqlx::query!(
-                        "SELECT * FROM nodes WHERE node_id = $1 AND simulation_id = $2 AND time_step = $3",
-                        node_id, simulation_id, i
-                    )
-                        .fetch_all(&mut *transaction)
-                        .await?;
-                    let dup_node = &duplicate_node[0]; //TODO: check if this is actually unique
-
-                    // duplicate node to new time step
-                    let id = sqlx::query!("INSERT INTO nodes (node_id, simulation_id, time_step, longitude, latitude) VALUES($1, $2, $3, $4, $5) RETURNING id",
-                        dup_node.node_id, simulation_id, i+1, dup_node.longitude, dup_node.latitude)
-                        .map(|row| { row.id })
-                        .fetch_one(&mut *transaction).await?;
-
-                    let duplicate_comp =
-                        sqlx::query!("SELECT * FROM node_components WHERE node_id = $1", node_id)
-                            .fetch_all(&mut *transaction)
-                            .await?;
-
-                    // write node components to db
-                    for comp in duplicate_comp {
-                        sqlx::query!("INSERT INTO node_components (name, node_id, component_data) Values ($1, $2, $3)", comp.name, id, comp.component_data)
-                            .execute(&mut *transaction).await?;
-                    }
+                // Idem for global components
+                for (key, value) in result.state.global_components.clone() {
+                    new_globals.insert(key, value);
                 }
             }
 
-            // duplicate not returned edges from the simulator to the next time step
-            for edge_id in edge_ids_send {
-                if !edge_ids_received.contains(&edge_id) {
-                    // get edge from current time step
-                    let duplicate_edge = sqlx::query!(
-                        "SELECT * FROM edges WHERE edge_id = $1 AND simulation_id = $2 AND time_step = $3",
-                        edge_id, simulation_id, i
-                    )
-                        .fetch_all(&mut *transaction)
-                        .await?;
-                    let dup_edge = &duplicate_edge[0]; //TODO: check if this is actually unique
+            // create new state
+            let new_state = State {
+                graph: Some(Graph {
+                    nodes: new_nodes,
+                    edge: new_edges,
+                }),
+                global_components: new_globals,
+            };
 
-                    // duplicate edge to new time step
-                    sqlx::query!("INSERT INTO edges (edge_id, simulation_id, time_step, from_node, to_node, component_data, component_type) VALUES($1, $2, $3, $4, $5, $6, $7)",
-                        dup_edge.edge_id, simulation_id, i+1, dup_edge.from_node, dup_edge.to_node, dup_edge.component_data, dup_edge.component_type)
-                        .execute(&mut *transaction).await?;
-                }
-            }
+            // create transport and send to database buffer
+            let transport = Transport {
+                simulation_id,
+                iteration: i,
+                state: new_state.clone(),
+            };
+            let _result = self.state_sender.send(transport);
 
-            // duplicate not returned global components from the simulator to the next time step
-            for global in global_ids_send {
-                if !global_ids_received.contains(&global) {
-                    let duplicate_global = sqlx::query!(
-                        "SELECT * FROM global_components WHERE name = $1 AND simulation_id = $2 AND time_step = $3",
-                        global, simulation_id, i
-                    )
-                        .fetch_all(&mut *transaction)
-                        .await?;
-                    let dup_global = &duplicate_global[0]; //TODO: check if this is actually unique
-
-                    // duplicate global component to new time step
-                    sqlx::query!("INSERT INTO global_components (time_step, name, simulation_id, component_data) VALUES ($1, $2, $3, $4)",
-                        i+1, dup_global.name, simulation_id, dup_global.component_data)
-                        .execute(&mut *transaction).await?;
-                }
-            }
-
-            transaction.commit().await?;
+            // set previous state to new state
+            prev = new_state.clone();
         }
         Ok(())
     }

@@ -27,7 +27,6 @@ pub struct SimulationsDB {
     transaction: Option<Transaction<'static, Postgres>>,
     connection: Option<PoolConnection<Postgres>>,
 }
-
 impl SimulationsDB {
     /// Create a new connection to the database. Uses the credentials from the `SIMULATIONS`
     /// environment variable.
@@ -52,7 +51,7 @@ impl SimulationsDB {
 
     /// Gets the right connection for queries. If a transaction is started we use that, otherwise
     /// we use a connection from the pool.
-    async fn connection(&mut self) -> Result<&mut PgConnection> {
+    pub async fn connection(&mut self) -> Result<&mut PgConnection> {
         if self.transaction.is_some() {
             return Ok(self.transaction.as_deref_mut().unwrap());
         }
@@ -73,6 +72,31 @@ impl SimulationsDB {
         let t = self.transaction.take().unwrap();
         t.commit().await.map_err(|e| anyhow!(e))?;
         Ok(())
+    }
+
+    /// get tick step size
+    pub async fn get_delta(&mut self, simulation_id: i32) -> Result<i32> {
+        let delta = sqlx::query!(
+            "SELECT step_size_ms FROM simulations WHERE id = $1",
+            simulation_id
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap()
+        .step_size_ms;
+        Ok(delta)
+    }
+
+    /// Get amount of steps to run for given simulation
+    pub async fn get_iterations(&mut self, simulation_id: i32) -> Result<i32> {
+        let iterations = sqlx::query!(
+            "SELECT max_steps FROM simulations WHERE id = $1",
+            simulation_id
+        )
+        .fetch_one(&self.pool)
+        .await?
+        .max_steps;
+        Ok(iterations)
     }
 
     /// Add a simulation to the simlations table.
