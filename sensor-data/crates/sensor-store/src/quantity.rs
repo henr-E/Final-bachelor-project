@@ -22,6 +22,7 @@ pub enum Quantity {
     Rainfall,
     Resistance,
     Temperature,
+    Timestamp,
 }
 
 impl Quantity {
@@ -45,6 +46,7 @@ impl Quantity {
             Quantity::Rainfall => Unit::MillimetersPerHour,
             Quantity::Resistance => Unit::Ohm,
             Quantity::Temperature => Unit::Celsius,
+            Quantity::Timestamp => Unit::Utc,
         }
     }
 
@@ -68,6 +70,7 @@ impl Quantity {
             Quantity::Rainfall => vec![Unit::MillimetersPerHour],
             Quantity::Resistance => vec![Unit::Ohm],
             Quantity::Temperature => vec![Unit::Celsius, Unit::Fahrenheit, Unit::Kelvin],
+            Quantity::Timestamp => vec![Unit::Utc],
         })
     }
 }

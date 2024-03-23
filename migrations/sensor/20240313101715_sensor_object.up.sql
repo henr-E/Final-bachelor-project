@@ -74,8 +74,7 @@ CREATE TYPE quantity AS ENUM (
     'pressure',
     'rainfall',
     'resistance',
-    'temperature',
-    'timestamp'
+    'temperature'
 );
 
 /* Sensor signals table. Every sensor can send multiple signals to the system. */

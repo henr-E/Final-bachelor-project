@@ -58,7 +58,7 @@ async fn main() {
     // send data to DataIngestService
     let request = tonic::Request::new(SensorDataFile {
         data: generated_data,
-        data_format: "".to_string(),
+        sensor_id: "".to_string(),
         file_format: Some(FileFormat::Json(JsonFileFormat {})), // TODO: add correct file format
     });
 

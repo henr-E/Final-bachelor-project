@@ -68,7 +68,8 @@
                 "pascal",
                 "pound",
                 "volt",
-                "watt"
+                "watt",
+                "utc"
               ]
             }
           }

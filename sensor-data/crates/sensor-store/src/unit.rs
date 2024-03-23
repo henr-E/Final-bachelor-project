@@ -1,7 +1,8 @@
 use crate::quantity::Quantity;
+use strum::Display;
 
 /// Represents a unit a [`Quantity`] can be measured in.
-#[derive(sqlx::Type, enumset::EnumSetType, Debug, Hash)]
+#[derive(sqlx::Type, enumset::EnumSetType, Debug, Hash, Display)]
 #[sqlx(type_name = "unit", rename_all = "lowercase")]
 pub enum Unit {
     Ampere,
@@ -23,6 +24,7 @@ pub enum Unit {
     Ohm,
     Pascal,
     Pound,
+    Utc,
     Volt,
     Watt,
 }
@@ -46,8 +48,13 @@ impl Unit {
             Unit::Nit => Quantity::Luminance,
             Unit::Ohm => Quantity::Resistance,
             Unit::Pascal => Quantity::Pressure,
+            Unit::Utc => Quantity::Timestamp,
             Unit::Volt => Quantity::Potential,
             Unit::Watt => Quantity::Power,
         }
+    }
+
+    pub fn base_unit(self) -> Self {
+        self.associated_quantity().associated_base_unit()
     }
 }

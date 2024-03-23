@@ -78,7 +78,7 @@ message SensorDataFile {
     // Identifier (UUID) of the internal structure of data. This is decoupled
     // from the file format the data is sent as to maximize support for kinds
     // of sensors.
-    string data_format = 4;
+    string sensor_id = 4;
     // File format the data is sent in. This serves as an indication to the parser.
     oneof file_format {
         CsvFileFormat csv = 2;

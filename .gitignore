@@ -1,6 +1,7 @@
 .idea/
 .vscode/
 .fleet/
+.zed/
 
 target/
 

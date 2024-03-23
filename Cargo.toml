@@ -2,14 +2,15 @@
 resolver = "2"
 members = [
     "crates/*",
-    "ui-backend",
-    "simulation-manager",
-    "sensor-data/ingestor",
-    "sensor-data/generator",
     "sensor-data/crates/parser",
     "sensor-data/crates/sensor-store",
+    "sensor-data/generator",
+    "sensor-data/ingestor",
+    "sensor-data/transformer",
+    "simulation-manager",
     "simulators/*",
     "tools/database-migrator",
+    "ui-backend",
 ]
 
 [workspace.dependencies]
