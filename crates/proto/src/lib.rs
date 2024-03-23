@@ -87,6 +87,7 @@ pub mod frontend {
     pub use proto_twin::twin_service_server::{TwinService, TwinServiceServer};
 
     pub use auth_proto::{authentication_service_client::*, authentication_service_server::*, *};
+    pub use proto_sensor_crud::{sensor_crud_service_client::*, sensor_crud_service_server::*};
 
     mod auth_proto {
         tonic::include_proto!("authentication.auth");
@@ -95,8 +96,10 @@ pub mod frontend {
     mod proto_frontend_simulation {
         tonic::include_proto!("simulation.frontend");
     }
-
     pub mod proto_twin {
         tonic::include_proto!("twin");
+    }
+    pub mod proto_sensor_crud {
+        tonic::include_proto!("sensor.crud");
     }
 }

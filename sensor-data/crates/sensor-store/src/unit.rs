@@ -1,8 +1,11 @@
+use std::str::FromStr;
+
 use crate::quantity::Quantity;
 use strum::Display;
 
 /// Represents a unit a [`Quantity`] can be measured in.
 #[derive(sqlx::Type, enumset::EnumSetType, Debug, Hash, Display)]
+#[strum(serialize_all = "lowercase")]
 #[sqlx(type_name = "unit", rename_all = "lowercase")]
 pub enum Unit {
     Ampere,
@@ -56,5 +59,34 @@ impl Unit {
 
     pub fn base_unit(self) -> Self {
         self.associated_quantity().associated_base_unit()
+    }
+}
+impl FromStr for Unit {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "ampere" => Ok(Unit::Ampere),
+            "candela" => Ok(Unit::Candela),
+            "celsius" => Ok(Unit::Celsius),
+            "coulomb" => Ok(Unit::Coulomb),
+            "fahrenheit" => Ok(Unit::Fahrenheit),
+            "farad" => Ok(Unit::Farad),
+            "feet" => Ok(Unit::Feet),
+            "hertz" => Ok(Unit::Hertz),
+            "joule" => Ok(Unit::Joule),
+            "kelvin" => Ok(Unit::Kelvin),
+            "kilogram" => Ok(Unit::Kilogram),
+            "lux" => Ok(Unit::Lux),
+            "metre" => Ok(Unit::Metre),
+            "millimetersperhour" => Ok(Unit::MillimetersPerHour),
+            "newton" => Ok(Unit::Newton),
+            "nit" => Ok(Unit::Nit),
+            "ohm" => Ok(Unit::Ohm),
+            "pascal" => Ok(Unit::Pascal),
+            "pound" => Ok(Unit::Pound),
+            "volt" => Ok(Unit::Volt),
+            "watt" => Ok(Unit::Watt),
+            _ => Err(()),
+        }
     }
 }

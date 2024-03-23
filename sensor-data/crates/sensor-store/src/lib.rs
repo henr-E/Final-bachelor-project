@@ -1,17 +1,12 @@
 #![doc = include_str!("../README.md")]
 
-pub use crate::{
-    error::Error,
-    quantity::Quantity,
-    sensor::Sensor,
-    signal::{Signal, Signals},
-    unit::Unit,
-};
-
+use crate::signal::Signals;
+pub use crate::{quantity::Quantity, sensor::Sensor, signal::Signal, unit::Unit};
 use database_config::database_url;
 use futures::stream::Stream;
 use sensor::SensorBuilder;
-use sqlx::PgPool;
+use sqlx::{Error, PgPool, Postgres, Transaction};
+use uuid::Uuid;
 
 pub mod error;
 pub mod quantity;
@@ -41,17 +36,93 @@ impl SensorStore {
         }
     }
 
-    /// Get a single [`Sensor`] from the database given its id.
-    pub async fn get_sensor(&self, sensor_id: uuid::Uuid) -> Result<Sensor<'static>, Error> {
+    /// Get a single [`Sensor`] from the database given its [`Uuid`].
+    pub async fn get_sensor(&self, sensor_id: uuid::Uuid) -> Result<Sensor<'_>, Error> {
         let sensor = sqlx::query!(
-            "SELECT name, description FROM sensors WHERE id = $1::uuid",
+            "SELECT name, description, location[0]::float as lon, location[1]::float as lat FROM sensors WHERE id = $1::uuid",
             sensor_id
         )
         .fetch_one(&self.db_pool)
         .await?;
 
-        let sensor = Sensor::builder(sensor_id, sensor.name, sensor.description);
+        let sensor = Sensor::builder(
+            sensor_id,
+            sensor.name,
+            sensor.description,
+            (sensor.lon.unwrap(), sensor.lat.unwrap()),
+        );
         Ok(self.add_signals_to_builder(sensor).await?.build())
+    }
+
+    /// Set a single [`Sensor`] into the database, returning its [`Uuid`].
+    pub async fn store_sensor(&self, sensor: Sensor<'_>) -> Result<Uuid, Error> {
+        // create a transaction. if any error occurs,
+        // no commits are performed.
+        let mut transaction = self
+            .db_pool
+            .begin()
+            .await
+            .expect("Couldn't start transaction");
+        // generate new uuid for this sensor.
+        let sensor_id = sensor.id;
+        // insert sensor into the database.
+        let _sensor = sqlx::query!(
+            "INSERT INTO sensors (id, name, description, location, user_id) values ($1::uuid, $2::text, $3::text, POINT($4::float, $5::float), $6::int)",
+            sensor_id, &sensor.name, &sensor.description.clone().unwrap_or_default(), sensor.location.0, sensor.location.1, 1
+        )
+        .execute(&mut *transaction)
+        .await?;
+        // add the signals of this sensor to the transaction.
+        self.store_signals(sensor.signals(), &mut transaction, sensor_id)
+            .await?;
+        // commit transaction to the database.
+        transaction.commit().await?;
+
+        // if everything happens correctly,
+        // return the generated sensor_id to the caller.
+        Ok(sensor_id)
+    }
+
+    /// Commit all signals of a single [`Sensor`] to the database.
+    ///
+    /// This function is called from the [`SensorStore::set_sensor`] method.
+    async fn store_signals(
+        &self,
+        signals: &Signals<'_>,
+        transaction: &mut Transaction<'_, Postgres>,
+        sensor_id: Uuid,
+    ) -> Result<(), Error> {
+        let signals: Vec<Signal> = Vec::from_iter(signals.iter().cloned());
+        // create a query builder to batch insert signals.
+        let names: Vec<_> = signals.iter().map(|item| item.name.to_string()).collect();
+        let quantities: Vec<_> = signals
+            .iter()
+            .map(|item| item.quantity.to_string())
+            .collect();
+        let units: Vec<_> = signals.iter().map(|item| item.unit.to_string()).collect();
+        let prefixes: Vec<_> = signals.iter().map(|item| item.prefix.clone()).collect();
+        let _res = sqlx::query!(
+            r#"INSERT INTO sensor_signals (sensor_id, alias, quantity, unit, prefix) SELECT $1::uuid, alias, quantity::quantity, unit::unit, prefix FROM UNNEST($2::text[], $3::text[], $4::text[], $5::decimal[]) AS x(alias, quantity, unit, prefix);"#,
+            sensor_id,
+            &names,
+            &quantities,
+            &units,
+            &prefixes
+        ).execute(&mut **transaction).await?;
+        Ok(())
+    }
+
+    /// Delete a [`Sensor`] from the database.
+    pub async fn delete_sensor(&self, sensor_id: Uuid) -> Result<(), Error> {
+        println!("{:?}", sensor_id);
+        match sqlx::query!("DELETE FROM sensors WHERE id = $1::uuid", sensor_id)
+            .execute(&self.db_pool)
+            .await?
+            .rows_affected()
+        {
+            1 => Ok(()),
+            _ => Err(Error::RowNotFound),
+        }
     }
 
     /// Get all sensors from the database.
@@ -60,11 +131,20 @@ impl SensorStore {
     ) -> Result<impl Stream<Item = Result<Sensor, Error>>, Error> {
         use futures::stream::{self, StreamExt};
 
-        let sensors = sqlx::query!("SELECT id, name, description FROM sensors")
-            .fetch_all(&self.db_pool)
-            .await?
-            .into_iter()
-            .map(|s| Sensor::builder(s.id, s.name, s.description));
+        let sensors = sqlx::query!(
+            "SELECT id, name, description, location[0] as lon, location[1] as lat FROM sensors"
+        )
+        .fetch_all(&self.db_pool)
+        .await?
+        .into_iter()
+        .map(|s| {
+            Sensor::builder(
+                s.id,
+                s.name,
+                s.description,
+                (s.lon.unwrap(), s.lat.unwrap()),
+            )
+        });
 
         let sensors = stream::iter(sensors).then(|s| async {
             self.add_signals_to_builder(s)

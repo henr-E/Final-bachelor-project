@@ -16,7 +16,7 @@ pub struct Sensor<'a> {
     pub id: Uuid,
     /// Name of the sensor.
     pub name: Cow<'a, str>,
-    /// Description of the sensor.
+    pub location: (f64, f64),
     pub description: Option<Cow<'a, str>>,
     /// Signals associated with the sensor.
     signals: Signals<'a>,
@@ -24,12 +24,13 @@ pub struct Sensor<'a> {
 
 impl<'a> Sensor<'a> {
     /// Returns a [`SensorBuilder`] used when retrieving a sensor from the database.
-    pub(crate) fn builder(
+    pub fn builder(
         id: Uuid,
         name: impl Into<Cow<'a, str>>,
         description: Option<impl Into<Cow<'a, str>>>,
+        location: impl Into<(f64, f64)>,
     ) -> SensorBuilder<'a> {
-        SensorBuilder::new(id, name, description)
+        SensorBuilder::new(id, name, description, location)
     }
 
     /// Returns the [`Signals`] being measured by this sensor.
@@ -92,29 +93,32 @@ impl<'a> Sensor<'a> {
 }
 
 /// Represents a sensor while it is being built from entries in the database.
-pub(crate) struct SensorBuilder<'a> {
-    pub(crate) id: Uuid,
-    pub(crate) name: Cow<'a, str>,
-    pub(crate) description: Option<Cow<'a, str>>,
-    pub(crate) signals: Signals<'a>,
+pub struct SensorBuilder<'a> {
+    pub id: Uuid,
+    pub name: Cow<'a, str>,
+    pub description: Option<Cow<'a, str>>,
+    pub location: (f64, f64),
+    pub signals: Signals<'a>,
 }
 
 impl<'a> SensorBuilder<'a> {
-    fn new(
+    pub fn new(
         id: Uuid,
         name: impl Into<Cow<'a, str>>,
         description: Option<impl Into<Cow<'a, str>>>,
+        location: impl Into<(f64, f64)>,
     ) -> Self {
         Self {
             id,
             name: name.into(),
             description: description.map(|d| d.into()),
+            location: location.into(),
             signals: Signals::new(),
         }
     }
 
     /// Adds a single [`Signal`] to the [`Sensor`].
-    pub(crate) fn add_signal(
+    pub fn add_signal(
         &mut self,
         id: i32,
         name: impl Into<Cow<'a, str>>,
@@ -132,11 +136,12 @@ impl<'a> SensorBuilder<'a> {
     }
 
     /// Locks in the [`SensorBuilder`] and constructs an actual [`Sensor`] from it.
-    pub(crate) fn build(self) -> Sensor<'a> {
+    pub fn build(self) -> Sensor<'a> {
         Sensor {
             id: self.id,
             name: self.name,
             description: self.description,
+            location: self.location,
             signals: self.signals,
         }
     }

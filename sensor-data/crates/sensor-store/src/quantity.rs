@@ -1,8 +1,11 @@
 use crate::unit::Unit;
 use std::collections::HashSet;
+use std::str::FromStr;
+use strum::Display;
 
 /// Kind of signal the sensor is measuring.
-#[derive(sqlx::Type, enumset::EnumSetType, Debug, Hash)]
+#[derive(sqlx::Type, enumset::EnumSetType, Debug, Hash, Display)]
+#[strum(serialize_all = "lowercase")]
 #[sqlx(type_name = "quantity", rename_all = "lowercase")]
 pub enum Quantity {
     Capacitance,
@@ -72,5 +75,31 @@ impl Quantity {
             Quantity::Temperature => vec![Unit::Celsius, Unit::Fahrenheit, Unit::Kelvin],
             Quantity::Timestamp => vec![Unit::Utc],
         })
+    }
+}
+
+impl FromStr for Quantity {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "capacitance" => Ok(Quantity::Capacitance),
+            "charge" => Ok(Quantity::Charge),
+            "current" => Ok(Quantity::Current),
+            "energy" => Ok(Quantity::Energy),
+            "force" => Ok(Quantity::Force),
+            "frequency" => Ok(Quantity::Frequency),
+            "illuminance" => Ok(Quantity::Illuminance),
+            "length" => Ok(Quantity::Length),
+            "luminance" => Ok(Quantity::Luminance),
+            "luminousintensity" => Ok(Quantity::LuminousIntensity),
+            "mass" => Ok(Quantity::Mass),
+            "potential" => Ok(Quantity::Potential),
+            "power" => Ok(Quantity::Power),
+            "pressure" => Ok(Quantity::Pressure),
+            "rainfall" => Ok(Quantity::Rainfall),
+            "resistance" => Ok(Quantity::Resistance),
+            "temperature" => Ok(Quantity::Temperature),
+            _ => Err(()),
+        }
     }
 }

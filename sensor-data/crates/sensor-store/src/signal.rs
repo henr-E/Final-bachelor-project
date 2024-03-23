@@ -6,7 +6,7 @@ use std::{borrow::Cow, collections::HashSet};
 pub type Signals<'a> = HashSet<Signal<'a>>;
 
 /// Represents a signal field when ingesting sensor data.
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Signal<'a> {
     /// Id of the signal as present in the database.
     pub id: i32,

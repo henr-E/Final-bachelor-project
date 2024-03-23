@@ -5,8 +5,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // directories. These are directories that will be searched when resolving import
         // statements.
         .compile(
-            &["../../proto/sensor/data-ingest.proto"],
-            // Only allow imports from the `senor` subproject.
+            &[
+                "../../proto/sensor/data-ingest.proto",
+                "../../proto/sensor/sensor-crud.proto",
+            ],
+            // Only allow imports from the `sensor` subproject.
             &["../../proto/sensor"],
         )?;
 

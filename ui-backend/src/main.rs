@@ -1,11 +1,12 @@
 use crate::simulation_service::SimulationService;
 use proto::frontend::{
-    AuthenticationServiceServer, SimulationInterfaceServiceServer, TwinServiceServer,
+    AuthenticationServiceServer, SensorCrudServiceServer, SimulationInterfaceServiceServer,
+    TwinServiceServer,
 };
+use tonic::transport::Server;
 
 use server::MyAuthenticationService;
 use std::env;
-use tonic::transport::Server;
 
 // sqlx
 use sqlx::postgres::PgPool;
@@ -15,6 +16,9 @@ mod hashing;
 mod jwt;
 mod server;
 mod simulation_service;
+use crate::sensor::SensorStore;
+use tracing::info;
+mod sensor;
 mod twin;
 
 #[tokio::main]
@@ -36,12 +40,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let twin_service = TwinServiceServer::new(twin::MyTwinService::new(pool.clone()));
     let simulation_service = SimulationInterfaceServiceServer::new(SimulationService::new().await);
+    let sensor_crud_service = SensorCrudServiceServer::new(SensorStore::new().await);
     let authentication_service =
         AuthenticationServiceServer::new(MyAuthenticationService::new(pool.clone()));
+
+    info!("Listening on {addr}");
 
     Server::builder()
         .add_service(simulation_service)
         .add_service(twin_service)
+        .add_service(sensor_crud_service)
         .add_service(authentication_service)
         .serve(addr)
         .await?;
