@@ -1,6 +1,13 @@
 #![doc = include_str!("../README.md")]
 
-use crate::{error::Error, quantity::*, sensor::Sensor, unit::*};
+pub use crate::{
+    error::Error,
+    quantity::Quantity,
+    sensor::Sensor,
+    signal::{Signal, Signals},
+    unit::Unit,
+};
+
 use database_config::database_url;
 use futures::stream::Stream;
 use sensor::SensorBuilder;

@@ -25,9 +25,9 @@ services:
       test: ["CMD", "/bin/bash", "/postgres-multiple-db-healthcheck.sh"]
       # Initial wait time and frequency the check will be run at.
       interval: 5s
-      # Startup time of the serice. Checks will be run, but non-zero return
+      # Startup time of the service. Checks will be run, but non-zero return
       # codes will not result in an unhealthy service. When 0 is returned,
-      # immediatly marked as healthy.
+      # immediately marked as healthy.
       start_period: 10s
     secrets:
       - DATABASE_PASSWORD

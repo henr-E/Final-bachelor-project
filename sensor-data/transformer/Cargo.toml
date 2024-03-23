@@ -1,0 +1,36 @@
+[package]
+name = "sensor-data-transformer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async_job = "0.1.4"
+bigdecimal = "0.4"
+bson = "2.9.0"
+chrono = "0.4.34"
+database-config = { workspace = true }
+dotenvy = "0.15.7"
+num-bigint = { version = "0.4.4" }
+rink-core = "0.7.0"
+sensor-data-parser = { path = "../crates/parser" }
+sensor-store = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+sqlx = { version = "0.7.3", features = [
+    "chrono",
+    "postgres",
+    "runtime-tokio",
+    "rust_decimal",
+] }
+tokio = { version = "1.36.0", features = ["fs", "macros"] }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+uuid = { version = "1.7.0", features = ["v4"] }
+
+[build-dependencies]
+database-config = { workspace = true }
+tokio = { version = "1.36.0", default-features = false, features = [
+    "macros",
+    "rt",
+] }
