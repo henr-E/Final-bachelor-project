@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, description FROM sensors",
+  "query": "SELECT id, name, description, location[0] as lon, location[1] as lat FROM sensors",
   "describe": {
     "columns": [
       {
@@ -17,6 +17,16 @@
         "ordinal": 2,
         "name": "description",
         "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "lon",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "lat",
+        "type_info": "Float8"
       }
     ],
     "parameters": {
@@ -25,8 +35,10 @@
     "nullable": [
       false,
       false,
-      true
+      true,
+      null,
+      null
     ]
   },
-  "hash": "6904ff0c16696b3edb006091d6fe096bbcbc1604fc95c9d24f50f6bebb7da9fe"
+  "hash": "7a89425b577bcdd83b8d0b1cc60d0e859cbdcd0fc5f02eff7dfb5680a178eb0d"
 }

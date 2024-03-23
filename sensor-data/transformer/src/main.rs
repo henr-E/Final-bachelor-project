@@ -113,12 +113,7 @@ impl TransformerJob {
         let scaled_value = prefix * value;
         // transform the value from `data_unit` to `base_unit`.
         // it might need some
-        let convert_string = format!(
-            "{} {} -> {}",
-            scaled_value,
-            data_unit.to_string().to_lowercase(),
-            base_unit.to_string().to_lowercase()
-        );
+        let convert_string = format!("{} {} -> {}", scaled_value, data_unit, base_unit);
         let normalized_value =
             one_line(&mut self.unit_conversion_context, &convert_string).unwrap();
         // extract timestamp from measurement

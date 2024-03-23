@@ -14,14 +14,18 @@ database-config = { workspace = true }
 environment-config = { workspace = true }
 jsonwebtoken = "9.2.0"
 futures = "0.3.30"
+num-bigint = {version = "0.4.4" }
 prost = "0.12.3"
 prost-types = "0.12.3"
 proto = {path = "../crates/proto"}
 protobuf = "3.3.0"
 regex = "1.10.3"
 reqwest = { version = "0.11", features = ["json"] }
+sensor-store = {path = "../sensor-data/crates/sensor-store" }
+serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0"
-sqlx = { version = "0.7.3", features = [
+thiserror = "1.0.57"
+sqlx = { version = "0.7.3", features = ["bigdecimal",
     "chrono",
     "postgres",
     "runtime-tokio",
@@ -29,8 +33,6 @@ sqlx = { version = "0.7.3", features = [
     "json"
 ] }
 secrets.workspace = true
-serde = { version = "1.0.197", features = ["derive"] }
-thiserror = "1.0.15"
 tokio = { version = "1.36.0", features = ["full"] }
 tonic = "0.11.0"
 tonic-types = "0.11.0"
