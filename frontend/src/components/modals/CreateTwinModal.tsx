@@ -143,10 +143,10 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
      */
     const handleRadiusBlur = () => {
         const radiusValue = Number(radiusInput);
-        if (radiusValue < 400 || isNaN(radiusValue)) {
+        if (radiusValue < 10 || isNaN(radiusValue)) {
             ToastNotification('warning', 'The provided radius is invalid. Using default 400.');
-            setMapRadius(400);
-            setRadiusInput('400');
+            setMapRadius(10);
+            setRadiusInput('10');
         } else if (radiusValue > 1000) {
             ToastNotification("warning", 'The provided radius is invalid. Using default 1000.');
             setMapRadius(1000);
@@ -222,8 +222,8 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
         setPlace('');
         setCoords('');
         setPosition([51.505, -0.09]);
-        setMapRadius(400);
-        setRadiusInput('400');
+        setMapRadius(10);
+        setRadiusInput('10');
         setCustomName('');
     };
 
@@ -348,7 +348,11 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
                                         }}
                                     />
                                 </div>
-                                <Button onClick={handleSearch}>Search</Button>
+                                <Button
+                                    color="indigo"
+                                    theme={{color: {indigo: 'bg-indigo-600 text-white ring-indigo-600'}}}
+                                    onClick={handleSearch}>Search
+                                </Button>
 
                                 <div>
                                     Enter the radius (in meters) and press Enter. Min:400 Max:1000
@@ -364,7 +368,7 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
                                             }
                                         }}
                                         max={1000}
-                                        min={400}
+                                        min={10}
                                     />
                                 </div>
                                 <div>

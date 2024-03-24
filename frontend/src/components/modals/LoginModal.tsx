@@ -6,7 +6,8 @@ import { jwtDecode } from 'jwt-decode';
 import { useRouter } from 'next/navigation';
 import { login } from '@/lib/authentication';
 import { setCookie } from 'typescript-cookie';
-import ToastNotification from '@/components/notification/ToastNotification';
+import ToastNotification from "@/components/notification/ToastNotification";
+
 
 interface LoginModalProps {
     isLoginModalOpen: boolean;

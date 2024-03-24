@@ -10,6 +10,7 @@ service SimulationInterfaceService {
     rpc CreateSimulation (CreateSimulationParams) returns (CreateSimulationResponse);
     rpc GetAllSimulations (TwinId) returns (Simulations);
     rpc GetSimulation (simulation_manager.SimulationId) returns (Simulation);
+    rpc GetSimulationFrames(stream simulation_manager.SimulationFrameRequest) returns (stream simulation_manager.SimulationFrame);
 }
 
 enum SimulationStatus {
@@ -31,7 +32,7 @@ message CreateSimulationParams {
     int32 start_date_time = 3;//unix timestamp in sec
     int32 end_date_time = 4;//unix timestamp in sec
     double time_step_delta = 5;
-    simulation.Graph graph = 6;
+    simulation.State startState = 6;
 }
 
 message Simulations {

@@ -1,7 +1,7 @@
 'use client';
 import React, {createContext, useEffect, useReducer} from "react";
 import {createChannel, createClient} from "nice-grpc-web";
-import {TwinServiceDefinition} from '@/proto/twins/twin';
+import {twinObject, TwinServiceDefinition} from '@/proto/twins/twin';
 import {uiBackendServiceUrl} from "@/api/urls";
 import ToastNotification from "@/components/notification/ToastNotification";
 
@@ -87,6 +87,8 @@ async function getTwinsFromBackend(): Promise<Twin[]> {
                 latitude: twinObj.latitude,
                 radius: Number(twinObj.radius)
             }));
+
+
         }
     } catch (error) {
         console.error("Failed to fetch all twins:", error);
@@ -105,8 +107,17 @@ function TwinProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         async function fetchTwins() {
             const twinsFromBackend = await getTwinsFromBackend();
-            dispatch({ type: 'load_twins', twins: twinsFromBackend });
-            ToastNotification("info", "All twins are being loaded.")
+
+            if (twinsFromBackend.length > 0) {
+                // Load all twins into the state
+                dispatch({ type: 'load_twins', twins: twinsFromBackend });
+                // Set the current twin to the first twin from the list
+                dispatch({ type: 'switch_twin', twin: twinsFromBackend[0] });
+                ToastNotification("info", "All twins are being loaded.")
+            } else {
+                // Optionally handle the case where no twins are returned
+                ToastNotification("info", "No twins found.");
+            }
         }
 
         fetchTwins();

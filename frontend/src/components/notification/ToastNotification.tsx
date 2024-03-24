@@ -1,60 +1,39 @@
 import React from 'react';
-import 'react-toastify/dist/ReactToastify.css';
-import { toast, ToastContainer, Slide } from 'react-toastify';
+import { toast, Toaster } from 'react-hot-toast';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
 function ToastNotification(type: ToastType, message: string): void {
+    const options = {
+        duration: 4000, // Equivalent to autoClose
+        // React Hot Toast does not use a hideProgressBar option; progress bars are not a built-in feature
+        iconTheme: {
+            primary: '#000', // Icon color
+            secondary: '#fff', // Icon background color; adjust as needed for light/dark themes
+        },
+    };
+
     switch (type) {
         case 'success':
-            toast.success(message, {
-                position: 'top-right',
-                autoClose: 2000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: true,
-                progress: undefined,
-                theme: 'light',
-            });
+            toast(message, { ...options, style: { background: '#80D05A', color: '#fff' } }); // Custom styling for warning; adjust as needed
             break;
         case 'error':
-            toast.error(message, {
-                position: 'top-right',
-                autoClose: 3000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: false,
-                progress: undefined,
-                theme: 'light',
-            });
+            toast(message, { ...options, style: { background: '#EC5A53', color: '#fff' } }); // Custom styling for warning; adjust as needed
             break;
         case 'warning':
-            toast.warn(message, {
-                position: 'top-right',
-                autoClose: 3000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: false,
-                progress: undefined,
-                theme: 'light',
-            });
+            toast(message, { ...options, style: { background: '#f1c40f', color: '#fff' } }); // Custom styling for warning; adjust as needed
             break;
         case 'info':
-            toast.info(message, {
-                position: 'top-right',
-                autoClose: 3000,
-                hideProgressBar: false,
-                closeOnClick: true,
-                pauseOnHover: true,
-                draggable: false,
-                progress: undefined,
-                theme: 'light',
+            toast(message, {
+                ...options,
+                icon: 'ℹ️',
             });
-            break;
     }
+}
+
+// This component could be included at the top level of your app, typically inside the component that wraps your app's content.
+export function ToastContainer() {
+    return <Toaster position="bottom-right" reverseOrder={false} />;
 }
 
 export default ToastNotification;

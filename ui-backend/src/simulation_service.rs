@@ -1,32 +1,39 @@
 use futures::future::join_all;
+use futures::StreamExt;
 use proto::frontend::{
     CreateSimulationParams, CreateSimulationResponse, Simulation, SimulationInterfaceService,
     Simulations, TwinId,
 };
-use proto::simulation;
+
 use proto::simulation::simulation_manager::{
-    ComponentsInfo, PushSimulationRequest, SimulationData, SimulationManagerClient,
+    ComponentsInfo, PushSimulationRequest, SimulationData, SimulationFrame, SimulationFrameRequest,
+    SimulationManagerClient,
 };
-use proto::simulation::{simulation_manager, Graph};
+use proto::simulation::{simulation_manager, State};
+use std::collections::HashMap;
 use std::env;
 use std::ffi::c_double;
+
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
+
 use tonic::transport::Channel;
-use tonic::{Request, Response, Status};
+use tonic::{Request, Response, Status, Streaming};
 use tracing::debug;
+
 use uuid::Uuid;
 
 pub struct SimulationService {
-    simulation_items: Arc<Mutex<Vec<Simulation>>>,
+    //TODO set in db
+    simulation_items: Arc<Mutex<HashMap<String, Simulation>>>,
     client: SimulationManagerClient<Channel>,
 }
 
 impl SimulationService {
     pub async fn new() -> Self {
         Self {
-            simulation_items: Arc::new(Mutex::new(Vec::new())),
+            simulation_items: Arc::new(Mutex::new(HashMap::new())),
             client: SimulationManagerClient::new(
                 tonic::transport::Channel::builder(
                     env::var("SIMULATION_MANAGER_ADDR")
@@ -43,7 +50,7 @@ impl SimulationService {
     async fn create_simulation_manager(
         &self,
         id: String,
-        graph: Option<Graph>,
+        initial_state: Option<State>,
         timesteps: u64,
         timestep_delta: c_double,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -53,10 +60,7 @@ impl SimulationService {
                 id: Option::from(simulation_manager::SimulationId {
                     uuid: id.to_string(),
                 }),
-                initial_state: Option::from(simulation::State {
-                    graph,
-                    global_components: Default::default(),
-                }),
+                initial_state,
                 timesteps,
                 timestep_delta,
             })
@@ -114,8 +118,12 @@ impl SimulationInterfaceService for SimulationService {
         let time_steps =
             ((req.end_date_time - req.start_date_time) as f64 / req.time_step_delta) as u64;
 
+        debug!(
+            "timesteps: {}, delta time: {}",
+            time_steps, req.time_step_delta
+        );
         let success = self
-            .create_simulation_manager(id.clone(), req.graph, time_steps, req.time_step_delta)
+            .create_simulation_manager(id.clone(), req.start_state, time_steps, req.time_step_delta)
             .await
             .is_ok();
         let response = CreateSimulationResponse { success };
@@ -131,7 +139,7 @@ impl SimulationInterfaceService for SimulationService {
         };
 
         let mut simulations = self.simulation_items.lock().await;
-        simulations.push(new_simulation);
+        simulations.insert(id.clone(), new_simulation);
 
         Ok(Response::new(response))
     }
@@ -144,51 +152,58 @@ impl SimulationInterfaceService for SimulationService {
 
         debug!("get all simulations {}", req.twin_id);
 
-        let items = join_all(
-            self.simulation_items
-                .lock()
-                .await
-                .iter()
-                .map(move |item| async {
-                    let id: String = item.id.to_string();
-                    let simulation_item = self
-                        .get_simulation_manager(id)
-                        .await
-                        .expect("Failed to get a simulation");
+        let items = join_all(self.simulation_items.lock().await.iter().map(
+            move |uuid_item_pair| async {
+                let item = uuid_item_pair.1.clone();
+                let id: String = item.id.to_string();
+                let simulation_item = self
+                    .get_simulation_manager(id)
+                    .await
+                    .expect("Failed to get a simulation");
 
-                    let mut item = item.clone();
-                    item.status = simulation_item.status;
-                    item.frames_loaded = simulation_item.timestep_count as i32;
-                    item
-                }),
-        )
+                let mut item = item.clone();
+                item.status = simulation_item.status;
+                item.frames_loaded = simulation_item.timestep_count as i32;
+                item
+            },
+        ))
         .await;
 
         let response = Simulations { item: items };
         Ok(Response::new(response))
     }
 
-    //TODO implement this function
     async fn get_simulation(
         &self,
         request: Request<simulation_manager::SimulationId>,
     ) -> Result<Response<Simulation>, Status> {
         let req = request.into_inner();
 
-        let name = req.uuid;
+        let uuid: String = req.uuid;
 
-        debug!("returning simulation {}", name);
+        debug!("returning simulation {}", uuid);
 
-        let response = Simulation {
-            name: String::from("test name"),
-            id: String::from("test id"),
-            start_date_time: 0,
-            end_date_time: 0,
-            creation_date_time: 0,
-            frames_loaded: 0,
-            status: 0,
-        };
+        let simulation_item = self
+            .get_simulation_manager(uuid.clone())
+            .await
+            .expect("Failed to get a simulation");
 
-        Ok(Response::new(response))
+        let mut item = self.simulation_items.lock().await[uuid.as_str()].clone();
+        item.status = simulation_item.status;
+        item.frames_loaded = simulation_item.timestep_count as i32;
+
+        Ok(Response::new(item))
+    }
+
+    type GetSimulationFramesStream = Streaming<SimulationFrame>;
+
+    async fn get_simulation_frames(
+        &self,
+        request: Request<Streaming<SimulationFrameRequest>>,
+    ) -> Result<Response<Self::GetSimulationFramesStream>, Status> {
+        self.client
+            .clone()
+            .get_simulation_frames(request.into_inner().map(|frame| frame.unwrap()))
+            .await
     }
 }
