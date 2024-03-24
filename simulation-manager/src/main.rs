@@ -56,12 +56,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             state_sender,
         )
         .await;
-        let _err = runner.start().await;
+        runner.start().await.unwrap();
     });
 
     tokio::spawn(async move {
         let database_buffer = DatabaseBuffer::new(pool_clone2, state_receiver).await;
-        let _err = database_buffer.start().await;
+        database_buffer.start().await.unwrap();
     });
 
     // Set up GRPC server listening on provided address or default localhost:8100

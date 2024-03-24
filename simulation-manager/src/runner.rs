@@ -205,7 +205,7 @@ impl Runner {
                         // place results into Transport struct
                         Transport {
                             simulation_id,
-                            iteration: i,
+                            iteration: i + 1,
                             state: output_state,
                         }
                     }),
@@ -213,49 +213,54 @@ impl Runner {
             .await;
 
             // make copy of previous state
-            let new_graph = prev.graph.as_ref().unwrap().clone();
-            let mut new_nodes = new_graph.nodes.clone();
-            let mut new_edges = new_graph.edge.clone();
-            let mut new_globals = prev.global_components.clone();
+            let mut new_state = prev.clone();
 
             // merge previous state with all output states
             for result in results {
                 // Replace previous node with the version that has been returned by the simulator.
                 // Since simulators can not edit the same nodes, this will always work.
                 // Nodes that were not returned by any simulator will also still be present
-                for node in result.state.graph.as_ref().unwrap().clone().nodes {
-                    let index = new_nodes.iter().position(|x| x.id == node.id).unwrap();
-                    new_nodes[index] = node.clone();
+                let result_graph = result.state.graph.unwrap();
+                for result_node in result_graph.nodes {
+                    let node = new_state
+                        .graph
+                        .as_mut()
+                        .unwrap()
+                        .nodes
+                        .iter_mut()
+                        .find(|n| n.id == result_node.id)
+                        .unwrap();
+                    for (name, c) in result_node.components.into_iter() {
+                        node.components.insert(name, c);
+                    }
                 }
 
                 // Idem for edges
-                for edge in result.state.graph.as_ref().unwrap().clone().edge {
-                    let index = new_edges.iter().position(|x| x.id == edge.id).unwrap();
-                    new_edges[index] = edge.clone();
+                for result_edge in result_graph.edge {
+                    let edge = new_state
+                        .graph
+                        .as_mut()
+                        .unwrap()
+                        .edge
+                        .iter_mut()
+                        .find(|e| e.id == result_edge.id)
+                        .unwrap();
+                    *edge = result_edge;
                 }
 
                 // Idem for global components
                 for (key, value) in result.state.global_components.clone() {
-                    new_globals.insert(key, value);
+                    new_state.global_components.insert(key, value);
                 }
             }
-
-            // create new state
-            let new_state = State {
-                graph: Some(Graph {
-                    nodes: new_nodes,
-                    edge: new_edges,
-                }),
-                global_components: new_globals,
-            };
 
             // create transport and send to database buffer
             let transport = Transport {
                 simulation_id,
-                iteration: i,
+                iteration: i + 1,
                 state: new_state.clone(),
             };
-            let _result = self.state_sender.send(transport);
+            self.state_sender.send(transport).unwrap();
 
             // set previous state to new state
             prev = new_state.clone();
