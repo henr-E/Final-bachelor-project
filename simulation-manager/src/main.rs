@@ -13,6 +13,8 @@ use runner::Runner;
 use sqlx::postgres::PgPool;
 use tokio::sync::{mpsc, Mutex};
 use tonic::transport::{Channel, Server};
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 // modules
 pub mod connector;
@@ -30,6 +32,10 @@ pub mod runner;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenvy::dotenv().ok();
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .init();
+
     // Create database connection with provided environment variables
     let database_url = database_config::database_url("simulation_manager");
     let pool = PgPool::connect(&database_url).await?;
@@ -58,6 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listen_addr = env::var("SIMULATOR_MANAGER_ADDR")
         .unwrap_or("127.0.0.1:8100".to_string())
         .parse::<SocketAddr>()?;
+    info!("Listening on {listen_addr}");
 
     let manager = manager::Manager::new(pool.clone(), server_connections.clone(), notif_sender);
     let server = SimulationManagerServer::new(manager);

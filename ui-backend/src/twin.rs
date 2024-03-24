@@ -51,7 +51,10 @@ async fn request_and_process_twin_data(
     top_right: (f64, f64),
 ) -> Result<(), Status> {
     // Request the overpass api for the chunk of data.
-    let response = reqwest::Client::new()
+    let response = reqwest::Client::builder()
+        .use_rustls_tls()
+        .build()
+        .unwrap()
         .post("https://overpass-api.de/api/interpreter")
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(format!(

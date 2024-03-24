@@ -17,6 +17,8 @@ sqlx = { version = "0.7.3", features = ["runtime-tokio", "tls-rustls", "postgres
 tokio = { version = "1.36.0", features = ["full"] }
 tokio-stream = "0.1.14"
 tonic = "0.11.0"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [build-dependencies]
 database-config.workspace = true

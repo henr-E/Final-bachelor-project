@@ -44,8 +44,6 @@ static_resources:
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
 
-
-
   clusters:
     #Clusters represent upstream services to which Envoy routes requests.
     #A cluster can be a single service or a group of services that provide the same functionality
@@ -62,7 +60,7 @@ static_resources:
               - endpoint:
                   address:
                     socket_address:
-                      address: 127.0.0.1
+                      address: ui-backend
                       port_value: 8080
 
 admin:
