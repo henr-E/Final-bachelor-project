@@ -1,23 +1,20 @@
 'use client';
-import dynamic from 'next/dynamic';
-import { Quantity, Unit } from '@/store/sensor';
-import { createChannel, createClient } from 'nice-grpc-web';
-import CreateSensorModal from '@/components/modals/CreateSensorModal';
-import { Breadcrumb, Button, RangeSlider, Spinner } from 'flowbite-react';
-import { HiHome } from 'react-icons/hi';
-import { MdOpenInNew, MdOutlineDeleteOutline } from 'react-icons/md';
-import { useCallback, useContext, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import CreateSimulationModal from '@/components/modals/CreateSimulationModal';
-import {
-    SimulationInterfaceServiceDefinition,
-    TwinId,
-    Simulations,
-} from '@/proto/simulation/frontend';
-import { TwinContext } from '@/store/twins';
-import { mdiFullscreen, mdiCheck, mdiClose, mdiAnimationOutline } from '@mdi/js';
-import Icon from '@mdi/react';
-import { uiBackendServiceUrl } from '@/api/urls';
+import dynamic from "next/dynamic";
+import {Quantity, Unit} from "@/store/sensor";
+import {createChannel, createClient, WebsocketTransport} from "nice-grpc-web";
+import CreateSensorModal from "@/components/modals/CreateSensorModal";
+import {Breadcrumb, Button, RangeSlider, Spinner} from 'flowbite-react';
+import {HiHome} from 'react-icons/hi';
+import {MdOpenInNew, MdOutlineDeleteOutline} from "react-icons/md";
+import {useCallback, useContext, useEffect, useState} from "react";
+import {useRouter} from "next/navigation";
+import CreateSimulationModal from "@/components/modals/CreateSimulationModal";
+import {SimulationInterfaceServiceDefinition, TwinId, Simulations} from "@/proto/simulation/frontend";
+import {TwinContext} from "@/store/twins";
+import {mdiFullscreen, mdiCheck, mdiClose,mdiAnimationOutline } from "@mdi/js";
+import Icon from "@mdi/react";
+import {uiBackendServiceUrl} from "@/api/urls";
+import ToastNotification from '@/components/notification/ToastNotification';
 
 function SimulationOverviewPage() {
     const router = useRouter();
@@ -44,7 +41,14 @@ function SimulationOverviewPage() {
                 <div className='flex flex-row'>
                     <div>
                         <Button
-                            onClick={() => setIsSensorModalOpen(true)}
+                            onClick={() => {
+                                if(twinState.current) {
+                                    setIsSensorModalOpen(true)
+                                } else {
+                                    ToastNotification('warning', 'please select a twin before creating a simulation.')
+                                }
+
+                            }}
                             color='indigo'
                             theme={{
                                 color: {

@@ -15,3 +15,6 @@ ui-backend/temp-database/*
 
 # Nix output
 result
+
+localhost.crt
+localhost.key

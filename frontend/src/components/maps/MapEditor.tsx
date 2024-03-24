@@ -1,6 +1,6 @@
 'use client';
 import {LatLng, LatLngExpression, LeafletEventHandlerFnMap} from "leaflet";
-import {Button} from "flowbite-react";
+import {Button, Textarea} from "flowbite-react";
 import {Icon} from "@mdi/react";
 import {
     mdiCursorMove,
@@ -19,6 +19,8 @@ import ToastNotification from "@/components/notification/ToastNotification";
 import {buildingObject, TwinServiceDefinition} from '@/proto/twins/twin';
 import {createChannel, createClient} from "nice-grpc-web";
 import {uiBackendServiceUrl} from "@/api/urls";
+import {it} from "node:test";
+import {JsonToTable} from "react-json-to-table";
 
 enum CursorState {
     NONE,
@@ -49,11 +51,12 @@ const cursorToType = {
 
 export interface MapEditorProps {
     mapItemRef?: MutableRefObject<MapItemType[] | undefined>
+    noBuildings?: boolean;
 };
 
 const PredictionMapImport = dynamic<PredictionMapProps>(() => import("@/components/maps/PredictionMap"), {ssr: false});
 
-function MapEditor({mapItemRef}: MapEditorProps) {
+function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
     const [twinState, dispatch] = useContext(TwinContext);
     const [cursor, setCursor] = useState<CursorState>(CursorState.GRAB);
     const [mapItems, setMapItems] = useState<Array<MapItemType>>([]);
@@ -61,6 +64,7 @@ function MapEditor({mapItemRef}: MapEditorProps) {
     const mapItemsRef = useRef(mapItems);//Use a reference because needed when called from eventHandlers
     const cursorRef = useRef(cursor);//Use a reference because needed when called from eventHandlers
     const selectedItemsRef = useRef(selectedItems);//Use a reference because needed when called from eventHandlers
+    const [itemComponents, setItemComponents] = useState("{}");
 
     const [selectedBuildingIndex, setSelectedBuildingIndex] = useState<number>(-1);
     const [selectedBuilding, setSelectedBuilding] = useState<BuildingItem>();
@@ -103,7 +107,7 @@ function MapEditor({mapItemRef}: MapEditorProps) {
         const fetchBuildings = async () => {
             try {
                 if (twinState.current) {
-                    ToastNotification("info", "Your twin is being loaded.");
+                    ToastNotification("success", "Your twin is being loaded.");
                     const channel = createChannel(uiBackendServiceUrl);
                     const client = createClient(TwinServiceDefinition, channel);
                     const request = {id: twinState.current.id};
@@ -140,7 +144,10 @@ function MapEditor({mapItemRef}: MapEditorProps) {
                 console.error("Failed to fetch buildings:", error);
             }
         }
-        let _ = fetchBuildings();
+        if(!noBuildings){
+             let _ = fetchBuildings();
+        }
+
         // eslint-disable-next-line
     }, [twinState]);
 
@@ -197,6 +204,11 @@ function MapEditor({mapItemRef}: MapEditorProps) {
             moveMapItem(index);
         }
         setSelectedItems([index]);
+        if(mapItemsRef.current[index].components){
+            setItemComponents(JSON.stringify(mapItemsRef.current[index].components))
+            return
+        }
+        setItemComponents("{}");
     }
 
     /**
@@ -205,12 +217,14 @@ function MapEditor({mapItemRef}: MapEditorProps) {
      */
     const addLine = (id: number) => {
         if (selectedItemsRef.current.length == 0) {
+            const lineId = mapItemsRef.current.length;
             const newItem: LineItem = {
                 name: "item: " + mapItemsRef.current.length.toString(),
                 id: mapItemsRef.current.length,
                 items: [mapItemsRef.current[id] as NodeItem],
                 type: MapItems.Line,
-                eventHandler: {click: (e) => console.log("item clicked")}
+                components: {},
+                eventHandler: {click: (e) => selectItemMap(lineId)}
             }
 
             setMapItems([...mapItemsRef.current, newItem]);
@@ -242,6 +256,7 @@ function MapEditor({mapItemRef}: MapEditorProps) {
             name: "item: " + mapItems.length.toString(),
             location: latlng,
             type: cursorToType[cursor],
+            components: {},
             eventHandler: {
                 click: (e) => selectItemMap(mapItems.length),
                 contextmenu: (e) => removeMapItem(mapItems.length)
@@ -318,6 +333,18 @@ function MapEditor({mapItemRef}: MapEditorProps) {
         }
     }
 
+    const saveBuildingComponents = async (jsonString: string) => {
+        if(!mapItemRef?.current){
+            return
+        }
+        try {
+            (mapItemRef.current[selectedItemsRef.current[0]] as NodeItem).components = JSON.parse(jsonString);
+            ToastNotification("success", "Vars set");
+        }
+        catch (e){
+            ToastNotification("error", "Not a valid json format for global vars");
+        }
+    }
 
     return (
         <div className="flex h-full grid grid-cols-12">
@@ -354,8 +381,20 @@ function MapEditor({mapItemRef}: MapEditorProps) {
                 <div className="flex flex-col h-full">
                     <div
                         className="bg-white grid-cols-12 gap-4 my-1 rounded-md flex flex-col justify-start w-full p-3">
+                        {
+                            selectedItems.length == 1 &&  (
+                                <>
+                                    <h1>{mapItems[selectedItems[0]].name}</h1>
+                                    <JsonToTable json={mapItems[selectedItems[0]].components} />
+                                    <Textarea id="itemVar" placeholder="{}" required rows={4} value={itemComponents} onChange={(e)=> setItemComponents(e.target.value)} />
+                                    <Button
+                                        onClick={() => saveBuildingComponents(itemComponents)}
+                                    >Opslaan</Button>
+                                </>
+                            )
+                        }
                         {selectedBuildingIndex === -1 ? (
-                            <div className="text-gray-700 text-md mb-2">Please select a building.</div>
+                            selectedItems.length != 1 &&  <div className="text-gray-700 text-md mb-2">Please select a building or edge.</div>
                         ) : (
                             <>
                                 <div
@@ -394,6 +433,3 @@ function MapEditor({mapItemRef}: MapEditorProps) {
 }
 
 export default MapEditor;
-
-
-

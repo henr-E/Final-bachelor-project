@@ -50,7 +50,7 @@ export function PredictionMap({twin, eventHandlers = {}, mapItems = []}: Predict
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                {mapItems && mapItems.map((item, i) => <MapItem itemData={item} key={i + Math.random()}/>)}
+                {mapItems && mapItems.map((item, i) => <MapItem itemData={item} key={item.id}/>)}
                 <ChangeLocation/>
             </MapContainer>
         </>
