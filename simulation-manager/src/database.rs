@@ -165,11 +165,11 @@ impl SimulationsDB {
     ) -> Result<i32> {
         // add the nodes
         let node_id = query!("INSERT INTO nodes (node_id, simulation_id, time_step, longitude, latitude) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-            node.id as i32, simulation_id, time_step, node.longitude, node.latitude)
-        .fetch_one(self.connection().await?)
-            .await
-            .map_err(|e| anyhow!(e))
-            .map(|n| n.id)?;
+                        node.id as i32, simulation_id, time_step, node.longitude, node.latitude)
+                    .fetch_one(self.connection().await?)
+                        .await
+                        .map_err(|e| anyhow!(e))
+                        .map(|n| n.id)?;
         for component in node.components {
             // add the component
             query!(
@@ -187,7 +187,7 @@ impl SimulationsDB {
     /// Get all nodes and their components with a `simulation_id` and `time_step` from the nodes table.
     pub async fn get_nodes(&mut self, simulation_id: i32, time_step: i32) -> Result<Vec<Node>> {
         // get the nodes
-        let mut nodes: Vec<Node> = query!(
+        let mut records: Vec<_> = query!(
             "SELECT * FROM nodes WHERE simulation_id = $1 AND time_step = $2",
             simulation_id,
             time_step
@@ -195,24 +195,27 @@ impl SimulationsDB {
         .fetch_all(&self.pool)
         .await?
         .into_iter()
-        .map(|n| Node {
-            id: n.node_id as u64,
-            longitude: n.longitude,
-            latitude: n.latitude,
-            components: [].into(),
-        })
         .collect();
-        for node in &mut nodes {
+
+        let mut nodes = Vec::new();
+        for n in &mut records {
             // get node components
-            node.components = query!(
+            let components = query!(
                 "SELECT * FROM node_components WHERE node_id = $1",
-                node.id as i32
+                n.id as i32
             )
             .fetch_all(&self.pool)
             .await?
             .into_iter()
             .map(|c| (c.name, serde_json_to_prost(c.component_data)))
             .collect();
+
+            nodes.push(Node {
+                id: n.node_id as u64,
+                longitude: n.longitude,
+                latitude: n.latitude,
+                components,
+            });
         }
         Ok(nodes)
     }
