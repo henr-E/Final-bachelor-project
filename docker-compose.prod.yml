@@ -62,6 +62,7 @@ services:
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
       ENV_IMPURE: true
+      SIMULATOR_CONNECTOR_ADDR: 0.0.0.0:8099
       SIMULATION_MANAGER_ADDR: 0.0.0.0:8100
     depends_on:
       database-migrator:
@@ -75,6 +76,7 @@ services:
     networks:
       - backend
     environment:
+      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       TIME_SIMULATOR_ADDR: 0.0.0.0:8101
     depends_on:
       - simulation-manager
@@ -85,6 +87,7 @@ services:
     networks:
       - backend
     environment:
+      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
     depends_on:
       - simulation-manager

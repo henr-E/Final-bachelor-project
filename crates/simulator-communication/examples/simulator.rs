@@ -64,12 +64,16 @@ async fn main() -> ExitCode {
         .parse::<SocketAddr>()
         .expect("a valid listen address");
 
+    // Manager address
+    let connector_addr =
+        env::var("SIMULATOR_CONNECTOR_ADDR").unwrap_or("http://127.0.0.1:8099".to_string());
+
     // Create a simulator server using our simulator defined above. Will use the `new` function in the simulator.
     let server = Server::<ExampleSimulator>::new();
-    // Start the server using `listen_on`. This may return an error if something goes wrong during the execution of the program,
+    // Start the server using `start`. This may return an error if something goes wrong during the execution of the program,
     // so we need to handle this error appropriately. Here we print the error and exit.
     println!("Starting example simulator server on {listen_addr}");
-    if let Err(err) = server.listen_on(listen_addr).await {
+    if let Err(err) = server.start(listen_addr, connector_addr).await {
         eprintln!("Server return an error: {err}");
         return ExitCode::FAILURE;
     }

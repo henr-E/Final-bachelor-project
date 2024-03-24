@@ -73,6 +73,16 @@ pub mod simulation {
             tonic::include_proto!("simulation.simulation_manager");
         }
     }
+
+    pub mod simulator_connection {
+        pub use proto_simulator_connection::{
+            simulator_connection_client::*, simulator_connection_server::*, *,
+        };
+
+        mod proto_simulator_connection {
+            tonic::include_proto!("simulation.simulator_connection");
+        }
+    }
 }
 
 pub mod frontend {
