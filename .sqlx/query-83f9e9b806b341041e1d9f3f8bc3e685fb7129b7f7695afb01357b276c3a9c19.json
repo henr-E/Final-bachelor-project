@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, street, house_number, postcode, city, coordinates, visible FROM buildings WHERE twin_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "street",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "house_number",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "postcode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "coordinates",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "visible",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "83f9e9b806b341041e1d9f3f8bc3e685fb7129b7f7695afb01357b276c3a9c19"
+}

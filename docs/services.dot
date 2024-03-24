@@ -1,0 +1,58 @@
+digraph G {
+    node [shape=box]
+    database [shape=cylinder,label="PostgreSQL\nTimescaleDB"]
+    
+    manager -> database [style="dashed"]
+    ingest -> database [style="dashed"]
+    uibackend -> database [style="dashed"]
+     
+    subgraph cluster_ui {
+        frontend [label="Frontend"]
+        uibackend [label="UI Backend"]
+        
+        frontend -> uibackend
+        label = "User Interface";
+        color=blue
+    }
+    
+    subgraph cluster_runner {
+        manager [label="Simulation Manager"]
+        
+        subgraph cluster_simulators {
+            energy [label="Electricity: Transmission"]
+            energy_demand [label="Electricity: Supply/Demand\n(uses analysed sensor data)"]
+            sim3 [label="(more simulators...)"]
+            label = "Simulators";
+            color=black
+        }
+        
+        manager -> energy
+        manager -> energy_demand
+        manager -> sim3
+    
+        label = "Simulation Runner";
+        color=purple
+    }
+    
+    subgraph cluster_sensors {
+        ingest [label="Sensor Data Ingestor"]
+        generator [label="Sensor Data Generator"]
+        
+        generator -> ingest
+        
+        label = "Sensor Analysis";
+        color=green
+    }
+    
+    subgraph cluster_external {
+        style=filled;
+        color=lightgrey;
+        node [style=filled,color=white];
+        sensor1 [label="N × Sensor Service"]
+        sensor1 -> ingest
+        sensor1 -> ingest
+        label = "External Services";
+    }
+    
+    uibackend -> manager
+}

@@ -1,0 +1,247 @@
+#![doc = include_str!("../README.md")]
+
+use crate::signal::Signals;
+pub use crate::{quantity::Quantity, sensor::Sensor, signal::Signal, unit::Unit};
+use database_config::database_url;
+use futures::stream::Stream;
+use sensor::SensorBuilder;
+use sqlx::{Error, PgPool, Postgres, Transaction};
+use uuid::Uuid;
+
+pub mod error;
+pub mod quantity;
+pub mod sensor;
+pub mod signal;
+pub mod unit;
+
+/// Sensor database wrapper.
+pub struct SensorStore {
+    db_pool: PgPool,
+}
+
+impl SensorStore {
+    /// Create a new [`SensorStore`] using environment variables from the `.env` file.
+    ///
+    /// See [`database_config::database_url`] for more info.
+    pub async fn new() -> Result<Self, Error> {
+        let db_url = database_url("sensor_archive");
+        let db_pool = PgPool::connect(&db_url).await?;
+        Ok(Self { db_pool })
+    }
+
+    /// Create a [`SensorStore`] from an already created postgres connection.
+    pub fn from_pg_pool(db_pool: &PgPool) -> Self {
+        Self {
+            db_pool: db_pool.clone(),
+        }
+    }
+
+    /// Get a single [`Sensor`] from the database given its [`Uuid`].
+    pub async fn get_sensor(&self, sensor_id: uuid::Uuid) -> Result<Sensor<'_>, Error> {
+        let sensor = sqlx::query!(
+            "SELECT name, description, location[0]::float as lon, location[1]::float as lat FROM sensors WHERE id = $1::uuid",
+            sensor_id
+        )
+        .fetch_one(&self.db_pool)
+        .await?;
+
+        let sensor = Sensor::builder(
+            sensor_id,
+            sensor.name,
+            sensor.description,
+            (sensor.lon.unwrap(), sensor.lat.unwrap()),
+        );
+        Ok(self.add_signals_to_builder(sensor).await?.build())
+    }
+
+    /// Set a single [`Sensor`] into the database, returning its [`Uuid`].
+    pub async fn store_sensor(&self, sensor: Sensor<'_>) -> Result<Uuid, Error> {
+        // create a transaction. if any error occurs,
+        // no commits are performed.
+        let mut transaction = self
+            .db_pool
+            .begin()
+            .await
+            .expect("Couldn't start transaction");
+        // generate new uuid for this sensor.
+        let sensor_id = sensor.id;
+        // insert sensor into the database.
+        let _sensor = sqlx::query!(
+            "INSERT INTO sensors (id, name, description, location, user_id) values ($1::uuid, $2::text, $3::text, POINT($4::float, $5::float), $6::int)",
+            sensor_id, &sensor.name, &sensor.description.clone().unwrap_or_default(), sensor.location.0, sensor.location.1, 1
+        )
+        .execute(&mut *transaction)
+        .await?;
+        // add the signals of this sensor to the transaction.
+        self.store_signals(sensor.signals(), &mut transaction, sensor_id)
+            .await?;
+        // commit transaction to the database.
+        transaction.commit().await?;
+
+        // if everything happens correctly,
+        // return the generated sensor_id to the caller.
+        Ok(sensor_id)
+    }
+
+    /// Commit all signals of a single [`Sensor`] to the database.
+    ///
+    /// This function is called from the [`SensorStore::set_sensor`] method.
+    async fn store_signals(
+        &self,
+        signals: &Signals<'_>,
+        transaction: &mut Transaction<'_, Postgres>,
+        sensor_id: Uuid,
+    ) -> Result<(), Error> {
+        let signals: Vec<Signal> = Vec::from_iter(signals.iter().cloned());
+        // create a query builder to batch insert signals.
+        let names: Vec<_> = signals.iter().map(|item| item.name.to_string()).collect();
+        let quantities: Vec<_> = signals
+            .iter()
+            .map(|item| item.quantity.to_string())
+            .collect();
+        let units: Vec<_> = signals.iter().map(|item| item.unit.to_string()).collect();
+        let prefixes: Vec<_> = signals.iter().map(|item| item.prefix.clone()).collect();
+        let _res = sqlx::query!(
+            r#"INSERT INTO sensor_signals (sensor_id, alias, quantity, unit, prefix) SELECT $1::uuid, alias, quantity::quantity, unit::unit, prefix FROM UNNEST($2::text[], $3::text[], $4::text[], $5::decimal[]) AS x(alias, quantity, unit, prefix);"#,
+            sensor_id,
+            &names,
+            &quantities,
+            &units,
+            &prefixes
+        ).execute(&mut **transaction).await?;
+        Ok(())
+    }
+
+    /// Delete a [`Sensor`] from the database.
+    pub async fn delete_sensor(&self, sensor_id: Uuid) -> Result<(), Error> {
+        println!("{:?}", sensor_id);
+        match sqlx::query!("DELETE FROM sensors WHERE id = $1::uuid", sensor_id)
+            .execute(&self.db_pool)
+            .await?
+            .rows_affected()
+        {
+            1 => Ok(()),
+            _ => Err(Error::RowNotFound),
+        }
+    }
+
+    /// Get all sensors from the database.
+    pub async fn get_all_sensors(
+        &self,
+    ) -> Result<impl Stream<Item = Result<Sensor, Error>>, Error> {
+        use futures::stream::{self, StreamExt};
+
+        let sensors = sqlx::query!(
+            "SELECT id, name, description, location[0] as lon, location[1] as lat FROM sensors"
+        )
+        .fetch_all(&self.db_pool)
+        .await?
+        .into_iter()
+        .map(|s| {
+            Sensor::builder(
+                s.id,
+                s.name,
+                s.description,
+                (s.lon.unwrap(), s.lat.unwrap()),
+            )
+        });
+
+        let sensors = stream::iter(sensors).then(|s| async {
+            self.add_signals_to_builder(s)
+                .await
+                .map(SensorBuilder::build)
+        });
+
+        Ok(sensors)
+    }
+
+    async fn add_signals_to_builder<'a>(
+        &self,
+        mut sensor_builder: SensorBuilder<'a>,
+    ) -> Result<SensorBuilder<'a>, Error> {
+        for sensor_signal in sqlx::query!(
+            r#"
+                SELECT
+                    sensor_signal_id AS id,
+                    alias,
+                    quantity AS "quantity!: Quantity",
+                    unit AS "unit!: Unit",
+                    prefix
+                FROM sensor_signals
+                WHERE sensor_id = $1::uuid
+            "#,
+            sensor_builder.id
+        )
+        .fetch_all(&self.db_pool)
+        .await?
+        {
+            sensor_builder.add_signal(
+                sensor_signal.id,
+                sensor_signal.alias,
+                sensor_signal.quantity,
+                sensor_signal.unit,
+                sensor_signal.prefix,
+            );
+        }
+
+        Ok(sensor_builder)
+    }
+}
+
+#[cfg(test)]
+mod unit_quantity_tests {
+    use super::{Quantity, Unit};
+    use enumset::EnumSet;
+
+    /// Ensure that every unit belongs to a quantity and vica versa. This is done to find unused
+    /// quantities and wrongly associated units.
+    #[test]
+    fn complete_set() {
+        let all_units = EnumSet::<Unit>::all();
+        let all_quantities = EnumSet::<Quantity>::all();
+
+        assert_eq!(
+            all_quantities
+                .iter()
+                .flat_map(|q| q.associated_units())
+                .collect::<EnumSet<_>>(),
+            all_units
+        );
+
+        assert_eq!(
+            all_units
+                .iter()
+                .map(|u| u.associated_quantity())
+                .collect::<EnumSet<_>>(),
+            all_quantities
+        );
+    }
+
+    /// Ensure that every quantities base unit is also an associated unit.
+    #[test]
+    fn base_unit_in_associated_units() {
+        let all_quantities = EnumSet::<Quantity>::all();
+
+        assert!(all_quantities
+            .into_iter()
+            .all(|q| q.associated_units().contains(&q.associated_base_unit())))
+    }
+
+    #[test]
+    fn associated_unit_sets_are_disjoint_or_equal() {
+        let all_quantities = EnumSet::<Quantity>::all();
+
+        let unit_sets = all_quantities
+            .iter()
+            .map(|q| q.associated_units())
+            .collect::<Vec<_>>();
+
+        // Not an optimal implementation as this will do double work.
+        // Should be fine as this is a test case.
+        for unit_set in unit_sets.iter() {
+            assert!(unit_sets
+                .iter()
+                .all(|s| s == unit_set || s.is_disjoint(unit_set)));
+        }
+    }
+}

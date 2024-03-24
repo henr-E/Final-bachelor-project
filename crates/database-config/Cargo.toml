@@ -1,0 +1,28 @@
+[package]
+name = "database-config"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Trait to wrap any error in a generic error message.
+anyhow = "1.0.80"
+# Load environment from `.env` file.
+environment-config = { workspace = true }
+# Allow secrets to be read.
+secrets.workspace = true 
+# Connect to and perform migrations on databases.
+sqlx = { version = "0.7.3", default-features = false, features = [
+  "migrate",
+  "postgres",
+] }
+# Macro for creating a comprehensive error wrapper type.
+thiserror = "1.0.57"
+# Enables asynchronous logging.
+tracing = "0.1.40"
+
+# Dependencies only used for tests, examples and benchmarks.
+[dev-dependencies]
+# Provides an async runtime allowing the use of async/await.
+tokio = { version = "1.36.0", features = ["macros", "rt"] }

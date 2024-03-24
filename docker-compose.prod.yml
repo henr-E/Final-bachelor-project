@@ -1,0 +1,228 @@
+services:
+
+  # USER INTERFACE
+  # ==============
+
+  frontend:
+    container_name: frontend
+    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/frontend:$IMAGE_TAG
+    command: ["/bin/frontend"]
+    networks:
+      - backend
+    environment:
+      NEXT_PUBLIC_TWIN_SERVICE_URL: http://ui-backend:8080
+      NEXT_PUBLIC_USER_SERVICE_URL: http://user-authentication:8080
+    depends_on:
+      database-migrator:
+        condition: service_completed_successfully
+        
+  ui-backend:
+    restart: unless-stopped
+    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    command: ["/bin/ui-backend"]
+    networks:
+      - backend
+      - external
+    environment:
+      UI_BACKEND_ADDR: 0.0.0.0:8080
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      ENV_IMPURE: true
+      SIMULATION_MANAGER_ADDR: http://simulation-manager:8100
+    depends_on:
+      database-migrator:
+        condition: service_completed_successfully
+      simulation-manager:
+        condition: service_started
+    secrets:
+      - DATABASE_PASSWORD
+      - JWT_SECRET
+
+  # SIMULATION
+  # ==========
+
+  simulation-manager:
+    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    command: ["/bin/simulation-manager"]
+    networks:
+      - backend
+    environment:
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      ENV_IMPURE: true
+      SIMULATOR_MANAGER_ADDR: 0.0.0.0:8100
+      SIMULATOR_CONNECTOR_ADDR: 0.0.0.0:8099
+      RUST_LOG: info
+    depends_on:
+      database-migrator:
+        condition: service_completed_successfully
+    secrets:
+      - DATABASE_PASSWORD
+        
+  simulator-time:
+    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    command: ["/bin/time-simulator"]
+    networks:
+      - backend
+    depends_on:
+      - simulation-manager
+    environment:
+      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
+      TIME_SIMULATOR_ADDR: 0.0.0.0:8101
+      
+  simulator-energy-supply-and-demand:
+    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    command: ["/bin/energy-supply-and-demand-simulator"]
+    networks:
+      - backend
+    depends_on:
+      - simulation-manager
+    environment:
+      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
+      ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
+      
+  simulator-energy-transmission:
+    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    command: ["/bin/energy-simulator"]
+    networks:
+      - backend
+    depends_on:
+      - simulation-manager
+    environment:
+      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
+      ENERGY_SIMULATOR_ADDR: 0.0.0.0:8101
+
+  # SENSOR DATA
+  # ===========
+
+  sensor-data-ingestor:
+    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    command: ["/bin/sensor-data-ingestor"]
+    networks:
+      - backend
+    environment:
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      ENV_IMPURE: true
+    depends_on:
+      database-migrator:
+        condition: service_completed_successfully
+    secrets:
+      - DATABASE_PASSWORD
+
+  sensor-data-generator:
+    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    command: ["/bin/sensor-data-generator"]
+    networks:
+      - backend
+    environment:
+      SENSOR_DATA_INGESTOR_URL: http://sensor-data-ingestor:8080
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      ENV_IMPURE: true
+    depends_on:
+      sensor-data-ingestor:
+        condition: service_started
+    secrets:
+      - DATABASE_PASSWORD
+
+  # OTHER SERVICES
+  # ==============
+
+  database-migrator:
+    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    command: ["/bin/database-migrator"]
+    networks:
+      - backend
+    environment:
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_CONFIG: /databases.toml
+    secrets:
+      - DATABASE_PASSWORD
+    volumes:
+      - ./docker/databases.toml:/databases.toml
+      - ./migrations:/migrations
+    depends_on:
+      database:
+        condition: service_started
+        
+  # THIRD+PARTY SERVICES
+  # ==============
+  
+  database:
+    container_name: database
+    image: timescale/timescaledb:2.14.1-pg16
+    restart: unless-stopped
+    # Use environment variables from the `.env` file without copying the entire
+    # file and being able to use aliases for variables depending on the service.
+    environment:
+      # Do not set the following env variable as this user should be `postgres`
+      # and is only used to create other databases and users.
+      # POSTGRES_USER: ...
+      POSTGRES_PASSWORD_FILE: /run/secrets/DATABASE_PASSWORD
+      # Store db data in different directory. See `PGDATA` section of
+      # https://hub.docker.com/_/postgres/.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    networks:
+      - backend
+    volumes:
+      # Persist contents of the database to the host.
+      - postgres-data:/var/lib/postgresql/data
+    secrets:
+      - DATABASE_PASSWORD
+
+  # HTTP reverse proxy.
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: always
+    networks:
+      - backend
+      - external
+    ports:
+      - 80:80
+      - 443:443
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME}
+    volumes:
+      - caddy-config:/config
+      - caddy-data:/data
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - frontend
+      - envoy
+
+  # gRPC-web proxy.
+  envoy:
+    container_name: envoy
+    image: envoyproxy/envoy:v1.29-latest
+    networks:
+      - backend
+    volumes:
+      - ./docker/envoy.yaml:/etc/envoy/envoy.yaml
+    depends_on:
+      - ui-backend
+
+volumes:
+  # Define a postgres named volume to avoid having a directory with root
+  # ownership in the project.
+  postgres-data:
+  caddy-config:
+  caddy-data:
+
+networks:
+  backend:
+    internal: true
+  external:
+
+secrets:
+  DATABASE_PASSWORD:
+    file: ${SECRETS_ROOT}/DATABASE_PASSWORD
+  JWT_SECRET:
+    file: ${SECRETS_ROOT}/JWT_SECRET

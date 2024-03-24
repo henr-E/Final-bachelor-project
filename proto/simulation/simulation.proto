@@ -1,0 +1,107 @@
+syntax = "proto3";
+
+import "google/protobuf/struct.proto";
+
+package simulation.simulation;
+
+// For a component, denotes to which entity of a state it belongs.
+enum ComponentType {
+  // A component can be part of a node.
+  NODE = 0;
+  // A component can part of an edge (or relation).
+  EDGE = 1;
+  // The entire state can also have components.
+  GLOBAL = 2;
+}
+
+// Specifies information about a type of component.
+message ComponentSpecification {
+  // The type of the component, denotes of which entity of the state the component belongs.
+  ComponentType type = 1;
+  // Describes how the component is structured. A component always has a fixed structure throughout the simulation.
+  ComponentStructure structure = 2;
+}
+
+// Denotes what data structure is used for a component.
+// This is a recursive data structure.
+message ComponentStructure {
+  oneof ComponentStructure {
+    // This part of the structure is a single primitive type.
+    ComponentPrimitive primitive = 1;
+    // A 'wrapper' that makes part of the structure optional.
+    ComponentStructure option = 2;
+    // A 'wrapper' that turns part of the structure into a homogenous list.
+    ComponentStructure list = 3;
+    // A 'wapper' that allows for the component to have a map containing fields with different types.
+    ComponentStruct struct = 4;
+  }
+}
+
+// A simple primitive type.
+enum ComponentPrimitive {
+  BOOL = 0;
+  U8 = 1;
+  U16 = 2;
+  U32 = 3;
+  U64 = 4;
+  U128 = 5;
+  I8 = 6;
+  I16 = 7;
+  I32 = 8;
+  I64 = 9;
+  I128 = 10;
+  STRING = 11;
+  F32 = 12;
+  F64 = 13;
+};
+
+// A component can be (or contain) a struct that maps field names to values of different types.
+// This specifies the types found in that mapping.
+message ComponentStruct {
+  map<string, ComponentStructure> data = 1;
+}
+
+// A state of the system, containing information about the data kinds specified in SimulatorIOConfig.
+// The data contained in this also depends on whether this state is used as an input or output for a timestep.
+message State {
+  // The graph representing the world (city) state.
+  Graph graph = 1;
+  // The global components in the system, such as temperature.
+  map<string, google.protobuf.Value> global_components = 3;
+}
+
+// A graph. Pretty self explanatory.
+message Graph {
+  // Nodes in the graph.
+  repeated Node nodes = 1;
+  // Edges between different nodes. These can be seen as relations between nodes.
+  // A set of two nodes can have more than one (or even two) edges between then.
+  repeated Edge edge = 2;
+}
+
+// A node in a graph. Made up of a location in space and a set of components of different types.
+message Node {
+  // The longitude in the world.
+  double longitude = 1;
+  // The latitude in the world.
+  double latitude = 2;
+  // A mapping of component types (names) to the actual data for those components.
+  // The data should be structured as was specified by the simulator.
+  map<string, google.protobuf.Value> components = 3;
+  // The id of the node in the database
+  uint64 id = 4;
+}
+
+// Denotes a relation between two different nodes. Contains exactly one component type.
+message Edge {
+  // The id of the node at which the edge starts.
+  uint64 from = 1;
+  // The id of the node to which the edge arrives.
+  uint64 to = 2;
+  // The name of the type of component contained in this edge.
+  string component_type = 3;
+  // The data of the component in this edge.
+  google.protobuf.Value component_data = 4;
+  // The id of the edge in the database
+  uint64 id = 5;
+}

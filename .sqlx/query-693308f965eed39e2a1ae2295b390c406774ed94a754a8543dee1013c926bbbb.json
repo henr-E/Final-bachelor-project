@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT sensor_id, path FROM archive_sensor_data_files AS sdf WHERE sdf.time > NOW() - $1::interval AND sdf.time < now();",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sensor_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "path",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Interval"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "693308f965eed39e2a1ae2295b390c406774ed94a754a8543dee1013c926bbbb"
+}

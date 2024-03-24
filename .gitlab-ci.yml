@@ -1,0 +1,136 @@
+# Macro like object that can be inserted in any location.
+# Login to the private GitLab container registry.
+.docker-login: &docker-login
+  before_script:
+    # Login to the private gitlab container registry using CI/CD variables
+    # provided by gitlab.
+    - echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+
+workflow:
+  auto_cancel:
+    # Cancel jobs on the current pipeline when a new commit comes in.
+    # Only cancels the job when `interruptible` is `true`.
+    on_new_commit: interruptible
+  rules:
+    # Run the pipeline for merge requests only.
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    # Run on `dev` and `prod` branch.
+    - if: $CI_COMMIT_REF_SLUG =~ /^(dev|prod)$/
+
+# Define the different stages in which the pipeline is divided.
+stages:
+  # Try to build all parts of the project. (cargo workspace, nextjs frontend,
+  # proto files, etc.)
+  - build
+  # Run unit/integration and other tests.
+  - test
+  # Build dockerfiles and cache them into containers for deployment.
+  - release
+  # Deploy the project using the cached containers to the server
+  - deploy
+
+variables:
+  # Specify a specific build for the cachix image. This way we are sure it always uses the same
+  # container. Also speeds up the pipeline as it does not require the image to be pulled more than
+  # once.
+  CACHIX_IMAGE: docker.nix-community.org/nixpkgs/cachix-flakes@sha256:a41434503903c1cda87a7d67d6dd45a96b51404faccbcde332c0e97582437da6
+  # Allow (hopefully) for color in the terminal.
+  TERM: 'xterm-256color'
+
+checks:
+  image:
+    name: $CACHIX_IMAGE
+    # Only pull the image from the registry if it is not available locally.
+    # Because the image is built in a previous stage, it should always be
+    # available.
+    pull_policy: if-not-present
+  stage: test
+  tags: [docker-exec]
+  interruptible: true
+  before_script:
+    - cachix use "$CACHIX_CACHE_NAME"
+  script:
+    - cachix watch-store $CACHIX_CACHE_NAME &
+    - nix flake check -L
+
+release:
+  image:
+    name: $CACHIX_IMAGE
+    # Only pull the image from the registry if it is not available locally.
+    # Because the image is built in a previous stage, it should always be
+    # available.
+    pull_policy: if-not-present
+  stage: release
+  tags:
+    - docker-exec
+    # We want the output image to be the same architecture as production.
+    - amd64
+  before_script:
+    - cachix use "$CACHIX_CACHE_NAME"
+  script:
+    # Ensure `policy.json` is created. This is needed to be able to use `skopeo copy`.
+    - mkdir -p "/etc/containers/"
+    - echo '{"default":[{"type":"insecureAcceptAnything"}]}' > /etc/containers/policy.json
+    # Ensure `/var/tmp` exists.
+    - mkdir -p /var/tmp/
+    # Push the containers to the registry with the tag as the branch name.
+    - nix run .#release $CI_COMMIT_REF_SLUG docker://gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/ "$CI_REGISTRY_USER:$CI_REGISTRY_PASSWORD"
+  rules:
+    # Run on `dev` and `prod` branch.
+    - if: $CI_COMMIT_REF_SLUG =~ /^(dev|prod)$/
+
+deploy:
+  # Run the job under the `deploy` stage.
+  stage: deploy
+  tags:
+    # Set this tag to make sure that the job is run outside of the docker
+    # environment.
+    - shell-exec
+    - amd64
+  # Link the job to the `production` environment. This allows us to set up
+  # actions in gitlab ci to stop containers running on the server.
+  environment: production
+  # Run the following commands. Their failure/success defines pipeline success.
+  # TODO: Make this better.
+  before_script:
+    # Login to the private gitlab container registry using CI/CD variables
+    # provided by gitlab.
+    - !reference [.docker-login, before_script]
+  script:
+    - cp docker/.env.prod .env
+    - docker compose -f docker-compose.prod.yml down --remove-orphans
+    # Ensure the right secrets have been generated.
+    - export SECRETS_ROOT="../.secrets"
+    - ./tools/generate-secrets.sh
+    # Download the container images corresponding with this branch.
+    - export IMAGE_TAG="$CI_COMMIT_REF_SLUG"
+    - docker compose -f docker-compose.prod.yml pull
+    - docker compose -f docker-compose.prod.yml up -d
+  rules:
+    # Run on `prod` branch.
+    - if: $CI_COMMIT_REF_SLUG =~ /^(prod)$/
+
+deploy:remove-volumes:
+  # Run the job under the `deploy` stage.
+  stage: deploy
+  tags:
+    # Set this tag to make sure that the job is run outside of the docker
+    # environment.
+    - shell-exec
+    - amd64
+  # Run this job manually.
+  when: manual
+  # Link the job to the `production` environment. This allows us to set up
+  # actions in gitlab ci to stop containers running on the server.
+  environment:
+    name: production
+    action: prepare
+  script:
+    - cp docker/.env.prod .env
+    - docker compose -f docker-compose.prod.yml down --volumes
+    # Download the container images corresponding with this branch.
+    - export IMAGE_TAG="$CI_COMMIT_REF_SLUG"
+    - docker compose -f docker-compose.prod.yml up -d
+  rules:
+    # Run on `prod` branch.
+    - if: $CI_COMMIT_REF_SLUG =~ /^(prod)$/

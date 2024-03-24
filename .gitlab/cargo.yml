@@ -1,0 +1,103 @@
+.cargo-target-cache:
+  cache:
+    # Mark the cache with this key.
+    - key: $CI_COMMIT_REF_SLUG
+      # Store the following paths in the cache
+      paths:
+        - ./target
+      # If a cache is not found for the above key, fall back to these keys in order.
+      fallback_keys:
+        - dev
+
+# Build the cargo workspace.
+cargo:build:
+  # Run the job under the `build` stage.
+  stage: build
+  # Add the `docker-exec` tag to run this job in a docker container.
+  tags: [docker-exec]
+  # Allows the job to be interrupted when already started.
+  interruptible: true
+  # Extend the configuration of these dummy jobs into this one.
+  extends:
+    # Use a previously built `build-env` image as a base. It includes all
+    # dependencies needed to build and test.
+    - .build-env-image
+    # Cache the directories for use in following pipelines. This is not local to
+    # the current pipeline.
+    - .cargo-target-cache
+  # Save the following directories/files when the job succeeds, these can then
+  # be used for following jobs.
+  artifacts:
+    paths:
+      # Rust build artifacts.
+      - ./target
+  # Start this job as soon as dependencies finish.
+  needs: ["build-env"]
+  # Run the following commands. Their failure/success defines pipeline success.
+  script:
+    # # Install the target.
+    # - rustup target add $TARGET
+    # Build binaries, libraries, examples, tests, etc. for the current rust
+    # TARGET. The name `all-targets` does not mean all rust targets. It is an
+    # alias for `--bins --libs --examples ...`.
+    - cargo build --profile release-small --verbose --locked --workspace --all-targets # --target $TARGET
+
+cargo:clippy:
+  # Run the job under the `test` stage.
+  stage: test
+  # Add the `docker-exec` tag to run this job in a docker container.
+  tags: [docker-exec]
+  # Allows the job to be interrupted when already started.
+  interruptible: true
+  # Extend the configuration of these dummy jobs into this one.
+  extends: .build-env-image
+  # Include the artifacts from the jobs we depend on.
+  dependencies:
+    - cargo:build
+  # Start this job as soon as dependencies finish.
+  needs: ["cargo:build"]
+  # Run the following commands. Their failure/success defines pipeline success.
+  script:
+    # # Install clippy to the toolchain
+    # - rustup component add clippy
+    # Run cargo clippy and disallow warnings.
+    - cargo clippy --profile release-small --locked --workspace --all-targets -- -D warnings
+
+# Run all tests in the cargo workspace.
+# This includes unit tests integration and examples.
+cargo:test:all:
+  # Run the job under the `test` stage.
+  stage: test
+  # Add the `docker-exec` tag to run this job in a docker container.
+  tags: [docker-exec]
+  # Allows the job to be interrupted when already started.
+  interruptible: true
+  # Extend the configuration of these dummy jobs into this one.
+  extends: .build-env-image
+  # Start this job as soon as dependencies finish.
+  needs: ["cargo:build"]
+  # Include the artifacts from the jobs we depend on.
+  dependencies:
+    - cargo:build
+  # Run the following commands. Their failure/success defines pipeline success.
+  script:
+    - cargo test --profile release-small --verbose --locked --workspace --all-targets
+
+# Run tests in documentation of cargo crates.
+cargo:test:doc:
+  # Run the job under the `test` stage.
+  stage: test
+  # Add the `docker-exec` tag to run this job in a docker container.
+  tags: [docker-exec]
+  # Allows the job to be interrupted when already started.
+  interruptible: true
+  # Extend the configuration of these dummy jobs into this one.
+  extends: .build-env-image
+  # Start this job as soon as dependencies finish.
+  needs: ["cargo:build"]
+  # Include the artifacts from the jobs we depend on.
+  dependencies:
+    - cargo:build
+  # Run the following commands. Their failure/success defines pipeline success.
+  script:
+    - cargo test --profile release-small --verbose --locked --workspace --doc

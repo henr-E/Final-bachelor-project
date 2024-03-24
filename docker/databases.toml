@@ -1,0 +1,16 @@
+# Specifies all databases used in the project.
+# Databases will be automatically created using the migrator tool/service. For running migrations,
+# please refer to the README.
+#
+# Template:
+# [databases.<your-db-name>]
+# migrations = "./migrations/<path-to-migrations>"
+
+[databases.sensor_archive]
+migrations = "./migrations/sensor"
+
+[databases.simulation_manager]
+migrations = "./migrations/simulator"
+
+[databases.ui_backend]
+migrations = "./migrations/ui-backend"

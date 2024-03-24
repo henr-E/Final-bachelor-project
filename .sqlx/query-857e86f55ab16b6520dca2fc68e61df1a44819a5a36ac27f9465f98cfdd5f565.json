@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    sensor_signal_id AS id,\n                    alias,\n                    quantity AS \"quantity!: Quantity\",\n                    unit AS \"unit!: Unit\",\n                    prefix\n                FROM sensor_signals\n                WHERE sensor_id = $1::uuid\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "alias",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "quantity!: Quantity",
+        "type_info": {
+          "Custom": {
+            "name": "quantity",
+            "kind": {
+              "Enum": [
+                "capacitance",
+                "charge",
+                "current",
+                "energy",
+                "force",
+                "frequency",
+                "illuminance",
+                "length",
+                "luminance",
+                "luminousintensity",
+                "mass",
+                "potential",
+                "power",
+                "pressure",
+                "rainfall",
+                "resistance",
+                "temperature",
+                "timestamp"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "unit!: Unit",
+        "type_info": {
+          "Custom": {
+            "name": "unit",
+            "kind": {
+              "Enum": [
+                "candela",
+                "celsius",
+                "coulomb",
+                "fahrenheit",
+                "farad",
+                "hertz",
+                "joule",
+                "kelvin",
+                "kilogram",
+                "metre",
+                "mile",
+                "newton",
+                "nits",
+                "pascal",
+                "pound",
+                "volt",
+                "watt",
+                "utc"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "prefix",
+        "type_info": "Numeric"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "857e86f55ab16b6520dca2fc68e61df1a44819a5a36ac27f9465f98cfdd5f565"
+}

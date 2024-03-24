@@ -1,4 +1,20 @@
 .idea/
+.vscode/
 .fleet/
+.zed/
 
 target/
+
+.DS_Store
+ui-backend/temp-database/*
+# Environment configuration
+.env
+
+# Secrets folder
+.secrets
+
+# Nix output
+result
+
+localhost.crt
+localhost.key

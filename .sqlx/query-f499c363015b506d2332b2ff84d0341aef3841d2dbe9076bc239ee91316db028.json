@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO sensors (id, name, description, location, user_id) values ($1::uuid, $2::text, $3::text, POINT($4::float, $5::float), $6::int)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Float8",
+        "Float8",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f499c363015b506d2332b2ff84d0341aef3841d2dbe9076bc239ee91316db028"
+}

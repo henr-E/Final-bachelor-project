@@ -1,0 +1,15 @@
+[package]
+name = "graph-processing"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ahash = "0.8.8"
+downcast-rs = "1.2.0"
+graph-processing-macros = { path = "../graph-processing-macros" }
+rayon = { version = "1.8.1", optional = true }
+thiserror = "1.0.57"
+
+[features]
+default = ["parallel"]
+parallel = ["rayon"]

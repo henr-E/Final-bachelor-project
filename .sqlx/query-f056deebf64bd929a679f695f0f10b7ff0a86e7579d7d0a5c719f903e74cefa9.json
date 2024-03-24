@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO sensor_values (timestamp, value, sensor_signal_id) SELECT * FROM UNNEST($1::timestamptz[], $2::decimal[], $3::int[])",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TimestamptzArray",
+        "NumericArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f056deebf64bd929a679f695f0f10b7ff0a86e7579d7d0a5c719f903e74cefa9"
+}
