@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package simulation.simulator_connection;
+
+// Connects simulators to the manager
+service SimulatorConnection {
+    rpc ConnectSimulator(SimulatorPort) returns (google.protobuf.Empty);
+}
+
+message SimulatorPort {
+    // The port which the simulator is listening on
+    uint32 port = 1;
+}

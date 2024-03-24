@@ -1,10 +1,11 @@
 use futures::future;
+use std::sync::Arc;
 use std::time::Duration;
 
 // sqlx
 use sqlx::PgPool;
 // tokio
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 // tonic
 use tonic::transport::Channel;
@@ -21,7 +22,7 @@ use proto::simulation::{Graph, State};
 /// asynchronous channel created in main.rs
 pub struct Runner {
     connection: SimulationsDB,
-    simulators: Vec<SimulatorClient<Channel>>,
+    simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
     notif_receiver: mpsc::Receiver<()>,
     state_sender: mpsc::UnboundedSender<Transport>,
 }
@@ -30,7 +31,7 @@ impl Runner {
     /// Create a new Runner
     pub async fn new(
         pool: PgPool,
-        simulators: Vec<SimulatorClient<Channel>>,
+        simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
         notif_receiver: mpsc::Receiver<()>,
         state_sender: mpsc::UnboundedSender<Transport>,
     ) -> Self {
@@ -49,7 +50,7 @@ impl Runner {
     /// one by one.
     /// If no new simulation is found the runner waits 30 sec before checking the database again except
     /// if during this wait time a message is received over the asynchronous channel.
-    pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn start(&mut self) -> anyhow::Result<()> {
         loop {
             if let Some(simulation_id) = self.connection.dequeue().await.unwrap() {
                 self.set_up(simulation_id).await?;
@@ -72,7 +73,12 @@ impl Runner {
     /// The runner will get all these nodes, edges and components, compose a proto::simulation::Graph
     /// and then put this graph along with the step size into a state. This state is then sent to the
     /// simulators.
-    async fn set_up(&mut self, simulation_id: i32) -> Result<(), Box<dyn std::error::Error>> {
+    async fn set_up(&mut self, simulation_id: i32) -> anyhow::Result<()> {
+        // clone simulator vec and drop mutex
+        let guard = self.simulators.lock().await;
+        let simulators = guard.clone();
+        drop(guard);
+
         // get tick delta
         let delta = self.connection.get_delta(simulation_id).await.unwrap();
         let mut graph = Graph {
@@ -106,7 +112,7 @@ impl Runner {
 
         // // setup of simulators
         future::join_all(
-            self.simulators
+            simulators
                 .clone()
                 .into_iter()
                 .map(|server| (initial_state.clone(), server))
@@ -135,10 +141,7 @@ impl Runner {
     /// to process them.
     /// In the case that a simulator does not return all components the components that weren't sent
     /// back will be duplicated into the next timestep so that they are available in the next tick
-    async fn start_simulation(
-        &mut self,
-        simulation_id: i32,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    async fn start_simulation(&mut self, simulation_id: i32) -> anyhow::Result<()> {
         // get amount of iterations to run the simulation for
         let iterations = self.connection.get_iterations(simulation_id).await.unwrap();
 
@@ -164,10 +167,15 @@ impl Runner {
             global_components: globals,
         };
 
+        // clone simulator vec and drop mutex
+        let guard = self.simulators.lock().await;
+        let simulators = guard.clone();
+        drop(guard);
+
         for i in 0..iterations {
             // parallel execution of the simulators in the simulation for the current time step
             let results = future::join_all(
-                self.simulators
+                simulators
                     .clone()
                     .into_iter()
                     .map(|server| (prev.clone(), server))

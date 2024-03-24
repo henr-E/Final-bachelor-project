@@ -20,10 +20,14 @@ async fn main() -> ExitCode {
         }
     };
 
+    // Manager address
+    let connector_addr =
+        env::var("SIMULATOR_CONNECTOR_ADDR").unwrap_or("http://127.0.0.1:8099".to_string());
+
     let server = Server::<TimeSimulator>::new();
 
     info!("Starting time simulator server on `{listen_addr}`.");
-    if let Err(err) = server.listen_on(listen_addr).await {
+    if let Err(err) = server.start(listen_addr, connector_addr).await {
         error!("Server return an error: {err}.");
         return ExitCode::FAILURE;
     }

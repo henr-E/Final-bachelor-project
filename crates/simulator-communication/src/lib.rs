@@ -20,6 +20,7 @@ use proto::{
         simulator_server::SimulatorServer, InitialState, IoConfigRequest, SetupResponse,
         SimulatorIoConfig, TimestepResult,
     },
+    simulator_connection::{SimulatorConnectionClient, SimulatorPort},
     State,
 };
 
@@ -156,14 +157,15 @@ impl<S: Simulator> proto::simulator::simulator_server::Simulator for Server<S> {
 /// # fn do_timestep(&mut self, graph: Graph) -> Graph { todo!() }
 /// # }
 /// # async fn a() -> ExitCode {
-/// # let listen_addr: SocketAddr = todo!();
+/// # let simulator_addr: SocketAddr = todo!();
+/// # let connector_addr: String = todo!();
 /// // Create a simulator server using a simulator.
 /// let server = Server::<ExampleSimulator>::new();
 ///
 /// // Start the server using `listen_on`. This may return an error if
 /// // something goes wrong during the execution of the program,
 /// // so we need to handle this error appropriately. Here we print the error and exit.
-/// if let Err(err) = server.listen_on(listen_addr).await {
+/// if let Err(err) = server.start(simulator_addr, connector_addr).await {
 ///     eprintln!("Server return an error: {err}");
 ///     return ExitCode::FAILURE;
 /// }
@@ -230,17 +232,36 @@ impl<S: Simulator> Server<S> {
         }
     }
 
-    /// Start a new server listening on the given `addr`. Does not return unless there is some error.
-    pub async fn listen_on(
+    /// Start a new server listening on the given `simulator_addr` and attaches itself to the manager with given `manager_addr`.
+    /// `manager_addr` needs to be a valid endpoint, meaning "http://" is included.
+    /// This function does not return unless there is some error.
+    pub async fn start(
         self,
-        addr: impl Into<SocketAddr>,
+        simulator_addr: impl Into<SocketAddr>,
+        manager_addr: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let addr = addr.into();
+        let addr = simulator_addr.into();
+        let port = addr.port() as u32;
 
-        transport::Server::builder()
+        let server = transport::Server::builder()
             .add_service(SimulatorServer::new(self))
-            .serve(addr)
-            .await?;
+            .serve(addr);
+
+        // Keep simulator running in a different thread
+        let mut task = tokio::spawn(server);
+
+        // Checks if the simulator returns an early error. If it doesn't, then the connection to the manager will finish first.
+        tokio::select! {
+            err = &mut task => {
+                err??
+            },
+            connection = SimulatorConnectionClient::connect(manager_addr) => {
+                connection?.connect_simulator(SimulatorPort { port }).await?;
+
+                // Keep simulator running
+                task.await??
+            },
+        }
 
         Ok(())
     }

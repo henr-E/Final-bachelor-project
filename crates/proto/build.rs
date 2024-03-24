@@ -17,6 +17,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &[
             "../../proto/simulation/simulation-manager.proto",
             "../../proto/simulation/simulator.proto",
+            "../../proto/simulation/simulator-connection.proto",
         ],
         &["../../proto/simulation"],
     )?;

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use prost_types::Value;
 use sqlx::PgPool;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use tokio_stream::StreamExt;
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
@@ -27,7 +28,7 @@ use proto::simulation::{Edge, Node};
 /// simulation has been queued.
 pub struct Manager {
     pool: PgPool,
-    simulators: Vec<SimulatorClient<Channel>>,
+    simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
     notif_sender: mpsc::Sender<()>,
 }
 
@@ -35,7 +36,7 @@ impl Manager {
     /// Create a new manager
     pub fn new(
         pool: PgPool,
-        simulators: Vec<SimulatorClient<Channel>>,
+        simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
         notif_sender: mpsc::Sender<()>,
     ) -> Self {
         Self {
@@ -53,7 +54,12 @@ impl SimulationManager for Manager {
     /// This request is passed to the different simulators which then respond with their components.
     async fn get_components(&self, _: Request<()>) -> Result<Response<ComponentsInfo>, Status> {
         let mut components: ComponentsInfo = ComponentsInfo::default();
-        let mut simulators = self.simulators.clone();
+
+        // clone simulator vec and drop mutex
+        let guard = self.simulators.lock().await;
+        let mut simulators = guard.clone();
+        drop(guard);
+
         for server in &mut simulators {
             let request = tonic::Request::new(IoConfigRequest {});
             let response = server.get_io_config(request).await?.into_inner();
