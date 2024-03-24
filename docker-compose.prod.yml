@@ -17,10 +17,12 @@ services:
         condition: service_completed_successfully
         
   ui-backend:
+    restart: unless-stopped
     image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
     command: ["/bin/ui-backend"]
     networks:
       - backend
+      - external
     environment:
       UI_BACKEND_ADDR: 0.0.0.0:8080
       DATABASE_HOST: database
@@ -35,18 +37,6 @@ services:
         condition: service_started
     secrets:
       - DATABASE_PASSWORD
-
-  user-authentication:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
-    command: ["/bin/user-authentication"]
-    networks:
-      - backend
-    environment:
-      USER_AUTHENTICATION_ADDR: 0.0.0.0:8080
-    depends_on:
-      database-migrator:
-        condition: service_completed_successfully
-    secrets:
       - JWT_SECRET
 
   # SIMULATION
@@ -62,8 +52,9 @@ services:
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
       ENV_IMPURE: true
+      SIMULATOR_MANAGER_ADDR: 0.0.0.0:8100
       SIMULATOR_CONNECTOR_ADDR: 0.0.0.0:8099
-      SIMULATION_MANAGER_ADDR: 0.0.0.0:8100
+      RUST_LOG: info
     depends_on:
       database-migrator:
         condition: service_completed_successfully
@@ -75,22 +66,33 @@ services:
     command: ["/bin/time-simulator"]
     networks:
       - backend
+    depends_on:
+      - simulation-manager
     environment:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       TIME_SIMULATOR_ADDR: 0.0.0.0:8101
-    depends_on:
-      - simulation-manager
       
   simulator-energy-supply-and-demand:
     image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
     command: ["/bin/energy-supply-and-demand-simulator"]
     networks:
       - backend
+    depends_on:
+      - simulation-manager
     environment:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
+      
+  simulator-energy-transmission:
+    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    command: ["/bin/energy-simulator"]
+    networks:
+      - backend
     depends_on:
       - simulation-manager
+    environment:
+      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
+      ENERGY_SIMULATOR_ADDR: 0.0.0.0:8101
 
   # SENSOR DATA
   # ===========
@@ -194,6 +196,18 @@ services:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - frontend
+      - envoy
+
+  # gRPC-web proxy.
+  envoy:
+    container_name: envoy
+    image: envoyproxy/envoy:v1.29-latest
+    networks:
+      - backend
+    volumes:
+      - ./docker/envoy.yaml:/etc/envoy/envoy.yaml
+    depends_on:
+      - ui-backend
 
 volumes:
   # Define a postgres named volume to avoid having a directory with root

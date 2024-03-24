@@ -148,6 +148,7 @@
                   cp -R .next/standalone/. $out
                   mkdir -p $out/.next/static
                   cp -R .next/static/. $out/.next/static
+                  cp -R public $out/public
 
                   # Create a binary to be able to easily launch the frontend.
                   mkdir -p $out/bin

@@ -15,8 +15,6 @@ static_resources:
                 "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                 codec_type: AUTO
                 stat_prefix: grpc_json
-                upgrade_configs:
-                  upgrade_type: "websocket"
                 route_config:
                   name: local_route
                   virtual_hosts:
@@ -24,16 +22,16 @@ static_resources:
                       domains: [ "*" ]
                       routes:
                         - match: { prefix: "/" }
-                          route: { cluster: grpc_server, timeout: 0s }
+                          route: { cluster: grpc_server }
                       cors:
                         allow_origin_string_match:
                           - safe_regex:
                               google_re2: { }
                               regex: ".*"
                         allow_methods: "GET, PUT, DELETE, POST, OPTIONS"
-                        allow_headers: "keep-alive,resource,resource-name,authorization,user-agent,cache-control,content-type,content-transfer-encoding,custom-header-1,x-accept-content-transfer-encoding,x-accept-response-streaming,x-user-agent,x-grpc-web,grpc-timeout"
+                        allow_headers: "content-type, x-grpc-web, x-user-agent"
                         max_age: "1728000"
-                        expose_headers: "custom-header1,custom-header2,grpc-status,grpc-message"
+                        expose_headers: "custom-header1, custom-header2"
 
                 http_filters:
                   - name: envoy.filters.http.cors
@@ -58,8 +56,6 @@ static_resources:
                     private_key:
                       filename: "./localhost.key"   # Replace with your private key path
 
-
-
   clusters:
     #Clusters represent upstream services to which Envoy routes requests.
     #A cluster can be a single service or a group of services that provide the same functionality
@@ -78,3 +74,13 @@ static_resources:
                     socket_address:
                       address: 127.0.0.1
                       port_value: 8080
+
+admin:
+  #The admin interface is a special built-in server within Envoy that provides a control interface for the Envoy instance.
+  #Through the admin interface, you can access various administrative features, such as retrieving statistics,
+  #viewing configuration, and dynamically updating certain settings.
+  access_log_path: "/tmp/admin_access.log"
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 9901

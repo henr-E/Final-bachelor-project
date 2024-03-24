@@ -48,7 +48,7 @@ this can be genereded with following command:
 ```openssl req -x509 -out localhost.crt -keyout localhost.key   -newkey rsa:2048 -nodes -sha256```
 When creating the cert and key, fill in by ```Common Name (e.g. server FQDN or YOUR name)```: ```localhost```
 
-use the ```envoy -c envoy_bidirectional_stream.yaml``` file to start envoy
+use the ```envoy -c docker/envoy.dev.yaml``` file to start envoy
 
 When testing, your browser will not trust this certificate. you can trust this in by goint to a backend server link (e.g: https://127.0.0.1:8081/twin.TwinService/getAllTwins). this will show a warning, click on trust certificate.
 The stream works only in following browsers: https://caniuse.com/mdn-api_request_request_request_body_readablestream
