@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO archive_sensor_data_files (identifier, time, path, metadata, sensor_id) VALUES ($1::uuid, now()::timestamp, $2::text, $3::text, $4::uuid);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bb99646b5066cbc6bd94dc4231dd530c7e1ad80c6b83ef36506fd7f8b1614ac5"
+}

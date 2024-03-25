@@ -53,6 +53,11 @@ impl DataIngestService for DataIngestor {
             // Get the sensor data from the request.
             let sensor_data = request.into_inner();
 
+            // Parse sensor uuid.
+            let sensor_uuid: Uuid = match Uuid::parse_str(&sensor_data.sensor_id) {
+                Ok(id) => id,
+                Err(e) => return Err(Status::invalid_argument(format!("Insertion query failed: {e}"))),
+            };
             // Transform blobs of data into a more manageable binary JSON format. The contents of
             // the data has not been cleaned.
             debug!("converting sensor data to archival format");
@@ -74,14 +79,14 @@ impl DataIngestService for DataIngestor {
             // the `std::io::BufWriter`. Should we use the latter then to avoid the string
             // allocation?
             // TODO: Convert this to use `to_vec` when sprint review is over.
-            file.write_all(sensor_data_bson.to_string().as_bytes()).await?;
+            file.write_all(&bson::to_vec(&sensor_data_bson).unwrap()).await?;
 
             // Explicit flush of all buffered contents to disk.
             file.flush().await?;
             debug!("successfully flushed content to disk.");
 
             // Register the sensor data into the archive database and handle any error.
-            match self.register_to_database(identifier, &path).await{
+            match self.register_to_database(identifier, sensor_uuid, &path).await{
                 Ok(()) => {
                     info!("successfully inserted the sensor data file path into the archive database.");
                     Ok(tonic::Response::new(ParseResult::default()))
@@ -107,6 +112,9 @@ impl DataIngestService for DataIngestor {
             // Take the stream from the request.
             let mut stream = request.into_inner();
 
+            // Parse sensor uuid.
+            let mut sensor_uuid: Uuid = Uuid::nil();
+
             // Preparing the file where sensor data will be streamed to.
             let path =  DataIngestor::get_path(identifier);
             let file = File::create(&path)
@@ -122,6 +130,11 @@ impl DataIngestService for DataIngestor {
                 // Transform blobs of data into a more manageable binary JSON format. The contents of
                 // the data has not been cleaned.
                 debug!("converting sensor data to archival format");
+                // Parse sensor uuid.
+                sensor_uuid = match Uuid::parse_str(&sensor_data.sensor_id) {
+                    Ok(id) => id,
+                    Err(e) => return Err(Status::invalid_argument(format!("Insertion query failed: {e}"))),
+                };
                 // Convert the protobuf FileFormat field into the
                 // [`FileFormat`](sensor_data_parser::FileFormat) the parser can work with.
                 let file_format = match proto_file_format_to_parser_file_format(sensor_data.file_format) {
@@ -146,7 +159,7 @@ impl DataIngestService for DataIngestor {
             info!("successfully flushed content to disk.");
 
             // Register the sensor data into the archive database and handle any error.
-            match self.register_to_database(identifier, &path).await {
+            match self.register_to_database(identifier, sensor_uuid, &path).await {
                 Ok(()) => {
                     info!("successfully inserted the sensor data file path into the archive database.");
                     Ok(tonic::Response::new(ParseResult::default()))
@@ -198,6 +211,7 @@ impl DataIngestor {
     async fn register_to_database(
         &self,
         identifier: Uuid,
+        sensor_id: Uuid,
         path: &Path,
     ) -> Result<(), crate::error::DatabaseRegisterError> {
         // check if the file is indeed a valid file path on disk.
@@ -206,7 +220,7 @@ impl DataIngestor {
         }
 
         // Insert the values in the archive database.
-        sqlx::query!("INSERT INTO archive_sensor_data_files (identifier, time, path, metadata) VALUES ($1::uuid, now()::timestamp, $2::text, $3::text);", identifier, path.to_str().unwrap(), "")
+        sqlx::query!("INSERT INTO archive_sensor_data_files (identifier, time, path, metadata, sensor_id) VALUES ($1::uuid, now()::timestamp, $2::text, $3::text, $4::uuid);", identifier, path.to_str().unwrap(), "", sensor_id)
             .execute(&self.pool)
             .await?;
 

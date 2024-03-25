@@ -64,6 +64,7 @@
                 || (builtins.match ".*\\.proto$" path != null)
                 || (builtins.match ".*\\.sql$" path != null)
                 || (builtins.match ".*\\.sqlx/.*" path != null)
+                || (builtins.match ".*\\.csv$" path != null)
                 # Add all markdown files, except the ones from the `docs/` directory.
                 || (lib.hasSuffix ".md" path && (builtins.match ".*/docs/.*" path == null)));
           };
@@ -260,6 +261,8 @@
             cargo-test = craneLib.cargoTest (commonArgs.rustBins
               // {
                 cargoArtifacts = dependencies.rustBins;
+
+                ASSETS_SENSOR_DATA_PATH = ./assets/sensor-data;
               });
 
             # Ensure people connect to the database the right way.

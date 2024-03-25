@@ -38,7 +38,11 @@
                 "rainfall",
                 "resistance",
                 "temperature",
-                "timestamp"
+                "timestamp",
+                "windspeed",
+                "winddirection",
+                "cloudiness",
+                "relativehumidity"
               ]
             }
           }
@@ -63,13 +67,18 @@
                 "kilogram",
                 "metre",
                 "mile",
+                "millimetersperhour",
                 "newton",
                 "nits",
                 "pascal",
                 "pound",
                 "volt",
+                "utc",
                 "watt",
-                "utc"
+                "meterspersecond",
+                "degrees",
+                "okta",
+                "percentage"
               ]
             }
           }
