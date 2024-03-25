@@ -10,6 +10,7 @@ use strum::Display;
 pub enum Quantity {
     Capacitance,
     Charge,
+    Cloudiness,
     Current,
     Energy,
     Force,
@@ -23,9 +24,12 @@ pub enum Quantity {
     Power,
     Pressure,
     Rainfall,
+    RelativeHumidity,
     Resistance,
     Temperature,
     Timestamp,
+    WindDirection,
+    WindSpeed,
 }
 
 impl Quantity {
@@ -34,6 +38,7 @@ impl Quantity {
         match self {
             Quantity::Capacitance => Unit::Farad,
             Quantity::Charge => Unit::Coulomb,
+            Quantity::Cloudiness => Unit::Okta,
             Quantity::Current => Unit::Ampere,
             Quantity::Energy => Unit::Joule,
             Quantity::Force => Unit::Newton,
@@ -47,9 +52,12 @@ impl Quantity {
             Quantity::Power => Unit::Watt,
             Quantity::Pressure => Unit::Pascal,
             Quantity::Rainfall => Unit::MillimetersPerHour,
+            Quantity::RelativeHumidity => Unit::Percentage,
             Quantity::Resistance => Unit::Ohm,
             Quantity::Temperature => Unit::Celsius,
             Quantity::Timestamp => Unit::Utc,
+            Quantity::WindDirection => Unit::Degrees,
+            Quantity::WindSpeed => Unit::MetersPerSecond,
         }
     }
 
@@ -58,6 +66,7 @@ impl Quantity {
         HashSet::from_iter(match self {
             Quantity::Capacitance => vec![Unit::Farad],
             Quantity::Charge => vec![Unit::Coulomb],
+            Quantity::Cloudiness => vec![Unit::Okta],
             Quantity::Current => vec![Unit::Ampere],
             Quantity::Energy => vec![Unit::Joule],
             Quantity::Force => vec![Unit::Newton],
@@ -74,6 +83,9 @@ impl Quantity {
             Quantity::Resistance => vec![Unit::Ohm],
             Quantity::Temperature => vec![Unit::Celsius, Unit::Fahrenheit, Unit::Kelvin],
             Quantity::Timestamp => vec![Unit::Utc],
+            Quantity::WindSpeed => vec![Unit::MetersPerSecond],
+            Quantity::WindDirection => vec![Unit::Degrees],
+            Quantity::RelativeHumidity => vec![Unit::Percentage],
         })
     }
 }
