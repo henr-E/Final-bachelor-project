@@ -13,7 +13,9 @@ use tonic::transport::Channel;
 // proto
 use crate::database::SimulationsDB;
 use crate::database_buffer::Transport;
-use proto::simulation::simulator::{simulator_client::SimulatorClient, InitialState};
+use proto::simulation::simulator::{
+    simulator_client::SimulatorClient, InitialState, IoConfigRequest,
+};
 use proto::simulation::{Graph, State};
 
 /// The runner contains all the functionality to interface with all the different simulators.
@@ -21,7 +23,7 @@ use proto::simulation::{Graph, State};
 /// The runner holds a database connection, a vector of known simulators and a receiver for the
 /// asynchronous channel created in main.rs
 pub struct Runner {
-    connection: SimulationsDB,
+    db: SimulationsDB,
     simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
     notif_receiver: mpsc::Receiver<()>,
     state_sender: mpsc::UnboundedSender<Transport>,
@@ -36,7 +38,7 @@ impl Runner {
         state_sender: mpsc::UnboundedSender<Transport>,
     ) -> Self {
         Self {
-            connection: SimulationsDB::from_pg_pool(pool).await.unwrap(),
+            db: SimulationsDB::from_pg_pool(pool).await.unwrap(),
             simulators,
             notif_receiver,
             state_sender,
@@ -52,9 +54,36 @@ impl Runner {
     /// if during this wait time a message is received over the asynchronous channel.
     pub async fn start(&mut self) -> anyhow::Result<()> {
         loop {
-            if let Some(simulation_id) = self.connection.dequeue().await.unwrap() {
-                self.set_up(simulation_id).await?;
-                self.start_simulation(simulation_id).await?;
+            let top = self.db.dequeue().await.unwrap();
+            if top.is_some() {
+                let simulation_id = top.unwrap();
+                self.db.begin_transaction().await.unwrap();
+                // check that the simulators do not change the same information
+                let mut types: Vec<String> = Vec::default();
+                let guard = self.simulators.lock().await;
+                let simulators = guard.clone();
+                drop(guard);
+
+                for server in &mut simulators.clone() {
+                    let request = tonic::Request::new(IoConfigRequest {});
+                    let response = server.get_io_config(request).await?.into_inner();
+                    for (key, _value) in response.components {
+                        if !types.contains(&key) {
+                            types.push(key);
+                        } else {
+                            self.db
+                                .update_status(simulation_id, "Failed")
+                                .await
+                                .unwrap();
+                        }
+                    }
+                }
+                let status = self.db.get_status(simulation_id).await.unwrap();
+                if status != "Failed" {
+                    self.set_up(simulation_id).await?;
+                    self.start_simulation(simulation_id).await?;
+                }
+                self.db.commit().await.unwrap();
             } else {
                 tokio::select! {
                     _ = sleep(Duration::from_secs(30)) => {},
@@ -80,23 +109,23 @@ impl Runner {
         drop(guard);
 
         // get tick delta
-        let delta = self.connection.get_delta(simulation_id).await.unwrap();
+        let delta = self.db.get_delta(simulation_id).await.unwrap();
         let mut graph = Graph {
             nodes: vec![],
             edge: vec![],
         };
 
         // get current simulation nodes at timestep 0 and add to graph
-        let mut nodes = self.connection.get_nodes(simulation_id, 0).await.unwrap();
+        let mut nodes = self.db.get_nodes(simulation_id, 0).await.unwrap();
         graph.nodes.append(&mut nodes);
 
         // get current simulation edges at timestep 0 and add to graph
-        let mut edges = self.connection.get_edges(simulation_id, 0).await.unwrap();
+        let mut edges = self.db.get_edges(simulation_id, 0).await.unwrap();
         graph.edge.append(&mut edges);
 
         // add all global components to the graph
         let globals = self
-            .connection
+            .db
             .get_global_components(simulation_id, 0)
             .await
             .unwrap();
@@ -143,21 +172,21 @@ impl Runner {
     /// back will be duplicated into the next timestep so that they are available in the next tick
     async fn start_simulation(&mut self, simulation_id: i32) -> anyhow::Result<()> {
         // get amount of iterations to run the simulation for
-        let iterations = self.connection.get_iterations(simulation_id).await.unwrap();
+        let iterations = self.db.get_iterations(simulation_id).await.unwrap();
 
         // get initial state
         let mut graph = Graph {
             nodes: vec![],
             edge: vec![],
         };
-        let mut nodes_send = self.connection.get_nodes(simulation_id, 0).await.unwrap();
+        let mut nodes_send = self.db.get_nodes(simulation_id, 0).await.unwrap();
         graph.nodes.append(&mut nodes_send);
 
-        let mut edges_send = self.connection.get_edges(simulation_id, 0).await.unwrap();
+        let mut edges_send = self.db.get_edges(simulation_id, 0).await.unwrap();
         graph.edge.append(&mut edges_send);
 
         let globals = self
-            .connection
+            .db
             .get_global_components(simulation_id, 0)
             .await
             .unwrap();
@@ -269,7 +298,13 @@ impl Runner {
                 state: new_state.clone(),
             };
             self.state_sender.send(transport).unwrap();
-
+            let status = match i {
+                0 => "Pending",
+                i if i < iterations => "Computing",
+                i if i == iterations => "Finished",
+                _ => "Failed",
+            };
+            self.db.update_status(simulation_id, status).await.unwrap();
             // set previous state to new state
             prev = new_state.clone();
         }

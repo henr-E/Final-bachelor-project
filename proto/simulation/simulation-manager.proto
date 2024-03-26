@@ -67,6 +67,8 @@ enum SimulationStatus {
   COMPUTING = 1;
   // The simulation has been fully computed.
   FINISHED = 2;
+  // The simulation has failed to fully run
+  FAILED = 3;
 }
 
 message SimulationFrameRequest {

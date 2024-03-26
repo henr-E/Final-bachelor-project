@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, date, name, step_size_ms, max_steps, status as \"enum_status: StatusEnum \" FROM simulations WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "step_size_ms",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "max_steps",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "enum_status: StatusEnum ",
+        "type_info": {
+          "Custom": {
+            "name": "enum_status",
+            "kind": {
+              "Enum": [
+                "Pending",
+                "Computing",
+                "Finished",
+                "Failed"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "f4461573b0f8c81943997b1805fe99ebe0206fe0a4b9e6bd397847dc86fe6555"
+}
