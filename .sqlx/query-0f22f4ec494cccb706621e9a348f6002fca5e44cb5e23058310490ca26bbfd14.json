@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT * FROM node_components Where node_id = $1",
+  "query": "SELECT * FROM global_components WHERE simulation_id = $1 AND time_step = $2 AND name = $3",
   "describe": {
     "columns": [
       {
@@ -10,31 +10,39 @@
       },
       {
         "ordinal": 1,
+        "name": "time_step",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
         "name": "name",
         "type_info": "Varchar"
       },
       {
-        "ordinal": 2,
-        "name": "node_id",
+        "ordinal": 3,
+        "name": "simulation_id",
         "type_info": "Int4"
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "component_data",
         "type_info": "Jsonb"
       }
     ],
     "parameters": {
       "Left": [
-        "Int4"
+        "Int4",
+        "Int4",
+        "Text"
       ]
     },
     "nullable": [
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "77b73b06610f6a5f8249a47edc2f32625e43a5c66ae3ab141cdc24c7aa302f1c"
+  "hash": "0f22f4ec494cccb706621e9a348f6002fca5e44cb5e23058310490ca26bbfd14"
 }

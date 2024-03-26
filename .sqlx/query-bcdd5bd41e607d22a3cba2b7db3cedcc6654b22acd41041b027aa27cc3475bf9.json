@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM edges WHERE simulation_id = $1 AND time_step = $2 AND edge_id = $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "edge_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "simulation_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "time_step",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "from_node",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "to_node",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "component_data",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "component_type",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "bcdd5bd41e607d22a3cba2b7db3cedcc6654b22acd41041b027aa27cc3475bf9"
+}

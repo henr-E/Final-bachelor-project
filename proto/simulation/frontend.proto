@@ -11,6 +11,7 @@ service SimulationInterfaceService {
     rpc GetAllSimulations (TwinId) returns (Simulations);
     rpc GetSimulation (simulation_manager.SimulationId) returns (Simulation);
     rpc GetSimulationFrames(stream simulation_manager.SimulationFrameRequest) returns (stream simulation_manager.SimulationFrame);
+
 }
 
 enum SimulationStatus {
@@ -20,6 +21,8 @@ enum SimulationStatus {
     COMPUTING = 1;
     // The simulation has been fully computed.
     FINISHED = 2;
+    // The simulation has failed
+    FAILED = 3;
 }
 
 message CreateSimulationResponse {
