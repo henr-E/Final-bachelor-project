@@ -67,8 +67,6 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
     const [itemComponents, setItemComponents] = useState("{}");
 
     const [selectedBuildingIndex, setSelectedBuildingIndex] = useState<number>(-1);
-    const [selectedBuilding, setSelectedBuilding] = useState<BuildingItem>();
-    const [selectedBuildingVisible, setSelectedBuildingVisible] = useState<boolean | null>(null);
 
     function calculateCenterPoint(building: buildingObject): LatLngExpression {
         let totalX = 0;
@@ -150,15 +148,6 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
 
         // eslint-disable-next-line
     }, [twinState]);
-
-    useEffect(() => {
-        setSelectedBuilding(mapItemsRef.current[selectedBuildingIndex] as BuildingItem)
-    }, [selectedBuildingIndex]);
-
-    useEffect(() => {
-        const building = mapItemsRef.current[selectedBuildingIndex] as BuildingItem;
-        setSelectedBuildingVisible(building?.visible); // Update visibility state
-    }, [selectedBuildingIndex]);
 
     if (!twinState.current) {
         return <h1>Please select a Twin</h1>
@@ -308,11 +297,10 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
     const handleDeleteBuilding = async () => {
         const channel = createChannel(uiBackendServiceUrl);
         const client = createClient(TwinServiceDefinition, channel);
-        const request = {id: selectedBuilding?.id};
+        const request = {id: mapItemsRef.current[selectedBuildingIndex]?.id};
 
         const response = await client.deleteBuilding(request);
         if (response.deleted) {
-            setSelectedBuildingVisible(false);
             (mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible = false;
             ToastNotification("info", "Building succesfully deleted.")
             updateBuildingColor(selectedBuildingIndex);
@@ -322,13 +310,12 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
     const handleUndoDeleteBuilding = async () => {
         const channel = createChannel(uiBackendServiceUrl);
         const client = createClient(TwinServiceDefinition, channel);
-        const request = {id: selectedBuilding?.id};
+        const request = {id: mapItemsRef.current[selectedBuildingIndex]?.id};
 
         const response = await client.undoDeleteBuilding(request);
         if (response.undone) {
-            setSelectedBuildingVisible(true);
             (mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible = true;
-            ToastNotification("info", "Building succesfully restored.")
+            ToastNotification("info", "Building succesfully restored.");
             updateBuildingColor(selectedBuildingIndex);
         }
     }
@@ -398,21 +385,21 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
                         ) : (
                             <>
                                 <div
-                                    className={`text-lg font-semibold mb-4 ${!selectedBuildingVisible ? 'blur-sm' : ''}`}>
+                                    className={`text-lg font-semibold mb-4 ${!(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible ? 'blur-sm' : ''}`}>
                                     Selected Building Details:
                                 </div>
-                                <div className={`text-gray-700 text-md ${!selectedBuildingVisible ? 'blur-sm' : ''}`}>
-                                    <div><span className="font-semibold">Building Number:</span> {selectedBuilding?.id}
+                                <div className={`text-gray-700 text-md ${!(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible ? 'blur-sm' : ''}`}>
+                                    <div><span className="font-semibold">Building Number:</span> {mapItemsRef.current[selectedBuildingIndex]?.id}
                                     </div>
-                                    <div><span className="font-semibold">City:</span> {selectedBuilding?.city}</div>
+                                    <div><span className="font-semibold">City:</span> {(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).city}</div>
                                     <div><span
-                                        className="font-semibold">House Number:</span> {selectedBuilding?.houseNumber}
+                                        className="font-semibold">House Number:</span> {(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).houseNumber}
                                     </div>
-                                    <div><span className="font-semibold">Postcode:</span> {selectedBuilding?.postcode}
+                                    <div><span className="font-semibold">Postcode:</span> {(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).postcode}
                                     </div>
-                                    <div><span className="font-semibold">Street:</span> {selectedBuilding?.street}</div>
+                                    <div><span className="font-semibold">Street:</span> {(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).street}</div>
                                 </div>
-                                {selectedBuildingVisible ? (
+                                {(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible ? (
                                     <Button
                                         color={"red"}
                                         onClick={() => handleDeleteBuilding()}
