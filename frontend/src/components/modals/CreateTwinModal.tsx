@@ -170,7 +170,6 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
                 ) {
                     twinExists = true;
                     ToastNotification('warning', 'Hmm, looks like this twin already exists.');
-                    ToastNotification("warning", 'Hmm, looks like a twin with these coordinates already exists');
                 }
                 if (twinContext.twins[i].name == customName) {
                     twinExists = true;
