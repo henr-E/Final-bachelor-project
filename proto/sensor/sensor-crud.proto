@@ -5,65 +5,74 @@ package sensor.crud;
 import "google/protobuf/struct.proto";
 
 service SensorCRUDService {
-  // Create a sensor, pushing it to the database alongside its signals.
-  rpc CreateSensor(CreateSensorRequest) returns (CreateSensorResponse) {}
-  // Requests a sensor, containing all signals.
-  rpc ReadSensor(ReadSensorRequest) returns (ReadSensorResponse) {}
-  // Replaces the sensor with provided uuid with the provided sensor.
-  // Similar to calling DeleteSensor -> CreateSensor, but keeps the provided.
-  rpc UpdateSensor(UpdateSensorRequest) returns (UpdateSensorResponse) {}
-  // Deletes the sensor with the provided uuid from the sensor-archive database.
-  rpc DeleteSensor(DeleteSensorRequest) returns (DeleteSensorResponse) {}
+    // Create a sensor, pushing it to the database alongside its signals.
+    rpc CreateSensor(CreateSensorRequest) returns (CreateSensorResponse);
+
+    // Requests a sensor, containing all signals.
+    rpc ReadSensor(ReadSensorRequest) returns (ReadSensorResponse);
+
+    // Replaces the sensor with provided uuid with the provided sensor.
+    // Similar to calling DeleteSensor -> CreateSensor, but keeps the provided.
+    rpc UpdateSensor(UpdateSensorRequest) returns (UpdateSensorResponse);
+
+    // Deletes the sensor with the provided uuid from the sensor-archive database.
+    rpc DeleteSensor(DeleteSensorRequest) returns (DeleteSensorResponse);
 }
 
 enum CrudFailureReason {
-  // The provided uuid has the incorrect format.
-  UuidFormatError = 0;
-  // The provided uuid was not found in the sensors table.
-  UuidNotPresentError = 1;
-  // The quantity of a signal in the provided sensor is invalid.
-  InvalidQuantityError = 2;
-  // The unit of a signal in the provided sensor is invalid.
-  InvalidUnitError = 3;
-  // There was an issue inserting the data into the database.
-  DatabaseInsertionError = 4;
+    // The provided uuid has the incorrect format.
+    UUID_FORMAT_ERROR = 0;
+    // The provided uuid was not found in the sensors table.
+    UUID_NOT_PRESENT_ERROR = 1;
+    // The quantity of a signal in the provided sensor is invalid.
+    INVALID_QUANTITY_ERROR = 2;
+    // The unit of a signal in the provided sensor is invalid.
+    INVALID_UNIT_ERROR = 3;
+    // There was an issue inserting the data into the database.
+    DATABASE_INSERTION_ERROR = 4;
 }
 
-message CrudFailure { repeated CrudFailureReason failures = 1; }
+message CrudFailure {
+    repeated CrudFailureReason failures = 1;
+}
 
 message BigInt {
-  bool sign = 1;
-  repeated uint32 integer = 2;
-  int64 exponent = 3;
+    bool sign = 1;
+    repeated uint32 integer = 2;
+    int64 exponent = 3;
 }
 
 message Signal {
-  string alias = 1;
-  string quantity = 2;
-  string unit = 3;
-  BigInt prefix = 4;
+    string alias = 1;
+    string quantity = 2;
+    string unit = 3;
+    BigInt prefix = 4;
 }
 
 message Sensor {
-  string uuid = 1;
-  string name = 2;
-  string description = 3;
-  double longitude = 4;
-  double latitude = 5;
-  repeated Signal signals = 6;
+    string uuid = 1;
+    string name = 2;
+    string description = 3;
+    double longitude = 4;
+    double latitude = 5;
+    repeated Signal signals = 6;
 }
 
 // Creating a sensor.
-message CreateSensorRequest { Sensor sensor = 1; }
+message CreateSensorRequest {
+    Sensor sensor = 1;
+}
 message CreateSensorResponse {
-  oneof result {
-    string uuid = 1;
-    CrudFailure failures = 2;
-  }
+    oneof result {
+        string uuid = 1;
+        CrudFailure failures = 2;
+    }
 }
 
 // Reading/getting a sensor.
-message ReadSensorRequest { string uuid = 1; }
+message ReadSensorRequest {
+    string uuid = 1;
+}
 message ReadSensorResponse {
   oneof result {
     Sensor sensor = 1;
@@ -73,26 +82,28 @@ message ReadSensorResponse {
 
 // Updating a sensor. the provided sensor will receive the provided uuid.
 message UpdateSensorRequest {
-  string uuid = 1;
-  Sensor sensor = 2;
+    string uuid = 1;
+    Sensor sensor = 2;
 }
 message UpdateSensorResponse {
-  oneof result {
-    bool success = 1;
-    CrudFailure failures = 2;
-  }
+    oneof result {
+        bool success = 1;
+        CrudFailure failures = 2;
+    }
 }
 
 // Deleting a sensor.
-message DeleteSensorRequest { string uuid = 1; }
+message DeleteSensorRequest {
+    string uuid = 1;
+}
 message DeleteSensorResponse {
-  oneof result {
-    bool success = 1;
-    CrudFailure failures = 2;
-  }
+    oneof result {
+        bool success = 1;
+        CrudFailure failures = 2;
+    }
 }
 
 message SensorUpdateMessage {
-  string sensor_id = 1;
-  Sensor sensor = 2;
+    string sensor_id = 1;
+    Sensor sensor = 2;
 }

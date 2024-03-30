@@ -46,17 +46,17 @@ message ParseFailure {
 enum ParseFailureReason {
     // The input data format is not supported (e.g. yaml, when only JSON is
     // supported)
-    DataFormatNotSupported = 0;
+    DATA_FORMAT_NOT_SUPPORTED = 0;
     // The structure within the data format is not supported. This means that
     // the data format is parsable, but cannot be interpreted into valid sensor
     // data
-    DataStructureNotSupported = 1;
+    DATA_STRUCTURE_NOT_SUPPORTED = 1;
     /// The data format is supported, but the input contained an error.
-    DataFormatParsingError = 2;
+    DATA_FORMAT_PARSING_ERROR = 2;
     /// The parser encountered an error that the user is not to blame for.
     /// Could include a panic, unexpected errors, etc. The `details` object
     // could still contain information about the error.
-    Unknown = 3;
+    UNKNOWN = 3;
     // Add more here when needed.
     // ...
 }
