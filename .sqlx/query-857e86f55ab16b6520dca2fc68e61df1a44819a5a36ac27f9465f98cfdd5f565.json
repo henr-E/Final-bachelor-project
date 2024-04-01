@@ -23,6 +23,7 @@
               "Enum": [
                 "capacitance",
                 "charge",
+                "cloudiness",
                 "current",
                 "energy",
                 "force",
@@ -36,13 +37,12 @@
                 "power",
                 "pressure",
                 "rainfall",
+                "relativehumidity",
                 "resistance",
                 "temperature",
                 "timestamp",
-                "windspeed",
                 "winddirection",
-                "cloudiness",
-                "relativehumidity"
+                "windspeed"
               ]
             }
           }
@@ -59,6 +59,7 @@
                 "candela",
                 "celsius",
                 "coulomb",
+                "degrees",
                 "fahrenheit",
                 "farad",
                 "hertz",
@@ -66,19 +67,19 @@
                 "kelvin",
                 "kilogram",
                 "metre",
-                "mile",
+                "meterspersecond",
                 "millimetersperhour",
+                "mile",
                 "newton",
                 "nits",
+                "ohm",
+                "okta",
                 "pascal",
+                "percentage",
                 "pound",
                 "volt",
-                "utc",
                 "watt",
-                "meterspersecond",
-                "degrees",
-                "okta",
-                "percentage"
+                "utc"
               ]
             }
           }

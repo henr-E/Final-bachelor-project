@@ -10,11 +10,12 @@ import { BsDatabaseFillAdd } from 'react-icons/bs';
 import CreateSensorModal from '@/components/modals/CreateSensorModal';
 import DeleteSensorModal from '@/components/modals/DeleteSensorModal';
 import DeleteMultipleSensorsModal from '@/components/modals/DeleteMultipleSensorsModal';
+import { createSensor, deleteSensor } from '@/api/sensor/crud';
 
 function SensorPage() {
     // TODO: turn overview page into dashboard root
 
-    const [sensorState, sensorDispatch] = useContext(SensorContext);
+    const [{ isLoading, state: sensorState }, sensorDispatch] = useContext(SensorContext);
 
     const [selectedSensors, setSelectedSensors] = useState<Sensor[]>([]);
     const [isCreateSensorModalOpen, setIsCreateSensorModalOpen] = useState(false);
@@ -24,24 +25,28 @@ function SensorPage() {
 
     const [isDeleteMultipleSensorsModalOpen, setIsDeleteMultipleSensorsModalOpen] = useState(false);
 
-    const handleEditButtonClick = (sensor: Sensor) => {};
+    const handleCreateSensor = async (sensor: Sensor) => {
+        await createSensor(sensorDispatch, sensor);
+    };
 
-    const handleConfirmSensorDelete = (sensor: Sensor) => {
-        sensorDispatch({ type: 'delete_sensor', sensorId: sensor.id });
+    const handleEditButtonClick = (sensor: Sensor) => { };
+
+    const handleConfirmSensorDelete = async (sensor: Sensor) => {
+        await deleteSensor(sensorDispatch, sensor.id);
         setSensorToDelete(undefined);
     };
 
-    const handleDeleteSelectedSensors = () => {
-        selectedSensors.map(sensor => {
-            sensorDispatch({ type: 'delete_sensor', sensorId: sensor.id });
-        });
-
+    const handleDeleteSelectedSensors = async () => {
+        await Promise.all(
+            selectedSensors.map(async sensor => {
+                await deleteSensor(sensorDispatch, sensor.id);
+            })
+        );
         setSelectedSensors([]);
     };
 
     const handleCancelSelectedSensorsDelete = () => {
         setIsDeleteMultipleSensorsModalOpen(false);
-
         setSelectedSensors([]);
     };
 
@@ -86,7 +91,9 @@ function SensorPage() {
                 <div className='shadow-md sm:rounded-lg bg-white p-2 w-full min-h-96 relative'>
                     {sensorState.sensors.length === 0 && (
                         <div className='absolute flex items-center justify-center w-full h-full'>
-                            <span className='text-sm text-gray-500'>No Sensors</span>
+                            <span className='text-sm text-gray-500'>
+                                {isLoading ? <>Loading...</> : <>No Sensors</>}
+                            </span>
                         </div>
                     )}
                     <table className='text-sm text-left rtl:text-right text-gray-500 w-full table-auto'>
@@ -182,6 +189,7 @@ function SensorPage() {
             </div>
             <CreateSensorModal
                 isModalOpen={isCreateSensorModalOpen}
+                handleCreateSensor={handleCreateSensor}
                 closeModal={() => setIsCreateSensorModalOpen(false)}
             />
             <DeleteSensorModal
