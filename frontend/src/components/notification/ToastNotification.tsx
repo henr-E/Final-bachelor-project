@@ -33,7 +33,7 @@ function ToastNotification(type: ToastType, message: string): void {
 
 // This component could be included at the top level of your app, typically inside the component that wraps your app's content.
 export function ToastContainer() {
-    return <Toaster position="bottom-right" reverseOrder={false} />;
+    return <Toaster position='bottom-right' reverseOrder={false} />;
 }
 
 export default ToastNotification;

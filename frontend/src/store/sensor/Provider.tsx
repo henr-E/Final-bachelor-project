@@ -1,4 +1,6 @@
-import React, { createContext, useReducer } from 'react';
+import React, { createContext, useEffect, useReducer, useState } from 'react';
+import { fetchSensors } from '@/api/sensor/crud';
+import { BigInt } from '@/proto/sensor/sensor-crud';
 
 enum Quantity {
     // SI base quantities
@@ -218,11 +220,11 @@ const prefixes: Array<Prefix> = [
 ];
 
 interface Signal {
-    quantity: Quantity;
-    unit: Unit;
-    ingestionUnit: Unit;
+    quantity: string;
+    unit: string;
+    ingestionUnit: string;
     ingestionColumnAlias: string;
-    ingestionPrefix: Prefix;
+    ingestionPrefix: BigInt;
 }
 
 // coordinates stored as 64-bit IEEE754 floats for now
@@ -303,80 +305,30 @@ function reducer(state: SensorState, action: SensorAction): SensorState {
 }
 
 const initialState: SensorState = {
-    sensors: [
-        {
-            id: '34a32019-3e06-4170-b866-48d0a6c39a2e',
-            name: 'SENSOR-1',
-            description: 'Thermometer campus Middelheim',
-            signals: [
-                {
-                    quantity: Quantity.TEMPERATURE,
-                    unit: quantityBaseUnits[Quantity.TEMPERATURE],
-                    ingestionUnit: quantityBaseUnits[Quantity.TEMPERATURE],
-                    ingestionPrefix: Prefix.CENTI,
-                    ingestionColumnAlias: 'TEMP-COL',
-                },
-            ],
-            location: {
-                lat: 51.1842469,
-                lng: 4.4203308,
-            },
-        },
-        {
-            id: 'd256fe98-53aa-47cb-8169-ac6f30addca5',
-            name: 'SENSOR-2',
-            description: 'Pluviometer campus Middelheim',
-            signals: [
-                {
-                    quantity: Quantity.RAINFALL,
-                    unit: quantityBaseUnits[Quantity.RAINFALL],
-                    ingestionUnit: quantityBaseUnits[Quantity.RAINFALL],
-                    ingestionPrefix: Prefix.ONE,
-                    ingestionColumnAlias: 'RAINFALL-COL',
-                },
-            ],
-            location: {
-                lat: 51.1842469,
-                lng: 4.4203308,
-            },
-        },
-        {
-            id: '9bb1c650-3e71-4688-8ab5-a6dd4a8639c3',
-            name: 'SENSOR-3',
-            description: 'Cumulative electricity usage Middelheim gebouw G',
-            signals: [
-                {
-                    quantity: Quantity.ELECTRICITY_CONSUMPTION,
-                    unit: Unit.WATT_HOUR,
-                    ingestionUnit: quantityBaseUnits[Quantity.ELECTRICITY_CONSUMPTION],
-                    ingestionPrefix: Prefix.CENTI,
-                    ingestionColumnAlias: 'KWH-COL',
-                },
-                {
-                    quantity: Quantity.ELECTRIC_CURRENT,
-                    unit: quantityBaseUnits[Quantity.ELECTRIC_CURRENT],
-                    ingestionUnit: quantityBaseUnits[Quantity.ELECTRIC_CURRENT],
-                    ingestionPrefix: Prefix.CENTI,
-                    ingestionColumnAlias: 'AMP-COL',
-                },
-            ],
-            location: {
-                lat: 51.1842469,
-                lng: 4.4203308,
-            },
-        },
-    ],
+    sensors: [],
 };
 
-const SensorContext = createContext<[SensorState, React.Dispatch<SensorAction>]>([
-    initialState,
-    () => {},
-]);
+const SensorContext = createContext<
+    [{ isLoading: boolean; state: SensorState }, React.Dispatch<SensorAction>]
+>([{ isLoading: true, state: initialState }, async () => { }]);
 
 function SensorProvider({ children }: { children: React.ReactNode }) {
     const [state, dispatch] = useReducer(reducer, initialState);
+    const [isLoading, setIsLoading] = useState(true);
 
-    return <SensorContext.Provider value={[state, dispatch]}>{children}</SensorContext.Provider>;
+    useEffect(() => {
+        (async () => {
+            setIsLoading(true);
+            await fetchSensors(dispatch);
+            setIsLoading(false);
+        })();
+    }, []);
+
+    return (
+        <SensorContext.Provider value={[{ isLoading: isLoading, state: state }, dispatch]}>
+            {children}
+        </SensorContext.Provider>
+    );
 }
 
 export {
@@ -391,4 +343,5 @@ export {
     prefixes,
     SensorProvider,
     SensorContext,
+    type SensorAction,
 };

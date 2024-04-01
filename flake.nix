@@ -327,6 +327,8 @@
                   yarn
                   # javascript linter
                   nodePackages.eslint
+                  # Grpc-web proxy
+                  envoy
                 ]
                 # MacOS specific packages
                 ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [

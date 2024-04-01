@@ -1,14 +1,13 @@
 'use client';
 
-import { useContext, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import {
     Sensor,
-    SensorContext,
     Quantity,
-    Signal,
     quantityBaseUnits,
     quantities as allQuantities,
     prefixes as allPrefixes,
+    prefixExponents,
     Unit,
     Prefix,
 } from '@/store/sensor';
@@ -18,6 +17,7 @@ import { HiXMark } from 'react-icons/hi2';
 
 interface CreateSensorModalProps {
     isModalOpen: boolean;
+    handleCreateSensor: (sensor: Sensor) => Promise<void>;
     closeModal: () => void;
 }
 
@@ -27,9 +27,11 @@ enum ModalPage {
     INGEST,
 }
 
-function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) {
-    const [sensorState, dispatchSensor] = useContext(SensorContext);
-
+function CreateSensorModal({
+    isModalOpen,
+    closeModal,
+    handleCreateSensor,
+}: CreateSensorModalProps) {
     const [modalPage, setModalPage] = useState<ModalPage>(ModalPage.BASIC);
 
     // step 1: general settings
@@ -60,7 +62,7 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
         closeModal();
     };
 
-    const handleNextButtonClick = () => {
+    const handleNextButtonClick = async () => {
         switch (modalPage) {
             case ModalPage.BASIC: {
                 if (!basicFormRef.current?.reportValidity()) return;
@@ -84,16 +86,21 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
                     name: name,
                     description: description,
                     location: { lat: 51, lng: 4.1 },
+                    // TODO: Improve this by not defining the quantities and units on the frontend, but only on the backend.
                     signals: quantities.map((q, i) => ({
-                        quantity: q,
-                        unit: quantityBaseUnits[q],
-                        ingestionUnit: units[i],
-                        ingestionPrefix: prefixes[i],
+                        quantity: Quantity[q].toLowerCase(),
+                        unit: Unit[quantityBaseUnits[q]],
+                        ingestionUnit: Unit[units[i]],
+                        ingestionPrefix: {
+                            sign: false,
+                            integer: [1],
+                            exponent: prefixExponents[prefixes[i]],
+                        },
                         ingestionColumnAlias: aliases[i],
                     })),
                 };
 
-                dispatchSensor({ type: 'create_sensor', sensor });
+                await handleCreateSensor(sensor);
 
                 handleModalClose();
                 break;
@@ -135,7 +142,8 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
                     </span>
                 </li>
                 <li
-                    className={`flex md:w-full items-center ${page === ModalPage.INGEST || page === ModalPage.SIGNALS ? activeStyles : ''} after:content-[''] after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
+                    className={`flex md:w-full items-center ${page === ModalPage.INGEST || page === ModalPage.SIGNALS ? activeStyles : ''
+                        } after:content-[''] after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
                 >
                     <span
                         className={`flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-gray-200`}
