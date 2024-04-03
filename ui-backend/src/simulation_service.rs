@@ -1,4 +1,3 @@
-use futures::future::join_all;
 use futures::StreamExt;
 use proto::frontend::{
     CreateSimulationParams, CreateSimulationResponse, Simulation, SimulationInterfaceService,
@@ -10,30 +9,36 @@ use proto::simulation::simulation_manager::{
     SimulationManagerClient,
 };
 use proto::simulation::{simulation_manager, State};
-use std::collections::HashMap;
+use sqlx::PgPool;
 use std::env;
 use std::ffi::c_double;
 
-use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
 
+use std::str::FromStr;
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status, Streaming};
-use tracing::debug;
 
-use uuid::Uuid;
-
+#[derive(Debug)]
+pub struct SimulationDB {
+    twin_id: i32,
+    name: String,
+    start_date_time: i32,
+    end_date_time: i32,
+    creation_date_time: i32,
+    frames_loaded: i32,
+    status: i32,
+}
 pub struct SimulationService {
     //TODO set in db
-    simulation_items: Arc<Mutex<HashMap<String, Simulation>>>,
+    pool: PgPool,
     client: SimulationManagerClient<Channel>,
 }
 
 impl SimulationService {
-    pub async fn new() -> Self {
+    pub async fn new(pool: PgPool) -> Self {
         Self {
-            simulation_items: Arc::new(Mutex::new(HashMap::new())),
+            pool,
             client: SimulationManagerClient::new(
                 tonic::transport::Channel::builder(
                     env::var("SIMULATION_MANAGER_ADDR")
@@ -104,33 +109,20 @@ impl SimulationInterfaceService for SimulationService {
         let req = request.into_inner();
 
         //add GRPC request for creating simulationxvc
-        debug!(
-            "new simulation added {}, {}, {}, {}",
-            req.name, req.start_date_time, req.end_date_time, req.twin_id
-        );
 
         let creation_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards");
 
-        let id: String = Uuid::new_v4().to_string();
-
         let time_steps =
             ((req.end_date_time - req.start_date_time) as f64 / req.time_step_delta) as u64;
 
-        debug!(
-            "timesteps: {}, delta time: {}",
-            time_steps, req.time_step_delta
-        );
-        let success = self
-            .create_simulation_manager(id.clone(), req.start_state, time_steps, req.time_step_delta)
-            .await
-            .is_ok();
-        let response = CreateSimulationResponse { success };
+        let twin_id = i32::from_str(&req.twin_id).unwrap();
 
-        let new_simulation = Simulation {
+        // create a simulation to insert into DB, note: twin_id is also stored
+        let new_simulation = SimulationDB {
+            twin_id,
             name: req.name,
-            id: id.clone(),
             start_date_time: req.start_date_time, // Assuming these fields are provided correctly
             end_date_time: req.end_date_time,
             creation_date_time: creation_time.as_secs() as i32, // Assuming this is provided or generated here
@@ -138,8 +130,42 @@ impl SimulationInterfaceService for SimulationService {
             status: 0,        // Assuming this is set correctly here
         };
 
-        let mut simulations = self.simulation_items.lock().await;
-        simulations.insert(id.clone(), new_simulation);
+        let transaction = self
+            .pool
+            .begin()
+            .await
+            .map_err(|err| Status::from_error(Box::new(err)))?;
+
+        let simulation_id = sqlx::query!(
+            "INSERT INTO simulations (twin_id , name, start_date_time, end_date_time, creation_date_time, frames_loaded, status) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
+            new_simulation.twin_id,
+            new_simulation.name,
+            new_simulation.start_date_time,
+            new_simulation.end_date_time,
+            new_simulation.creation_date_time,
+            new_simulation.frames_loaded,
+            new_simulation.status,
+        )
+        .fetch_one(&self.pool)
+            .await
+            .map_err(|err| Status::from_error(Box::new(err)))?
+            .id;
+
+        transaction
+            .commit()
+            .await
+            .map_err(|err| Status::from_error(Box::new(err)))?;
+
+        let success = self
+            .create_simulation_manager(
+                simulation_id.clone().to_string(),
+                req.start_state,
+                time_steps,
+                req.time_step_delta,
+            )
+            .await
+            .is_ok();
+        let response = CreateSimulationResponse { success };
 
         Ok(Response::new(response))
     }
@@ -150,26 +176,32 @@ impl SimulationInterfaceService for SimulationService {
     ) -> Result<Response<Simulations>, Status> {
         let req = request.into_inner();
 
-        debug!("get all simulations {}", req.twin_id);
+        let twin_id = i32::from_str(&req.twin_id).unwrap();
 
-        let items = join_all(self.simulation_items.lock().await.iter().map(
-            move |uuid_item_pair| async {
-                let item = uuid_item_pair.1.clone();
-                let id: String = item.id.to_string();
-                let simulation_item = self
-                    .get_simulation_manager(id)
-                    .await
-                    .expect("Failed to get a simulation");
+        // get all simulation matching the twin id in the request
+        let items_database = sqlx::query!("SELECT * FROM simulations WHERE twin_id=$1", twin_id)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to fetch simualations: {}", e)))?;
 
-                let mut item = item.clone();
-                item.status = simulation_item.status;
-                item.frames_loaded = simulation_item.timestep_count as i32;
-                item
-            },
-        ))
-        .await;
+        // put all the found simulations in a vector
+        let mut all_simulations: Vec<Simulation> = Vec::new();
+        for item in items_database {
+            all_simulations.push(Simulation {
+                id: item.id.to_string(),
+                name: item.name,
+                start_date_time: item.start_date_time,
+                end_date_time: item.end_date_time,
+                creation_date_time: item.creation_date_time,
+                frames_loaded: item.frames_loaded,
+                status: item.status,
+            });
+        }
 
-        let response = Simulations { item: items };
+        let response = Simulations {
+            item: all_simulations,
+        };
+
         Ok(Response::new(response))
     }
 
@@ -179,20 +211,45 @@ impl SimulationInterfaceService for SimulationService {
     ) -> Result<Response<Simulation>, Status> {
         let req = request.into_inner();
 
-        let uuid: String = req.uuid;
+        let simulation_id: String = req.uuid;
 
-        debug!("returning simulation {}", uuid);
+        let database_simulation_id = i32::from_str(&simulation_id).unwrap();
 
         let simulation_item = self
-            .get_simulation_manager(uuid.clone())
+            .get_simulation_manager(simulation_id.clone())
             .await
             .expect("Failed to get a simulation");
 
-        let mut item = self.simulation_items.lock().await[uuid.as_str()].clone();
-        item.status = simulation_item.status;
-        item.frames_loaded = simulation_item.timestep_count as i32;
+        // select the simulation that matches the uuid provided in the request
+        let simulation_db = sqlx::query!(
+            "SELECT * FROM simulations WHERE id=$1",
+            database_simulation_id
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| Status::internal(format!("Failed to fetch simualations: {}", e)));
 
-        Ok(Response::new(item))
+        let item = match simulation_db {
+            Ok(e) => e,
+            Err(_) => return Err(Status::not_found("simulation not found")),
+        };
+
+        // create a simulation object to be wrapped in a response, note: no twin_id
+        let mut simulation_found = Simulation {
+            id: item.id.to_string(),
+            name: item.name,
+            start_date_time: item.start_date_time,
+            end_date_time: item.end_date_time,
+            creation_date_time: item.creation_date_time,
+            frames_loaded: item.frames_loaded,
+            status: item.status,
+        };
+
+        // status and frames_loaded are updated by the simulation manager
+        simulation_found.status = simulation_item.status;
+        simulation_found.frames_loaded = simulation_item.timestep_count as i32;
+
+        Ok(Response::new(simulation_found))
     }
 
     type GetSimulationFramesStream = Streaming<SimulationFrame>;
