@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO simulations (twin_id , name, start_date_time, end_date_time, creation_date_time, frames_loaded, status) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "986eee4b6c91f87d6e4c219a933609aad0b9a155003b8944e296416230dce978"
+}

@@ -21,7 +21,7 @@ impl MyAuthenticationService {
 
 #[tonic::async_trait]
 impl AuthenticationService for MyAuthenticationService {
-    /// register a user by putting it at the moment in a global variable
+    /// register a user by putting it at the moment in the database
     /// It will also hash the password
     ///
     /// # Arguments
@@ -101,7 +101,7 @@ impl AuthenticationService for MyAuthenticationService {
             )),
         }))
     }
-    /// login a user by checking if the hash matches the one store in the global variable
+    /// login a user by checking if the hash matches the one store in the database
     ///
     /// # Arguments
     ///
