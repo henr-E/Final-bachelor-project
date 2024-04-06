@@ -1,11 +1,17 @@
 #![doc = include_str!("../README.md")]
 
-use crate::signal::Signals;
-pub use crate::{quantity::Quantity, sensor::Sensor, signal::Signal, unit::Unit};
+pub use crate::{
+    error::Error,
+    quantity::Quantity,
+    sensor::Sensor,
+    signal::{Signal, Signals},
+    unit::Unit,
+};
+
 use database_config::database_url;
 use futures::stream::Stream;
 use sensor::SensorBuilder;
-use sqlx::{Error, PgPool, Postgres, Transaction};
+use sqlx::{Error as SqlxError, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 pub mod error;
@@ -15,6 +21,7 @@ pub mod signal;
 pub mod unit;
 
 /// Sensor database wrapper.
+#[derive(Debug)]
 pub struct SensorStore {
     db_pool: PgPool,
 }
@@ -91,7 +98,7 @@ impl SensorStore {
         signals: &Signals<'_>,
         transaction: &mut Transaction<'_, Postgres>,
         sensor_id: Uuid,
-    ) -> Result<(), Error> {
+    ) -> Result<(), SqlxError> {
         let signals: Vec<Signal> = Vec::from_iter(signals.iter().cloned());
         // create a query builder to batch insert signals.
         let names: Vec<_> = signals.iter().map(|item| item.name.to_string()).collect();
@@ -102,18 +109,25 @@ impl SensorStore {
         let units: Vec<_> = signals.iter().map(|item| item.unit.to_string()).collect();
         let prefixes: Vec<_> = signals.iter().map(|item| item.prefix.clone()).collect();
         let _res = sqlx::query!(
-            r#"INSERT INTO sensor_signals (sensor_id, alias, quantity, unit, prefix) SELECT $1::uuid, alias, quantity::quantity, unit::unit, prefix FROM UNNEST($2::text[], $3::text[], $4::text[], $5::decimal[]) AS x(alias, quantity, unit, prefix);"#,
+            r#"
+                INSERT INTO sensor_signals (sensor_id, alias, quantity, unit, prefix)
+                SELECT $1::uuid, alias, quantity::quantity, unit::unit, prefix
+                FROM UNNEST($2::text[], $3::text[], $4::text[], $5::decimal[])
+                    AS x(alias, quantity, unit, prefix);
+            "#,
             sensor_id,
             &names,
             &quantities,
             &units,
             &prefixes
-        ).execute(&mut **transaction).await?;
+        )
+        .execute(&mut **transaction)
+        .await?;
         Ok(())
     }
 
     /// Delete a [`Sensor`] from the database.
-    pub async fn delete_sensor(&self, sensor_id: Uuid) -> Result<(), Error> {
+    pub async fn delete_sensor(&self, sensor_id: Uuid) -> Result<(), SqlxError> {
         println!("{:?}", sensor_id);
         match sqlx::query!("DELETE FROM sensors WHERE id = $1::uuid", sensor_id)
             .execute(&self.db_pool)
@@ -121,7 +135,7 @@ impl SensorStore {
             .rows_affected()
         {
             1 => Ok(()),
-            _ => Err(Error::RowNotFound),
+            _ => Err(SqlxError::RowNotFound),
         }
     }
 
