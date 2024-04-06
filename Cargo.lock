@@ -967,6 +967,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a44623e20b9681a318efdd71c299b6b222ed6f231972bfe2f224ebad6311f0c1"
 
 [[package]]
+name = "futures-lite"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52527eb5074e35e9339c6b4e8d12600c7128b68fb25dcb9fa9dec18f7c25f3a5"
+dependencies = [
+ "fastrand",
+ "futures-core",
+ "futures-io",
+ "parking",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "futures-macro"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1832,6 +1845,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
+name = "parking"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb813b8af86854136c6922af0598d719255ecb2179515e6e7730d468f05c9cae"
+
+[[package]]
 name = "parking_lot"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2666,11 +2685,14 @@ dependencies = [
  "bson",
  "database-config",
  "environment-config",
+ "futures-lite",
  "prost",
  "prost-types",
  "prost-value",
  "proto",
  "sensor-data-parser",
+ "sensor-data-validator",
+ "sensor-store",
  "sqlx",
  "thiserror",
  "tokio",
@@ -2678,6 +2700,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "walk-dir-tree",
 ]
 
 [[package]]
@@ -2715,6 +2738,16 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "sensor-data-validator"
+version = "0.1.0"
+dependencies = [
+ "bson",
+ "proto",
+ "rust_decimal",
+ "sensor-store",
 ]
 
 [[package]]
@@ -3880,6 +3913,10 @@ name = "version_check"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
+
+[[package]]
+name = "walk-dir-tree"
+version = "0.1.0"
 
 [[package]]
 name = "want"

@@ -25,6 +25,18 @@ pub mod sensor_data_ingest {
         }
     }
 
+    impl ParseResult {
+        pub fn new_ok() -> Self {
+            Self {
+                failures: Vec::new(),
+            }
+        }
+
+        pub fn ok(&self) -> bool {
+            self.failures.is_empty()
+        }
+    }
+
     // Convert a single [`ParseFailure`] into a [`ParseResult`].
     impl From<ParseFailure> for ParseResult {
         fn from(value: ParseFailure) -> Self {
