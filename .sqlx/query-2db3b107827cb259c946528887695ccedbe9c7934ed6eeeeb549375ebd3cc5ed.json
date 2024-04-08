@@ -32,16 +32,6 @@
         "ordinal": 5,
         "name": "creation_date_time",
         "type_info": "Int4"
-      },
-      {
-        "ordinal": 6,
-        "name": "frames_loaded",
-        "type_info": "Int4"
-      },
-      {
-        "ordinal": 7,
-        "name": "status",
-        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -50,8 +40,6 @@
       ]
     },
     "nullable": [
-      false,
-      false,
       false,
       false,
       false,
