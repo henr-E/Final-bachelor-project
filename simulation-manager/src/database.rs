@@ -146,6 +146,15 @@ impl SimulationsDB {
             .map(|s| s.id)
     }
 
+    /// Delete a simulation from all tables of the database using the name of the simulation.
+    pub async fn delete_simulation_via_name(&mut self, name: &str) -> Result<bool> {
+        query!("DELETE FROM simulations WHERE name = $1", name)
+            .execute(self.connection().await?)
+            .await
+            .map_err(|e| anyhow!(e))?;
+        Ok(true)
+    }
+
     /// Get a simulation from the simulations table using the name.
     pub async fn get_simulation_via_name(&mut self, name: &str) -> Result<Simulation> {
         let result = query!("SELECT id, date, name, step_size_ms, max_steps, status as \"enum_status: StatusEnum \" FROM simulations WHERE name = $1", name)

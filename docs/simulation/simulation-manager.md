@@ -6,6 +6,7 @@ The communication with the simulators is documented here: [**Simulator Communica
 
 The entire _simulation runner_ group is only responsible for determining what happens in each time step or 'frame' of a simulation.
 It is specifically the simulation manager that stores all these frames in a database and makes them available to other services via its gRPC API as defined in `proto/simulation/simulation-manager.proto`.
+If necessary, these simulations and all their corresponding frames can later be deleted (also defined in the previous .proto file).
 Metadata such as the name of a simulation or who has access to it are not matters that this service should be dealing with.
 
 These frames are all calculated in the simulation runner group.
@@ -37,4 +38,4 @@ This also rests on the fact that no components or entities(nodes, edges) are add
 ## Queueing
 
 A FIFO queue is used to keep track of simulations that are yet to be processed.
-It is stored in the database to ensure persistance.
+It is stored in the database to ensure persistence.
