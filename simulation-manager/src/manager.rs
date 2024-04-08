@@ -81,6 +81,28 @@ impl SimulationManager for Manager {
         Ok(Response::new(components))
     }
 
+    /// Delete an old simulation
+    ///
+    /// Based on the name of the given simulation all tables in the database will be cleared of the
+    /// records that are coupled to this simulation.
+    async fn delete_simulation(
+        &self,
+        request: Request<SimulationId>,
+    ) -> Result<Response<()>, Status> {
+        let simulation_id = request.into_inner().uuid;
+
+        // Start transaction
+        let mut db = self.db.lock().await;
+        db.begin_transaction().await.unwrap();
+
+        // Delete the simulation
+        db.delete_simulation_via_name(&simulation_id).await.unwrap();
+
+        // Commit transaction
+        db.commit().await.unwrap();
+        Ok(Response::new(()))
+    }
+
     /// Queue a new simulation
     ///
     /// The manager starts by decomposing the request into the needed components to populate the database
@@ -490,6 +512,13 @@ mod manager_grpc_test {
             _request: Request<PushSimulationRequest>,
         ) -> Result<Response<()>, Status> {
             unreachable!()
+        }
+
+        async fn delete_simulation(
+            &self,
+            _request: Request<SimulationId>,
+        ) -> Result<Response<()>, Status> {
+            Ok(Response::new(()))
         }
 
         // requests an ID and returns the same ID
