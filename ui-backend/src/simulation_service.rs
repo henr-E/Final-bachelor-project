@@ -26,8 +26,6 @@ pub struct SimulationDB {
     start_date_time: i32,
     end_date_time: i32,
     creation_date_time: i32,
-    frames_loaded: i32,
-    status: i32,
 }
 pub struct SimulationService {
     //TODO set in db
@@ -108,8 +106,6 @@ impl SimulationInterfaceService for SimulationService {
     ) -> Result<Response<CreateSimulationResponse>, Status> {
         let req = request.into_inner();
 
-        //add GRPC request for creating simulationxvc
-
         let creation_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards");
@@ -126,8 +122,6 @@ impl SimulationInterfaceService for SimulationService {
             start_date_time: req.start_date_time, // Assuming these fields are provided correctly
             end_date_time: req.end_date_time,
             creation_date_time: creation_time.as_secs() as i32, // Assuming this is provided or generated here
-            frames_loaded: 0, // Assuming this is calculated or provided
-            status: 0,        // Assuming this is set correctly here
         };
 
         let transaction = self
@@ -137,14 +131,12 @@ impl SimulationInterfaceService for SimulationService {
             .map_err(|err| Status::from_error(Box::new(err)))?;
 
         let simulation_id = sqlx::query!(
-            "INSERT INTO simulations (twin_id , name, start_date_time, end_date_time, creation_date_time, frames_loaded, status) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
+            "INSERT INTO simulations (twin_id , name, start_date_time, end_date_time, creation_date_time) VALUES ($1,$2,$3,$4,$5) RETURNING id",
             new_simulation.twin_id,
             new_simulation.name,
             new_simulation.start_date_time,
             new_simulation.end_date_time,
-            new_simulation.creation_date_time,
-            new_simulation.frames_loaded,
-            new_simulation.status,
+            new_simulation.creation_date_time
         )
         .fetch_one(&self.pool)
             .await
@@ -187,14 +179,21 @@ impl SimulationInterfaceService for SimulationService {
         // put all the found simulations in a vector
         let mut all_simulations: Vec<Simulation> = Vec::new();
         for item in items_database {
+            let simulation_id = item.id.to_string();
+
+            let simulation_item = self
+                .get_simulation_manager(simulation_id)
+                .await
+                .expect("Failed to get a simulation");
+
             all_simulations.push(Simulation {
                 id: item.id.to_string(),
                 name: item.name,
                 start_date_time: item.start_date_time,
                 end_date_time: item.end_date_time,
                 creation_date_time: item.creation_date_time,
-                frames_loaded: item.frames_loaded,
-                status: item.status,
+                frames_loaded: simulation_item.timestep_count as i32,
+                status: simulation_item.status,
             });
         }
 
@@ -235,19 +234,15 @@ impl SimulationInterfaceService for SimulationService {
         };
 
         // create a simulation object to be wrapped in a response, note: no twin_id
-        let mut simulation_found = Simulation {
+        let simulation_found = Simulation {
             id: item.id.to_string(),
             name: item.name,
             start_date_time: item.start_date_time,
             end_date_time: item.end_date_time,
             creation_date_time: item.creation_date_time,
-            frames_loaded: item.frames_loaded,
-            status: item.status,
+            frames_loaded: simulation_item.timestep_count as i32,
+            status: simulation_item.status,
         };
-
-        // status and frames_loaded are updated by the simulation manager
-        simulation_found.status = simulation_item.status;
-        simulation_found.frames_loaded = simulation_item.timestep_count as i32;
 
         Ok(Response::new(simulation_found))
     }
