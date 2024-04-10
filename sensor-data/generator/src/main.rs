@@ -1,6 +1,7 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use tracing::debug;
 
+use environment_config::env;
 use proto::sensor_data_ingest::DataIngestServiceClient;
 use sensor_store::SensorStore;
 
@@ -10,7 +11,8 @@ mod measurements;
 mod sensor_data_generator;
 mod virtual_sensor;
 
-const INGEST_SERVICE_URL: &str = "http://0.0.0.0:8080";
+const INGEST_SERVICE_URL_ENV: &str = "SENSOR_DATA_INGESTOR_URL";
+const DEFAULT_INGEST_SERVICE_URL: &str = "http://0.0.0.0:8080";
 
 /// Generate fake sensor data and send it to the ingest service.
 #[tokio::main]
@@ -43,18 +45,17 @@ async fn main() {
     let sensor_data_files =
         sensor_data_generator.generate(timestamp_begin as u64, timestamp_end as u64);
 
-    // TODO: read address and port from environment
     // connect to DataIngestService
-    let mut client = DataIngestServiceClient::connect(INGEST_SERVICE_URL)
-        .await
-        .unwrap();
+    let mut client = DataIngestServiceClient::connect(
+        env(INGEST_SERVICE_URL_ENV).unwrap_or(DEFAULT_INGEST_SERVICE_URL),
+    )
+    .await
+    .unwrap();
 
-    // send the sensor data to the ingest service one by one
-    for sensor_data in sensor_data_files {
-        // send one sensor message to the ingest service
-        let request = tonic::Request::new(sensor_data);
-        // print response
-        let response = client.test_parse_sensor_data(request).await.unwrap();
-        debug!("RESPONSE={:?}", response);
-    }
+    // print response
+    let response = client
+        .ingest_sensor_data_file_stream(tonic::Request::new(tokio_stream::iter(sensor_data_files)))
+        .await
+        .expect("failed to send request");
+    debug!("RESPONSE={:?}", response);
 }

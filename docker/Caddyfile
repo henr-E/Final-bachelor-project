@@ -8,6 +8,9 @@
     handle /simulation.frontend.SimulationInterfaceService/* {
         reverse_proxy envoy:8081
     }
-    
+    handle /sensor.crud.SensorCRUDService/* {
+        reverse_proxy envoy:8081
+    }
+
     reverse_proxy frontend:3000
 }
