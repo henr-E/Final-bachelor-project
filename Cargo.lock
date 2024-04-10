@@ -2139,6 +2139,7 @@ dependencies = [
  "prost-value",
  "tonic",
  "tonic-build",
+ "uuid",
 ]
 
 [[package]]

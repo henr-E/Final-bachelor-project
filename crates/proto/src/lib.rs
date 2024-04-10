@@ -160,4 +160,92 @@ pub mod frontend {
             }
         }
     }
+
+    impl CreateSensorResponse {
+        pub fn uuid(uuid: uuid::Uuid) -> Self {
+            use self::create_sensor_response::Result;
+            Self {
+                result: Some(Result::Uuid(uuid.to_string())),
+            }
+        }
+
+        pub fn failures(failures: CrudFailure) -> Self {
+            use self::create_sensor_response::Result;
+            Self {
+                result: Some(Result::Failures(failures)),
+            }
+        }
+    }
+
+    impl ReadSensorResponse {
+        pub fn sensor(sensor: self::Sensor) -> Self {
+            use self::read_sensor_response::Result;
+            Self {
+                result: Some(Result::Sensor(sensor)),
+            }
+        }
+
+        pub fn failures(failures: CrudFailure) -> Self {
+            use self::read_sensor_response::Result;
+            Self {
+                result: Some(Result::Failures(failures)),
+            }
+        }
+    }
+
+    impl UpdateSensorResponse {
+        pub fn success(success: bool) -> Self {
+            use self::update_sensor_response::Result;
+            Self {
+                result: Some(Result::Success(success)),
+            }
+        }
+
+        pub fn failures(failures: CrudFailure) -> Self {
+            use self::update_sensor_response::Result;
+            Self {
+                result: Some(Result::Failures(failures)),
+            }
+        }
+    }
+
+    impl DeleteSensorResponse {
+        pub fn success(success: bool) -> Self {
+            use self::delete_sensor_response::Result;
+            Self {
+                result: Some(Result::Success(success)),
+            }
+        }
+
+        pub fn failures(failures: CrudFailure) -> Self {
+            use self::delete_sensor_response::Result;
+            Self {
+                result: Some(Result::Failures(failures)),
+            }
+        }
+    }
+
+    impl From<CreateSensorResponse> for Result<tonic::Response<CreateSensorResponse>, tonic::Status> {
+        fn from(value: CreateSensorResponse) -> Self {
+            Ok(tonic::Response::new(value))
+        }
+    }
+
+    impl From<ReadSensorResponse> for Result<tonic::Response<ReadSensorResponse>, tonic::Status> {
+        fn from(value: ReadSensorResponse) -> Self {
+            Ok(tonic::Response::new(value))
+        }
+    }
+
+    impl From<UpdateSensorResponse> for Result<tonic::Response<UpdateSensorResponse>, tonic::Status> {
+        fn from(value: UpdateSensorResponse) -> Self {
+            Ok(tonic::Response::new(value))
+        }
+    }
+
+    impl From<DeleteSensorResponse> for Result<tonic::Response<DeleteSensorResponse>, tonic::Status> {
+        fn from(value: DeleteSensorResponse) -> Self {
+            Ok(tonic::Response::new(value))
+        }
+    }
 }

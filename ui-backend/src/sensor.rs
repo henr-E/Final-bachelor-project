@@ -1,7 +1,5 @@
 use num_bigint::{BigInt, Sign};
 use proto::frontend::{
-    create_sensor_response::Result as CResult, delete_sensor_response::Result as DResult,
-    read_sensor_response::Result as RResult, update_sensor_response::Result as UResult,
     BigInt as ProtoBigInt, CreateSensorRequest, CreateSensorResponse, CrudFailure,
     CrudFailureReason, DeleteSensorRequest, DeleteSensorResponse, GetSensorsResponse,
     ReadSensorRequest, ReadSensorResponse, Sensor as ProtoSensor, SensorCrudService,
@@ -54,26 +52,30 @@ impl From<SignalError> for CrudFailure {
 ///
 /// This operation may fail, if the prefix exceeds u64 integer part.
 fn into_proto_sensor(sensor: Sensor) -> ProtoSensor {
-    let mut signals: Vec<ProtoSignal> = Vec::new();
     // for every signal from orm signal
-    for signal in sensor.signals().iter() {
-        // extract the prefix.
-        let (big_int, exponent) = signal.prefix.as_bigint_and_exponent();
-        let (sign, integer) = big_int.to_u32_digits();
-        let prefix: ProtoBigInt = ProtoBigInt {
-            integer: integer.to_vec(),
-            sign: sign == Sign::Minus,
-            exponent,
-        };
-        // create expected gRPC signal type.
-        signals.push(ProtoSignal {
-            alias: signal.name.to_string(),
-            quantity: signal.quantity.to_string(),
-            unit: signal.unit.base_unit().to_string(),
-            ingestion_unit: signal.unit.to_string(),
-            prefix: Some(prefix),
+    let signals = sensor
+        .signals()
+        .iter()
+        .map(|s| {
+            // extract the prefix.
+            let (big_int, exponent) = s.prefix.as_bigint_and_exponent();
+            let (sign, integer) = big_int.to_u32_digits();
+            let prefix: ProtoBigInt = ProtoBigInt {
+                integer: integer.to_vec(),
+                sign: sign == Sign::Minus,
+                exponent,
+            };
+            // create expected gRPC signal type.
+            ProtoSignal {
+                alias: s.name.to_string(),
+                quantity: s.quantity.to_string(),
+                unit: s.unit.base_unit().to_string(),
+                ingestion_unit: s.unit.to_string(),
+                prefix: Some(prefix),
+            }
         })
-    }
+        .collect::<Vec<_>>();
+
     ProtoSensor {
         name: sensor.name.to_string(),
         id: sensor.id.to_string(),
@@ -87,11 +89,8 @@ fn into_proto_sensor(sensor: Sensor) -> ProtoSensor {
 fn into_sensor(sensor: ProtoSensor) -> Result<Sensor<'static>, SignalError> {
     // Create a random uuid for the sensor.
     let sensor_uuid = Uuid::now_v7();
-    let description = match sensor.description.is_empty() {
-        true => None,
-        false => Some(sensor.description),
-    };
-    // build a orm sensor.
+    let description = (!sensor.description.is_empty()).then_some(sensor.description);
+    // build an orm sensor.
     let mut builder = Sensor::builder(
         sensor_uuid,
         sensor.name,
@@ -169,27 +168,24 @@ impl SensorCrudService for SensorStore {
     ) -> Result<Response<CreateSensorResponse>, Status> {
         let request = request.into_inner();
         tracing::debug!("creating sensor: {:?}", request.sensor);
-        let proto_sensor: ProtoSensor = request.sensor.unwrap();
+        let Some(proto_sensor) = request.sensor else {
+            return Err(Status::invalid_argument("sensor field must be set"));
+        };
         let sensor = match into_sensor(proto_sensor) {
             Ok(s) => s,
             Err(e) => {
-                return Ok(tonic::Response::new(CreateSensorResponse {
-                    result: Some(CResult::Failures(e.into())),
-                }))
+                return CreateSensorResponse::failures(e.into()).into();
             }
         };
         match self.as_ref().store_sensor(sensor).await {
-            Ok(uuid) => Ok(tonic::Response::new(CreateSensorResponse {
-                result: Some(CResult::Uuid(uuid.to_string())),
-            })),
+            Ok(uuid) => CreateSensorResponse::uuid(uuid).into(),
             Err(e) => {
                 error!("Error setting sensor into the database {e}");
-                Ok(tonic::Response::new(CreateSensorResponse {
-                    result: Some(CResult::Failures(CrudFailure::new_database_error())),
-                }))
+                CreateSensorResponse::failures(CrudFailure::new_database_error()).into()
             }
         }
     }
+
     /// Fetch a sensor given it's [`Uuid`].
     ///
     /// This function can fail if the uuid is formated incorrectly or
@@ -200,31 +196,20 @@ impl SensorCrudService for SensorStore {
     ) -> Result<Response<ReadSensorResponse>, Status> {
         let req_uuid: String = request.into_inner().uuid;
         // check if the provided uuid has a valid format.
-        let sensor_id: Uuid = match Uuid::parse_str(&req_uuid) {
-            Ok(id) => id,
-            Err(_) => {
-                return Ok(tonic::Response::new(ReadSensorResponse {
-                    result: Some(RResult::Failures(CrudFailure::new_uuid_format_error())),
-                }));
-            }
+        let Ok(sensor_id) = Uuid::parse_str(&req_uuid) else {
+            return ReadSensorResponse::failures(CrudFailure::new_uuid_format_error()).into();
         };
         // get the sensor from the database.
         // this might error if the uuid is not present in the database.
-        let sensor: Sensor = match self.as_ref().get_sensor(sensor_id).await {
-            Ok(s) => s,
-            Err(_) => {
-                return Ok(tonic::Response::new(ReadSensorResponse {
-                    result: Some(RResult::Failures(CrudFailure::new_uuid_not_found_error())),
-                }));
-            }
+        let Ok(sensor) = self.as_ref().get_sensor(sensor_id).await else {
+            return ReadSensorResponse::failures(CrudFailure::new_uuid_not_found_error()).into();
         };
         // convert orm sensor into gRPC sensor.
         let sensor: ProtoSensor = into_proto_sensor(sensor);
         // create response containing requested sensor.
-        Ok(tonic::Response::new(ReadSensorResponse {
-            result: Some(RResult::Sensor(sensor)),
-        }))
+        ReadSensorResponse::sensor(sensor).into()
     }
+
     /// Update a sensor.
     ///
     /// This function can fail if the provided [`Uuid`] wasn't found in the database,
@@ -237,39 +222,30 @@ impl SensorCrudService for SensorStore {
         let req = request.into_inner();
         let req_uuid: String = req.uuid;
         // check if the provided uuid has a valid format.
-        let sensor_id: Uuid = match Uuid::parse_str(&req_uuid) {
-            Ok(id) => id,
-            Err(_) => {
-                return Ok(tonic::Response::new(UpdateSensorResponse {
-                    result: Some(UResult::Failures(CrudFailure::new_uuid_format_error())),
-                }));
-            }
+        let Ok(sensor_id) = Uuid::parse_str(&req_uuid) else {
+            return UpdateSensorResponse::failures(CrudFailure::new_uuid_format_error()).into();
         };
         // delete sensor entry for this `sensor_id`.
-        let result = self.as_ref().delete_sensor(sensor_id).await;
-        if result.is_err() {
-            return Ok(tonic::Response::new(UpdateSensorResponse {
-                result: Some(UResult::Failures(CrudFailure::new_uuid_not_found_error())),
-            }));
+        if self.as_ref().delete_sensor(sensor_id).await.is_err() {
+            return UpdateSensorResponse::failures(CrudFailure::new_uuid_not_found_error()).into();
         }
         // create ORM sensor.
-        let proto_sensor: ProtoSensor = req.sensor.unwrap();
+        let Some(proto_sensor) = req.sensor else {
+            return Err(Status::invalid_argument("sensor field must be set"));
+        };
         let mut sensor = match into_sensor(proto_sensor) {
             Ok(s) => s,
             Err(e) => {
-                return Ok(tonic::Response::new(UpdateSensorResponse {
-                    result: Some(UResult::Failures(e.into())),
-                }))
+                return UpdateSensorResponse::failures(e.into()).into();
             }
         };
         // set required sensor_id.
         sensor.id = sensor_id;
         // push sensor into database.
         let result = self.as_ref().store_sensor(sensor).await;
-        Ok(tonic::Response::new(UpdateSensorResponse {
-            result: Some(UResult::Success(result.is_ok())),
-        }))
+        UpdateSensorResponse::success(result.is_ok()).into()
     }
+
     /// Delete a sensor.
     ///
     /// This function can fail if the provided [`Uuid`]'s structure is incorrect or
@@ -280,22 +256,14 @@ impl SensorCrudService for SensorStore {
     ) -> Result<Response<DeleteSensorResponse>, Status> {
         let req_uuid: String = request.into_inner().uuid;
         // check if the provided uuid has a valid format.
-        let sensor_id: Uuid = match Uuid::parse_str(&req_uuid) {
-            Ok(id) => id,
-            Err(_) => {
-                return Ok(tonic::Response::new(DeleteSensorResponse {
-                    result: Some(DResult::Failures(CrudFailure::new_uuid_format_error())),
-                }));
-            }
+        let Ok(sensor_id) = Uuid::parse_str(&req_uuid) else {
+            return DeleteSensorResponse::failures(CrudFailure::new_uuid_format_error()).into();
         };
         // delete sensor id from database.
         match self.as_ref().delete_sensor(sensor_id).await {
-            Ok(_) => Ok(tonic::Response::new(DeleteSensorResponse {
-                result: Some(DResult::Success(true)),
-            })),
-            Err(_) => Ok(tonic::Response::new(DeleteSensorResponse {
-                result: Some(DResult::Failures(CrudFailure::new_uuid_not_found_error())),
-            })),
+            Ok(_) => DeleteSensorResponse::success(true),
+            Err(_) => DeleteSensorResponse::failures(CrudFailure::new_uuid_not_found_error()),
         }
+        .into()
     }
 }
