@@ -15,7 +15,7 @@ pub const DEFAULT_UPLOADS_DIR: &str = "./uploads";
 pub const UPLOADS_DIR_ENV_NAME: &str = "SENSOR_DATA_INGESTOR_UPLOADS_DIR";
 
 /// Default port the application is run on.
-const DEFAULT_PORT: u16 = 8080;
+const DEFAULT_PORT: u16 = 8084;
 
 #[tokio::main]
 async fn main() -> Result<(), crate::error::DataIngestError> {

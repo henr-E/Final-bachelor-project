@@ -173,7 +173,7 @@
             copyToRoot = builds.frontend;
             config.Cmd = ["/bin/frontend"];
           };
-          rustBins = pkgs.dockerTools.buildImage {
+          rust-bins = pkgs.dockerTools.buildImage {
             name = "rust-bins";
             tag = "latest";
 

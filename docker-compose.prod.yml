@@ -1,11 +1,10 @@
 services:
-
   # USER INTERFACE
   # ==============
 
   frontend:
     container_name: frontend
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/frontend:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}frontend:$IMAGE_TAG
     command: ["/bin/frontend"]
     networks:
       - backend
@@ -15,10 +14,10 @@ services:
     depends_on:
       database-migrator:
         condition: service_completed_successfully
-        
+
   ui-backend:
     restart: unless-stopped
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/ui-backend"]
     networks:
       - backend
@@ -43,7 +42,7 @@ services:
   # ==========
 
   simulation-manager:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/simulation-manager"]
     networks:
       - backend
@@ -60,9 +59,9 @@ services:
         condition: service_completed_successfully
     secrets:
       - DATABASE_PASSWORD
-        
+
   simulator-time:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/time-simulator"]
     networks:
       - backend
@@ -71,9 +70,9 @@ services:
     environment:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       TIME_SIMULATOR_ADDR: 0.0.0.0:8101
-      
+
   simulator-energy-supply-and-demand:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/energy-supply-and-demand-simulator"]
     networks:
       - backend
@@ -82,9 +81,9 @@ services:
     environment:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
-      
+
   simulator-energy-transmission:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/energy-simulator"]
     networks:
       - backend
@@ -98,8 +97,25 @@ services:
   # ===========
 
   sensor-data-ingestor:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-ingestor"]
+    networks:
+      - backend
+    environment:
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      SENSOR_DATA_INGESTOR_PORT: 8080
+      ENV_IMPURE: true
+    depends_on:
+      database-migrator:
+        condition: service_completed_successfully
+    secrets:
+      - DATABASE_PASSWORD
+
+  sensor-data-transformer:
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+    command: ["/bin/sensor-data-transformer"]
     networks:
       - backend
     environment:
@@ -114,7 +130,7 @@ services:
       - DATABASE_PASSWORD
 
   sensor-data-generator:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-generator"]
     networks:
       - backend
@@ -134,7 +150,7 @@ services:
   # ==============
 
   database-migrator:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/database-migrator"]
     networks:
       - backend
@@ -151,10 +167,10 @@ services:
     depends_on:
       database:
         condition: service_started
-        
+
   # THIRD+PARTY SERVICES
   # ==============
-  
+
   database:
     container_name: database
     image: timescale/timescaledb:2.14.1-pg16
