@@ -327,12 +327,15 @@
                   yarn
                   # javascript linter
                   nodePackages.eslint
-                  # Grpc-web proxy
-                  envoy
                 ]
                 # MacOS specific packages
                 ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
                   darwin.apple_sdk.frameworks.SystemConfiguration
+                ]
+                # Linux-only packages
+                ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+                  # Grpc-web proxy
+                  envoy
                 ];
 
               RUST_SRC_PATH = "${devToolchain}/lib/rustlib/src/rust/library";
