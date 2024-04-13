@@ -5,6 +5,7 @@ services:
   frontend:
     container_name: frontend
     image: ${DOCKER_REPOSITORY}frontend:$IMAGE_TAG
+    pull_policy: if_not_present
     command: ["/bin/frontend"]
     networks:
       - backend
@@ -18,6 +19,7 @@ services:
   ui-backend:
     restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+    pull_policy: if_not_present
     command: ["/bin/ui-backend"]
     networks:
       - backend
@@ -43,6 +45,7 @@ services:
 
   simulation-manager:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+    pull_policy: if_not_present
     command: ["/bin/simulation-manager"]
     networks:
       - backend
@@ -61,6 +64,7 @@ services:
       - DATABASE_PASSWORD
 
   simulator-time:
+    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/time-simulator"]
     networks:
@@ -72,6 +76,7 @@ services:
       TIME_SIMULATOR_ADDR: 0.0.0.0:8101
 
   simulator-energy-supply-and-demand:
+    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/energy-supply-and-demand-simulator"]
     networks:
@@ -83,6 +88,7 @@ services:
       ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
 
   simulator-energy-transmission:
+    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/energy-simulator"]
     networks:
@@ -97,6 +103,7 @@ services:
   # ===========
 
   sensor-data-ingestor:
+    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-ingestor"]
     networks:
@@ -114,6 +121,7 @@ services:
       - DATABASE_PASSWORD
 
   sensor-data-transformer:
+    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-transformer"]
     networks:
@@ -130,6 +138,7 @@ services:
       - DATABASE_PASSWORD
 
   sensor-data-generator:
+    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-generator"]
     networks:
@@ -150,6 +159,7 @@ services:
   # ==============
 
   database-migrator:
+    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/database-migrator"]
     networks:
