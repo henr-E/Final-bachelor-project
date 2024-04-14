@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO twins (name, longitude, latitude, radius) VALUES ($1, $2, $3, $4) RETURNING id",
+  "query": "INSERT INTO twins (name, longitude, latitude, radius, creation_date_time) VALUES ($1, $2, $3, $4, $5) RETURNING id",
   "describe": {
     "columns": [
       {
@@ -14,12 +14,13 @@
         "Text",
         "Float8",
         "Float8",
-        "Float8"
+        "Float8",
+        "Int4"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "8df4d401e3748ffeb841e08d8c56db586a8c31c0df7adbe0fb499782892a2bcd"
+  "hash": "362ababab6aef4d38eebe6c902b7fbb616ed2eb677376d3b517ab6f83cf44161"
 }

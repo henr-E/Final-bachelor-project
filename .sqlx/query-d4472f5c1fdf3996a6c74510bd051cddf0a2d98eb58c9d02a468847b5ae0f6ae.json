@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, longitude, latitude, radius FROM twins",
+  "query": "SELECT id, name, longitude, latitude, radius, creation_date_time FROM twins",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,11 @@
         "ordinal": 4,
         "name": "radius",
         "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "creation_date_time",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -37,8 +42,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "51d01add20236c0ef4b304edf9bafed9f4806df57a8b0840ae932c7f21a89188"
+  "hash": "d4472f5c1fdf3996a6c74510bd051cddf0a2d98eb58c9d02a468847b5ae0f6ae"
 }

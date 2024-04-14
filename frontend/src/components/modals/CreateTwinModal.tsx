@@ -204,15 +204,19 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
                 latitude: latitude,
                 radius: mapRadius,
                 sensors: [],
-                simulations: []
+                simulations: [],
+                creation_date_time: response.creationDateTime,
+                simulation_amount: 0
             };
             dispatchTwin({type: 'create_twin', twin: twin});
             ToastNotification("success", "The twin was created successfully.");
 
             setIsConfirmModalOpen(false);
             closeCreateTwinModal();
+
             resetAll();
         }
+
         setCreateTwinLoading(false);
     };
 
@@ -272,11 +276,11 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
                         }}
                     >
                         {/* Additional container div for image and text */}
-                        <div style={{textAlign: 'center'}}>
+                        <div style={{ textAlign: 'center' }}>
                             <Image
                                 src={loadingGif} // Corrected path
                                 alt='Loading...'
-                                style={{marginBottom: '10px'}} // Adjust as needed
+                                style={{ marginBottom: '10px' }} // Adjust as needed
                             />
                             <h1>Creating your twin ...</h1>
                         </div>
@@ -298,7 +302,7 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
                 >
                     <Modal.Header>Create Twin</Modal.Header>
                     <Modal.Body>
-                        <div style={{display: 'flex', gap: '20px'}}>
+                        <div style={{ display: 'flex', gap: '20px' }}>
                             {/* Left Side - MapContainer */}
                             <div style={{flex: 4, height: '400px'}}>
                                 <MapContainer center={position} zoom={14} style={{height: '100%', width: '100%'}}>
