@@ -1,5 +1,8 @@
 'use client';
 import React, {createContext, useEffect, useReducer} from "react";
+import {createChannel, createClient} from "nice-grpc-web";
+import {twinObject, TwinServiceDefinition} from '@/proto/twins/twin';
+import {uiBackendServiceUrl} from "@/api/urls";
 import ToastNotification from "@/components/notification/ToastNotification";
 import {BackendGetTwins} from "@/api/twins/crud"
 import {BackendGetSimulations} from "@/api/simulation/crud";
@@ -16,6 +19,8 @@ interface TwinFromProvider {
     radius: number;
     simulations: Simulation[];
     sensors: Sensor[];
+    creation_date_time: number;
+    simulation_amount: number;
 }
 
 interface TwinState {
@@ -127,14 +132,16 @@ function TwinProvider({children}: { children: React.ReactNode }) {
         async function getTwins() {
             let response = await BackendGetTwins();
             if (response) {
-                let twinsFromBackend = response.twins.map((twinObj: any) => ({
+                let twinsFromBackend = response.twins.map((twinObj: twinObject) => ({
                     id: twinObj.id,
                     name: twinObj.name,
                     longitude: twinObj.longitude,
                     latitude: twinObj.latitude,
                     radius: Number(twinObj.radius),
                     sensors: [],
-                    simulations: []
+                    simulations: [],
+                    creation_date_time: twinObj.creationDateTime,
+                    simulation_amount: twinObj.simulationAmount
                 }));
 
                 if (twinsFromBackend.length > 0) {

@@ -27,8 +27,8 @@ export async function BackendGetTwins(){
         return await client.getAllTwins({});
 
     } catch (error) {
-        ToastNotification("error","Failed to fetch all twins")
-            console.error("Failed to fetch all twins:", error);
+        ToastNotification("error","Failed to fetch all twins");
+        console.error("Failed to fetch all twins:", error);
         return;
     }
 }
@@ -42,7 +42,7 @@ export async function BackendGetBuildings(twinId: number) {
 
         return await client.getBuildings(request);
     } catch (error) {
-        ToastNotification("error","Failed to fetch all buildings")
+        ToastNotification("error", "Failed to fetch buildings");
         console.error("Failed to fetch buildings:", error);
         return;
     }
