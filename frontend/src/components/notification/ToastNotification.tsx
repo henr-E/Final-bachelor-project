@@ -1,5 +1,7 @@
 import React from 'react';
-import { toast, Toaster } from 'react-hot-toast';
+import {toast, Toaster} from 'react-hot-toast';
+import {Browser} from "leaflet";
+
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -15,13 +17,13 @@ function ToastNotification(type: ToastType, message: string): void {
 
     switch (type) {
         case 'success':
-            toast(message, { ...options, style: { background: '#80D05A', color: '#fff' } }); // Custom styling for warning; adjust as needed
+            toast(message, {...options, style: {background: '#80D05A', color: '#fff'}}); // Custom styling for warning; adjust as needed
             break;
         case 'error':
-            toast(message, { ...options, style: { background: '#EC5A53', color: '#fff' } }); // Custom styling for warning; adjust as needed
+            toast(message, {...options, style: {background: '#EC5A53', color: '#fff'}}); // Custom styling for warning; adjust as needed
             break;
         case 'warning':
-            toast(message, { ...options, style: { background: '#f1c40f', color: '#fff' } }); // Custom styling for warning; adjust as needed
+            toast(message, {...options, style: {background: '#f1c40f', color: '#fff'}}); // Custom styling for warning; adjust as needed
             break;
         case 'info':
             toast(message, {
@@ -33,7 +35,7 @@ function ToastNotification(type: ToastType, message: string): void {
 
 // This component could be included at the top level of your app, typically inside the component that wraps your app's content.
 export function ToastContainer() {
-    return <Toaster position='bottom-right' reverseOrder={false} />;
+    return <Toaster position='bottom-right' reverseOrder={false}/>;
 }
 
 export default ToastNotification;

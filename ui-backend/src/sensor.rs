@@ -1,9 +1,9 @@
 use num_bigint::{BigInt, Sign};
 use proto::frontend::{
     BigInt as ProtoBigInt, CreateSensorRequest, CreateSensorResponse, CrudFailure,
-    CrudFailureReason, DeleteSensorRequest, DeleteSensorResponse, GetSensorsResponse,
-    ReadSensorRequest, ReadSensorResponse, Sensor as ProtoSensor, SensorCrudService,
-    Signal as ProtoSignal, UpdateSensorRequest, UpdateSensorResponse,
+    CrudFailureReason, DeleteSensorRequest, DeleteSensorResponse, GetSensorsRequest,
+    GetSensorsResponse, ReadSensorRequest, ReadSensorResponse, Sensor as ProtoSensor,
+    SensorCrudService, Signal as ProtoSignal, UpdateSensorRequest, UpdateSensorResponse,
 };
 use sensor_store::{Quantity, Sensor, SensorStore as SensorStoreInner, Unit};
 use sqlx::types::BigDecimal;
@@ -83,6 +83,7 @@ fn into_proto_sensor(sensor: Sensor) -> ProtoSensor {
         longitude: sensor.location.0,
         latitude: sensor.location.1,
         signals,
+        twin_id: sensor.twin_id,
     }
 }
 
@@ -96,6 +97,7 @@ fn into_sensor(sensor: ProtoSensor) -> Result<Sensor<'static>, SignalError> {
         sensor.name,
         description,
         (sensor.longitude, sensor.latitude),
+        sensor.twin_id,
     );
     // push all provided signals trough the builder.
     for signal in sensor.signals.into_iter() {
@@ -131,17 +133,17 @@ impl SensorCrudService for SensorStore {
     /// Get all sensors registered in the database.
     async fn get_sensors(
         &self,
-        _request: tonic::Request<()>,
+        request: Request<GetSensorsRequest>,
     ) -> Result<Response<Self::GetSensorsStream>, Status> {
         use futures::stream::StreamExt;
 
         tracing::debug!("fetching all sensors");
-
+        let req = request.into_inner();
         // Collect all sensors into vec and return that stream. This temporary collection
         // is needed to avoid lifetime errors.
         let sensors: Vec<Result<GetSensorsResponse, Status>> = self
             .as_ref()
-            .get_all_sensors()
+            .get_all_sensors_for_twin(req.twin_id)
             .await
             .map_err(|e| Status::internal(format!("could not get all sensors: {}", e)))?
             .map(|s| match s {

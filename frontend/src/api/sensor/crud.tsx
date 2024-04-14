@@ -1,16 +1,15 @@
-import { Sensor, SensorAction } from '@/store/sensor';
-import { createChannel, createClient } from 'nice-grpc-web';
-import { uiBackendServiceUrl } from '@/api/urls';
+'use client'
+import {createChannel, createClient} from 'nice-grpc-web';
+import {uiBackendServiceUrl} from '@/api/urls';
 import {
-    SensorCRUDServiceDefinition,
-    SensorCRUDServiceClient,
-    BigInt,
     CrudFailureReason,
-    Sensor as ProtoSensor,
+    Sensor,
+    SensorCRUDServiceClient,
+    SensorCRUDServiceDefinition
 } from '@/proto/sensor/sensor-crud';
 import ToastNotification from '@/components/notification/ToastNotification';
 
-function failureReasonToString(reason: CrudFailureReason): string {
+export function failureReasonToString(reason: CrudFailureReason): string {
     switch (reason) {
         case CrudFailureReason.UNRECOGNIZED:
             return 'Failure reason not recognized';
@@ -27,30 +26,13 @@ function failureReasonToString(reason: CrudFailureReason): string {
     }
 }
 
-function sensorToProtoSensor(sensor: Sensor): ProtoSensor {
-    return {
-        id: sensor.id,
-        name: sensor.name,
-        description: sensor.description,
-        latitude: sensor.location.lat,
-        longitude: sensor.location.lng,
-        signals: sensor.signals.map(s => ({
-            alias: s.ingestionColumnAlias,
-            quantity: s.quantity,
-            unit: s.unit,
-            ingestionUnit: s.ingestionUnit,
-            prefix: s.ingestionPrefix,
-        })),
-    };
-}
-
-async function fetchSensors(dispatch: React.Dispatch<SensorAction>): Promise<void> {
+export async function BackendGetSensors(twinId: number): Promise<Sensor[]> {
     const channel = createChannel(uiBackendServiceUrl);
     const client: SensorCRUDServiceClient = createClient(SensorCRUDServiceDefinition, channel);
 
     let sensors: Sensor[] = [];
     try {
-        for await (const response of client.getSensors({})) {
+        for await (const response of client.getSensors({twinId: twinId})) {
             if (response.sensor === undefined) {
                 // Should not be reachable as the backend is streaming sensors to the frontend. If
                 // so the backend is doing something wrong. This should not be an error for the
@@ -63,37 +45,34 @@ async function fetchSensors(dispatch: React.Dispatch<SensorAction>): Promise<voi
                 id: sensor.id,
                 name: sensor.name,
                 description: sensor.description,
-                location: {
-                    lng: sensor.longitude,
-                    lat: sensor.latitude,
-                },
+                latitude: sensor.latitude,
+                longitude: sensor.longitude,
                 signals: sensor.signals.map(s => ({
                     quantity: s.quantity,
                     unit: s.unit,
                     ingestionUnit: s.ingestionUnit,
-                    ingestionColumnAlias: s.alias,
-                    ingestionPrefix: s.prefix || { sign: false, integer: [1], exponent: 0 },
+                    alias: s.alias,
+                    prefix: s.prefix || {sign: false, integer: [1], exponent: 0},
                 })),
+                twinId: sensor.twinId,
             });
         }
+
+        return sensors;
     } catch (error) {
         ToastNotification('error', `Failed to fetch sensors`);
         console.error('Failed to fetch sensors', error);
+        return [];
     }
-
-    dispatch({ type: 'load_sensors', sensors: sensors });
 }
 
-async function createSensor(
-    dispatch: React.Dispatch<SensorAction>,
-    sensor: Sensor
-): Promise<boolean> {
+export async function BackendCreateSensor(sensor: Sensor): Promise<boolean> {
     const channel = createChannel(uiBackendServiceUrl);
     const client: SensorCRUDServiceClient = createClient(SensorCRUDServiceDefinition, channel);
 
     let success = true;
     try {
-        const response = await client.createSensor({ sensor: sensorToProtoSensor(sensor) });
+        const response = await client.createSensor({sensor: sensor});
         if (response.failures !== undefined) {
             const failures = response.failures.reasons.map(r => failureReasonToString(r));
             console.error(`Creating sensor failed because of following reasons: ${failures}`);
@@ -103,7 +82,6 @@ async function createSensor(
             // backend is ignored right now. Even when this is changed, it would not hurt to do
             // this.
             sensor.id = response.uuid ? response.uuid : sensor.id;
-            dispatch({ type: 'create_sensor', sensor: sensor });
         }
     } catch (error) {
         console.error('Failed to create sensor', error);
@@ -116,8 +94,7 @@ async function createSensor(
     return success;
 }
 
-async function deleteSensor(
-    dispatch: React.Dispatch<SensorAction>,
+export async function BackendDeleteSensor(
     sensor_id: string
 ): Promise<boolean> {
     const channel = createChannel(uiBackendServiceUrl);
@@ -125,13 +102,11 @@ async function deleteSensor(
 
     let success = true;
     try {
-        const response = await client.deleteSensor({ uuid: sensor_id });
+        const response = await client.deleteSensor({uuid: sensor_id});
         if (response.failures !== undefined) {
             const failures = response.failures.reasons.map(r => failureReasonToString(r));
             console.error(`Deleting sensor failed because of following reasons: ${failures}`);
             success = false;
-        } else {
-            dispatch({ type: 'delete_sensor', sensorId: sensor_id });
         }
     } catch (error) {
         console.error('Failed to delete sensor', error);
@@ -144,32 +119,3 @@ async function deleteSensor(
     return success;
 }
 
-async function updateSensor(
-    dispatch: React.Dispatch<SensorAction>,
-    sensor: Sensor
-): Promise<boolean> {
-    const channel = createChannel(uiBackendServiceUrl);
-    const client: SensorCRUDServiceClient = createClient(SensorCRUDServiceDefinition, channel);
-
-    let success = true;
-    try {
-        const response = await client.updateSensor({ uuid: sensor.id, sensor: { ...sensor } });
-        if (response.failures !== undefined) {
-            const failures = response.failures.reasons.map(r => failureReasonToString(r));
-            console.error(`Updating sensor failed because of following reasons: ${failures}`);
-            success = false;
-        } else {
-            dispatch({ type: 'update_sensor', sensorId: sensor.id, sensor: sensor });
-        }
-    } catch (error) {
-        console.error('Failed to update sensor', error);
-        success = false;
-    }
-
-    if (!success) {
-        ToastNotification('error', 'Updating sensor failed');
-    }
-    return success;
-}
-
-export { fetchSensors, createSensor, deleteSensor, updateSensor };

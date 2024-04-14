@@ -1,6 +1,6 @@
 'use client';
 import 'leaflet/dist/leaflet.css';
-import {Twin} from '@/store/twins';
+import {TwinFromProvider} from '@/store/twins';
 import React, {useEffect, useState} from 'react';
 import {MapContainer, TileLayer, useMap, useMapEvents} from 'react-leaflet'
 import {LeafletEventHandlerFnMap} from 'leaflet'
@@ -8,7 +8,7 @@ import {BuildingItem, MapItem, MapItems, MapItemType} from "@/components/maps/Ma
 
 
 export interface PredictionMapProps {
-    twin: Twin;
+    twin: TwinFromProvider;
     eventHandlers?: LeafletEventHandlerFnMap;
     mapItems?: MapItemType[];
 }
@@ -50,7 +50,8 @@ export function PredictionMap({twin, eventHandlers = {}, mapItems = []}: Predict
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                {mapItems && mapItems.map((item, i) => <MapItem itemData={item} key={item.id + (item.type === MapItems.Building? (item as BuildingItem).color: "0")} />)}
+                {mapItems && mapItems.map((item, i) => <MapItem itemData={item}
+                                                                key={item.id + (item.type === MapItems.Building ? (item as BuildingItem).color : "0")}/>)}
                 <ChangeLocation/>
             </MapContainer>
         </>

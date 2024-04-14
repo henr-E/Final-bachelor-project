@@ -1,19 +1,21 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import {useContext, useRef, useState} from 'react';
 import {
-    Sensor,
-    Quantity,
-    quantityBaseUnits,
-    quantities as allQuantities,
+    Prefix,
     prefixes as allPrefixes,
     prefixExponents,
+    quantities as allQuantities,
+    Quantity,
+    quantityBaseUnits,
     Unit,
-    Prefix,
 } from '@/store/sensor';
-import { v4 as uuidv4 } from 'uuid';
-import { Button, Modal, Label, ButtonGroup, Table } from 'flowbite-react';
-import { HiXMark } from 'react-icons/hi2';
+import {v4 as uuidv4} from 'uuid';
+import {Button, ButtonGroup, Label, Modal} from 'flowbite-react';
+import {HiXMark} from 'react-icons/hi2';
+import {Sensor} from "@/proto/sensor/sensor-crud";
+import {TwinContext} from "@/store/twins";
+import ToastNotification from "@/components/notification/ToastNotification";
 
 interface CreateSensorModalProps {
     isModalOpen: boolean;
@@ -27,11 +29,7 @@ enum ModalPage {
     INGEST,
 }
 
-function CreateSensorModal({
-    isModalOpen,
-    closeModal,
-    handleCreateSensor,
-}: CreateSensorModalProps) {
+function CreateSensorModal({isModalOpen, closeModal, handleCreateSensor}: CreateSensorModalProps) {
     const [modalPage, setModalPage] = useState<ModalPage>(ModalPage.BASIC);
 
     // step 1: general settings
@@ -48,6 +46,8 @@ function CreateSensorModal({
     const [aliases, setAliases] = useState<string[]>([]);
 
     const basicFormRef = useRef<HTMLFormElement>(null);
+
+    const [twinState, dispatch] = useContext(TwinContext);
 
     const handleModalClose = () => {
         setModalPage(ModalPage.BASIC);
@@ -79,24 +79,30 @@ function CreateSensorModal({
                 break;
             }
             case ModalPage.INGEST: {
+                if(!twinState.current?.id){
+                    ToastNotification("error", "Something went wrong when creating the sensor.")
+                    break;
+                }
                 setModalPage(0);
 
                 const sensor: Sensor = {
                     id: uuidv4(),
+                    twinId: twinState.current?.id,
                     name: name,
                     description: description,
-                    location: { lat: 51, lng: 4.1 },
+                    latitude: 51,
+                    longitude: 4.1,
                     // TODO: Improve this by not defining the quantities and units on the frontend, but only on the backend.
                     signals: quantities.map((q, i) => ({
                         quantity: Quantity[q].toLowerCase(),
                         unit: Unit[quantityBaseUnits[q]],
                         ingestionUnit: Unit[units[i]],
-                        ingestionPrefix: {
+                        prefix: {
                             sign: false,
                             integer: [1],
                             exponent: prefixExponents[prefixes[i]],
                         },
-                        ingestionColumnAlias: aliases[i],
+                        alias: aliases[i],
                     })),
                 };
 
@@ -120,7 +126,7 @@ function CreateSensorModal({
         }
     };
 
-    const CreateSensorStepper = ({ page }: { page: ModalPage }) => {
+    const CreateSensorStepper = ({page}: { page: ModalPage }) => {
         const activeStyles = 'text-indigo-600';
 
         return (
@@ -128,7 +134,8 @@ function CreateSensorModal({
                 <li
                     className={`flex md:w-full items-center ${activeStyles} sm:after:content-[''] after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
                 >
-                    <span className="flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-gray-200">
+                    <span
+                        className="flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-gray-200">
                         <svg
                             className='w-3.5 h-3.5 sm:w-4 sm:h-4 me-2.5'
                             aria-hidden='true'
@@ -136,14 +143,15 @@ function CreateSensorModal({
                             fill='currentColor'
                             viewBox='0 0 20 20'
                         >
-                            <path d='M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z' />
+                            <path
+                                d='M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z'/>
                         </svg>
                         <span className={page === ModalPage.BASIC ? '' : ''}>General</span>
                     </span>
                 </li>
                 <li
                     className={`flex md:w-full items-center ${page === ModalPage.INGEST || page === ModalPage.SIGNALS ? activeStyles : ''
-                        } after:content-[''] after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
+                    } after:content-[''] after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
                 >
                     <span
                         className={`flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-gray-200`}
@@ -155,7 +163,8 @@ function CreateSensorModal({
                             fill='currentColor'
                             viewBox='0 0 20 20'
                         >
-                            <path d='M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z' />
+                            <path
+                                d='M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z'/>
                         </svg>
                         Signals
                     </span>
@@ -170,7 +179,8 @@ function CreateSensorModal({
                         fill='currentColor'
                         viewBox='0 0 20 20'
                     >
-                        <path d='M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z' />
+                        <path
+                            d='M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z'/>
                     </svg>
                     Format
                 </li>
@@ -191,13 +201,13 @@ function CreateSensorModal({
             >
                 <Modal.Header>Create Sensor</Modal.Header>
                 <Modal.Body>
-                    <CreateSensorStepper page={modalPage} />
+                    <CreateSensorStepper page={modalPage}/>
                     {modalPage === ModalPage.BASIC && (
                         <div className='my-4'>
                             <form ref={basicFormRef}>
                                 <div>
                                     <div className='mb-2 block'>
-                                        <Label htmlFor='name' value='Name' />
+                                        <Label htmlFor='name' value='Name'/>
                                     </div>
                                     <input
                                         id='name'
@@ -208,12 +218,12 @@ function CreateSensorModal({
                                         required
                                         maxLength={50}
                                         onChange={e => setName(e.target.value)}
-                                        style={{ marginBottom: '10px' }}
+                                        style={{marginBottom: '10px'}}
                                     />
                                 </div>
                                 <div>
                                     <div className='mb-2 block'>
-                                        <Label htmlFor='description' value='Description' />
+                                        <Label htmlFor='description' value='Description'/>
                                     </div>
                                     <input
                                         id='description'
@@ -253,7 +263,8 @@ function CreateSensorModal({
                                     Add Signal
                                 </button>
                             </ButtonGroup>
-                            <div className='w-100 min-h-32 p-2 bg-indigo-200 rounded-xl shadow-md flex flex-row flex-wrap items-center justify-center gap-2'>
+                            <div
+                                className='w-100 min-h-32 p-2 bg-indigo-200 rounded-xl shadow-md flex flex-row flex-wrap items-center justify-center gap-2'>
                                 {quantities.map((quantity, i) => (
                                     <Button
                                         key={i}
@@ -272,7 +283,7 @@ function CreateSensorModal({
                                         pill
                                     >
                                         {Quantity[quantity]}
-                                        <HiXMark className='ml-2 text-gray-200' size={20} />
+                                        <HiXMark className='ml-2 text-gray-200' size={20}/>
                                     </Button>
                                 ))}
                                 {quantities.length === 0 && (
@@ -286,71 +297,71 @@ function CreateSensorModal({
                             <Label>What is the format of the measured data?</Label>
                             <table className='text-sm text-left rtl:text-right text-gray-800 w-full table-auto'>
                                 <thead className='border-gray-600 text-xs uppercase'>
-                                    <tr>
-                                        <th scope='col' className='w-32 px-2'>
-                                            Signal
-                                        </th>
-                                        <th scope='col' className='w-32 px-2'>
-                                            Unit
-                                        </th>
-                                        <th scope='col' className='w-24 px-2'>
-                                            Prefix
-                                        </th>
-                                        <th scope='col' className='w-48 px-2'>
-                                            Alias
-                                        </th>
-                                    </tr>
+                                <tr>
+                                    <th scope='col' className='w-32 px-2'>
+                                        Signal
+                                    </th>
+                                    <th scope='col' className='w-32 px-2'>
+                                        Unit
+                                    </th>
+                                    <th scope='col' className='w-24 px-2'>
+                                        Prefix
+                                    </th>
+                                    <th scope='col' className='w-48 px-2'>
+                                        Alias
+                                    </th>
+                                </tr>
                                 </thead>
                                 <tbody>
-                                    {quantities.map((quantity, i) => (
-                                        <tr key={i}>
-                                            <td className='w-32 p-2'>
-                                                <span>{Quantity[quantity]}</span>
-                                            </td>
-                                            <td className='w-48 p-2'>
-                                                <select
-                                                    value={units[i]}
-                                                    className='block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-indigo-500 focus:border-indigo-500'
-                                                >
-                                                    <option value={quantityBaseUnits[quantity]}>
-                                                        {Unit[quantityBaseUnits[quantity]]}
+                                {quantities.map((quantity, i) => (
+                                    <tr key={i}>
+                                        <td className='w-32 p-2'>
+                                            <span>{Quantity[quantity]}</span>
+                                        </td>
+                                        <td className='w-48 p-2'>
+                                            <select
+                                                value={units[i]}
+                                                className='block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-indigo-500 focus:border-indigo-500'
+                                            >
+                                                <option value={quantityBaseUnits[quantity]}>
+                                                    {Unit[quantityBaseUnits[quantity]]}
+                                                </option>
+                                            </select>
+                                        </td>
+                                        <td className='w-24 p-2'>
+                                            <select
+                                                value={prefixes[i]}
+                                                onChange={e =>
+                                                    setPrefixes([
+                                                        ...prefixes.slice(0, i),
+                                                        parseInt(e.target.value),
+                                                        ...prefixes.slice(i + 1),
+                                                    ])
+                                                }
+                                                className='block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-indigo-500 focus:border-indigo-500'
+                                            >
+                                                {allPrefixes.map((prefix, i) => (
+                                                    <option key={i} value={prefix}>
+                                                        {Prefix[prefix]}
                                                     </option>
-                                                </select>
-                                            </td>
-                                            <td className='w-24 p-2'>
-                                                <select
-                                                    value={prefixes[i]}
-                                                    onChange={e =>
-                                                        setPrefixes([
-                                                            ...prefixes.slice(0, i),
-                                                            parseInt(e.target.value),
-                                                            ...prefixes.slice(i + 1),
-                                                        ])
-                                                    }
-                                                    className='block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-indigo-500 focus:border-indigo-500'
-                                                >
-                                                    {allPrefixes.map((prefix, i) => (
-                                                        <option key={i} value={prefix}>
-                                                            {Prefix[prefix]}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </td>
-                                            <td className='w-48 p-2'>
-                                                <input
-                                                    className='block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-indigo-500 focus:border-indigo-500'
-                                                    value={aliases[i]}
-                                                    onChange={e =>
-                                                        setAliases([
-                                                            ...aliases.slice(0, i),
-                                                            e.target.value,
-                                                            ...aliases.slice(i + 1),
-                                                        ])
-                                                    }
-                                                />
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                ))}
+                                            </select>
+                                        </td>
+                                        <td className='w-48 p-2'>
+                                            <input
+                                                className='block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-indigo-500 focus:border-indigo-500'
+                                                value={aliases[i]}
+                                                onChange={e =>
+                                                    setAliases([
+                                                        ...aliases.slice(0, i),
+                                                        e.target.value,
+                                                        ...aliases.slice(i + 1),
+                                                    ])
+                                                }
+                                            />
+                                        </td>
+                                    </tr>
+                                ))}
                                 </tbody>
                             </table>
                         </div>

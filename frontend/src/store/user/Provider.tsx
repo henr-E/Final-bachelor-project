@@ -1,19 +1,20 @@
+'use client'
 import React, { createContext, useReducer } from 'react';
 
 // TODO: replace with auto-gen interface from backend protobuffers
-interface User {
+interface UserFromProvider {
     username: string;
 }
 
 interface UserState {
     token?: string;
-    user?: User;
+    user?: UserFromProvider;
 }
 
 interface LoginAction {
     type: 'login';
     token: string;
-    user: User;
+    user: UserFromProvider;
 }
 
 interface LogoutAction {
@@ -48,4 +49,4 @@ function UserProvider({ children }: { children: React.ReactNode }) {
     return <UserContext.Provider value={[state, dispatch]}>{children}</UserContext.Provider>;
 }
 
-export { type User, UserProvider, UserContext };
+export { type UserFromProvider, UserProvider, UserContext };

@@ -1,38 +1,22 @@
 'use client';
 
-import {useContext, useState, useRef, useEffect} from 'react';
-import { Sensor, SensorContext, Quantity, quantityBaseUnits } from '@/store/sensor';
-import { v4 as uuidv4 } from 'uuid';
-import {
-    Button,
-    Modal,
-    Label,
-    TextInput,
-    Select,
-    Datepicker, Toast, Textarea
-} from 'flowbite-react';
+import {useContext, useRef, useState} from 'react';
+import {Button, Datepicker, Label, Modal, Select, Textarea, TextInput} from 'flowbite-react';
 import dynamic from "next/dynamic";
-import {createChannel, createClient} from "nice-grpc-web";
-import {
-    CreateSimulationResponse,
-    SimulationInterfaceServiceDefinition,
-    Simulations,
-    CreateSimulationParams
-} from "@/proto/simulation/frontend";
+import {CreateSimulationParams, Simulation} from "@/proto/simulation/frontend";
 import {TwinContext} from "@/store/twins";
 import {LineItem, MapItemType, NodeItem} from "@/components/maps/MapItem";
 import {Edge, Graph, Node, State} from "@/proto/simulation/simulation";
 import ToastNotification from '@/components/notification/ToastNotification';
-import {uiBackendServiceUrl} from "@/api/urls";
-import {it} from "node:test";
+import {BackendCreateSimulation, BackendGetSimulations} from "@/api/simulation/crud";
 
 interface CreateSimulationModalProps {
     isModalOpen: boolean;
     closeModal: () => void;
 }
 
-function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModalProps) {
-    const [twinState, dispatch] = useContext(TwinContext);
+function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalProps) {
+    const [twinState, dispatchTwin] = useContext(TwinContext);
     const [name, setName] = useState<string>("");
     const [startDate, setStartDate] = useState<Date>(new Date(Date.now()));
     const [endDate, setEndDate] = useState<Date>(new Date(Date.now()));
@@ -45,7 +29,7 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
 
     const formRef = useRef<HTMLFormElement>(null);
 
-    const CreateSimulation = async () => {
+    const GenerateSimulation = async () => {
         const startTimeSplit = startTime.split(':');
         let startDateTime = startDate;
         startDateTime.setHours(+startTimeSplit[0], +startTimeSplit[1], +startTimeSplit[2]);
@@ -92,8 +76,8 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
             name: name,
             twinId: twinState.current?.id.toString(),
             //division by 1000 to convert to ms
-            startDateTime: startDateTime.getTime()/1000,
-            endDateTime: endDateTime.getTime()/1000,
+            startDateTime: startDateTime.getTime() / 1000,
+            endDateTime: endDateTime.getTime() / 1000,
             startState: State.create({
                 graph: Graph.create({
                     nodes: nodes,
@@ -104,15 +88,15 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
             timeStepDelta: timeStepDelta,
         };
 
-        const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(SimulationInterfaceServiceDefinition, channel);
-
-        const response = await client.createSimulation(twin);
+        const response = await BackendCreateSimulation(twin);
         if (!response.success) {
             ToastNotification('error', 'Could not create simulation, try again');
+        } else {
+            ToastNotification('success', `Simulation \"${name}\" is created`);
+            let simulations = await BackendGetSimulations(String(twinState.current?.id));
+            dispatchTwin({type: "load_simulations", simulations: simulations.item})
+            closeModal();
         }
-        ToastNotification('success', `Simulation \"${name}\" is created`);
-        closeModal();
     };
 
 
@@ -138,17 +122,25 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
 
     const NextStepButtonClick = () => {
         if (startDate > endDate) {
-            ToastNotification('warning','Start date must be before/equal end date.');
+            ToastNotification('warning', 'Start date must be before/equal end date.');
             return;
         }
         if (startDate.getTime() === endDate.getTime() && startTime >= endTime) {
-            ToastNotification('warning','Start time must be before end time when dates are the same.');
+            ToastNotification('warning', 'Start time must be before end time when dates are the same.');
             return;
+        }
+        if(twinState.current){
+            for (let i = 0; i < twinState.current.simulations.length; i++){
+                if (twinState.current.simulations[i].name == name){
+                    ToastNotification('warning', 'A simulation with this name already exists.');
+                    return;
+                }
+            }
         }
 
         if (step == 1) {
             closeModelAndReset();
-            CreateSimulation().then();
+            GenerateSimulation().then();
             return;
         }
         if (!formRef.current?.checkValidity()) {
@@ -159,13 +151,12 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
 
         try {
             JSON.parse(globalComponents);
-        }
-        catch (e){
+        } catch (e) {
             ToastNotification("error", "Not a valid json format for global vars");
             return;
         }
 
-        setStep(step+1);
+        setStep(step + 1);
     }
 
     const MapEditor = dynamic(() => import('@/components/maps/MapEditor'), {
@@ -181,7 +172,7 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
         >
             <Modal.Header>Create simulation</Modal.Header>
             {
-                step == 0?
+                step == 0 ?
                     <Modal.Body>
                         <form ref={formRef}>
                             <div className="flex flex-row w-full space-x-3 pt-3">
@@ -252,9 +243,10 @@ function CreateSimulationModal({ isModalOpen, closeModal }: CreateSimulationModa
                             <div className="flex flex-row w-full space-x-3 pt-3">
                                 <div className="w-full">
                                     <div className="mb-2 block">
-                                        <Label htmlFor="gv" value="Global variables" />
+                                        <Label htmlFor="gv" value="Global variables"/>
                                     </div>
-                                    <Textarea id="gv" placeholder="{}" required rows={4} value={globalComponents} onChange={(e)=> setGlobalComponents(e.target.value)} />
+                                    <Textarea id="gv" placeholder="{}" required rows={4} value={globalComponents}
+                                              onChange={(e) => setGlobalComponents(e.target.value)}/>
                                 </div>
                             </div>
                         </form>
