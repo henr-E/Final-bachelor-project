@@ -222,7 +222,7 @@
                       name: value: ''
                         echo "Publishing ${lib.strings.toLower name}..."
 
-                        ${pkgs.skopeo}/bin/skopeo copy \
+                        ${pkgs.skopeo}/bin/skopeo --insecure-policy copy \
                           --dest-creds "''${3:-null}" \
                           docker-archive://${containers.${name}} \
                           "$(echo $REGISTRY)${lib.strings.toLower name}:$TAG"
