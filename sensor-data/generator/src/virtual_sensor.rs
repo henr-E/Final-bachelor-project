@@ -121,6 +121,7 @@ mod tests {
             description: Some(Cow::Borrowed("A sensor that measures some variables.")),
             location: (0.0, 0.0),
             signals: Default::default(),
+            twin_id: -1,
         };
         sensor_builder.add_signal(
             0,

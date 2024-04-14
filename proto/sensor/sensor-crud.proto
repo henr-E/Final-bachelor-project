@@ -6,7 +6,7 @@ import "google/protobuf/empty.proto";
 
 service SensorCRUDService {
     // Get a list of all existing sensors.
-    rpc GetSensors(google.protobuf.Empty) returns (stream GetSensorsResponse);
+    rpc GetSensors(GetSensorsRequest) returns (stream GetSensorsResponse);
 
     // Create a sensor, pushing it to the database alongside its signals.
     rpc CreateSensor(CreateSensorRequest) returns (CreateSensorResponse);
@@ -58,18 +58,25 @@ message Signal {
 }
 
 message Sensor {
+    //the ID is defined by the database (SERIAL type)
+    int32 twin_id = 1;
     // Uuid of the sensor.
-    string id = 1;
+    string id = 2;
     // Name of the sensor.
-    string name = 2;
+    string name = 3;
     // Description of the sensor.
-    string description = 3;
+    string description = 4;
     // Location of the sensor.
-    double longitude = 4;
+    double longitude = 5;
     // Location of the sensor.
-    double latitude = 5;
+    double latitude = 6;
     // List of signals the sensor is composed with.
-    repeated Signal signals = 6;
+    repeated Signal signals = 7;
+}
+
+message GetSensorsRequest {
+    //the ID is defined by the database (SERIAL type)
+    int32 twin_id = 1;
 }
 
 message GetSensorsResponse {

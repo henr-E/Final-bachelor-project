@@ -14,7 +14,7 @@ import {
     RegisterError as GrpcRegisterError,
     User
 } from "@/proto/authentication/auth";
-import { uiBackendServiceUrl } from "@/api/urls";
+import {BackendLogin, BackendRegister} from "@/api/user/crud";
 
 // Validate login and register form data with the same schema as they use the
 // same data. Define more schemas if necessary.
@@ -62,7 +62,7 @@ export async function login(
     formData: FormData
 ): Promise<Result<string, LoginError>> {
     // Create and validate the user data input schema from form data.
-    
+
 
     const user = schema.safeParse({
         username: formData.get("username"),
@@ -76,17 +76,7 @@ export async function login(
     }
 
 
-    // Connect to the grpc server running in rust.
-    const channel = createChannel(uiBackendServiceUrl);
-    const client: AuthenticationServiceClient = createClient(
-        AuthenticationServiceDefinition,
-        channel
-    );
-    
-
-    const loginResponse = await client.loginUser({ user: { ...user.data } });
-
-    
+    const loginResponse = await BackendLogin(user.data);
 
     // Return expected errors if they were returned above, else map the
     // loginResponse type to the token field on the type.
@@ -114,17 +104,7 @@ export async function register(
         return Err({ message: "form", error: user.error.flatten().fieldErrors });
     }
 
-    
-
-    // Connect to the grpc server running in rust.
-    const channel = createChannel(uiBackendServiceUrl);
-    const client: AuthenticationServiceClient = createClient(
-        AuthenticationServiceDefinition,
-        channel
-    );
-    
-
-    const registerResponse = await client.registerUser({user: {...user.data}});
+    const registerResponse = await BackendRegister(user.data);
 
     // Return expected errors if they were returned above, else map the
     // loginResponse type to the token field on the type.

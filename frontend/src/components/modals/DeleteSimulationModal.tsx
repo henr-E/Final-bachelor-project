@@ -1,27 +1,28 @@
 'use client';
 
 import {Alert, Button, Modal} from 'flowbite-react';
-import {Sensor} from "@/proto/sensor/sensor-crud";
+import {Simulation} from "@/proto/simulation/frontend";
 
-interface DeleteSensorModalProps {
+
+interface DeleteSimulationModalProps {
     isModalOpen: boolean;
-    sensor?: Sensor;
-    confirm: (sensor: Sensor) => void;
+    simulation?: Simulation;
+    confirm: (simulation: Simulation) => void;
     cancel: () => void;
 }
 
-function DeleteSensorModal({isModalOpen, sensor, cancel, confirm}: DeleteSensorModalProps) {
-    if (!sensor) {
+function DeleteSimulationModal({isModalOpen, simulation, cancel, confirm}: DeleteSimulationModalProps) {
+    if (!simulation) {
         return <></>;
     }
 
     return (
         <Modal show={isModalOpen} onClose={cancel}>
-            <Modal.Header>Delete Sensor &quot;{sensor.name}&quot;</Modal.Header>
+            <Modal.Header>Delete Simulation &quot;{simulation.name}&quot;</Modal.Header>
             <Modal.Body>
                 <Alert color='warning' rounded>
                     <span>
-                        Warning: all data associated with this sensor will be permanently lost.
+                        Warning: all data associated with this simulation will be permanently lost.
                     </span>
                 </Alert>
             </Modal.Body>
@@ -39,7 +40,7 @@ function DeleteSensorModal({isModalOpen, sensor, cancel, confirm}: DeleteSensorM
                     Cancel
                 </Button>
                 <div className='grow'></div>
-                <Button color='warning' onClick={() => confirm(sensor)}>
+                <Button color='warning' onClick={() => confirm(simulation)}>
                     Delete
                 </Button>
             </Modal.Footer>
@@ -47,4 +48,4 @@ function DeleteSensorModal({isModalOpen, sensor, cancel, confirm}: DeleteSensorM
     );
 }
 
-export default DeleteSensorModal;
+export default DeleteSimulationModal;

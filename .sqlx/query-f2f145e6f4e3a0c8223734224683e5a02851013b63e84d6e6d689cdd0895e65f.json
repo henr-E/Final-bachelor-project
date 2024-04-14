@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT name, description, location[0]::float as lon, location[1]::float as lat FROM sensors WHERE id = $1::uuid",
+  "query": "SELECT name, description, location[0]::float as lon, location[1]::float as lat, twin_id FROM sensors WHERE id = $1::uuid",
   "describe": {
     "columns": [
       {
@@ -22,6 +22,11 @@
         "ordinal": 3,
         "name": "lat",
         "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "twin_id",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -33,8 +38,9 @@
       false,
       true,
       null,
-      null
+      null,
+      false
     ]
   },
-  "hash": "00cef426c3b041af4f58b648577d8dbb1de04576da1438b88127438f244eb4f3"
+  "hash": "f2f145e6f4e3a0c8223734224683e5a02851013b63e84d6e6d689cdd0895e65f"
 }

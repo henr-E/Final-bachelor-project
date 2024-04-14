@@ -1,23 +1,8 @@
 'use client';
 import 'leaflet/dist/leaflet.css';
-import { Twin, TwinContext } from '@/store/twins';
-import {useContext, useEffect, useId, useState} from 'react';
-import {
-    MapContainer,
-    TileLayer,
-    Marker,
-    Popup,
-    useMap,
-    Polyline,
-    useMapEvents,
-    SVGOverlay,
-    Polygon,
-} from 'react-leaflet'
-import {Icon as leafLetIcon, LatLngExpression, LatLng, LeafletEventHandlerFnMap} from 'leaflet'
-import { Button } from 'flowbite-react';
-import { mdiTransmissionTower, mdiCursorPointer, mdiHomeLightningBoltOutline, mdiWindTurbine } from '@mdi/js';
-import { Icon } from '@mdi/react';
-import mapItem from "@/components/maps/MapItem";
+import {Marker, Polygon, Polyline,} from 'react-leaflet'
+import {Icon as leafLetIcon, LatLngExpression, LeafletEventHandlerFnMap} from 'leaflet'
+
 export enum MapItems {
     TransformerHouse,
     Tower,
@@ -47,7 +32,7 @@ export interface NodeItem extends MapItemType {
     location: LatLngExpression;
 }
 
-export interface LineItem extends MapItemType{
+export interface LineItem extends MapItemType {
     items: Array<NodeItem>;
 }
 
@@ -71,7 +56,7 @@ export function MapItem(mapItem: any) {
         let lineItem = mapItem.itemData as LineItem;
         let positions: Array<LatLngExpression> = [];
         lineItem.items.forEach(marker => {
-            if(!marker)
+            if (!marker)
                 return
             if (!marker.inactive) {
                 positions.push(marker.location);
@@ -88,7 +73,7 @@ export function MapItem(mapItem: any) {
         let buildingItem = mapItem.itemData as BuildingItem;
         return (
             <Polygon
-                key = {buildingItem.id}
+                key={buildingItem.id}
                 positions={buildingItem.coordinates.map(coordinate => [coordinate[0], coordinate[1]])}
                 color={buildingItem.color}
                 eventHandlers={buildingItem.eventHandler}

@@ -138,7 +138,7 @@ impl SimulationInterfaceService for SimulationService {
             new_simulation.end_date_time,
             new_simulation.creation_date_time
         )
-        .fetch_one(&self.pool)
+            .fetch_one(&self.pool)
             .await
             .map_err(|err| Status::from_error(Box::new(err)))?
             .id;

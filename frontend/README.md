@@ -32,24 +32,13 @@ cargo run --bin ui-backend
 ```
 
 #### in the frontend directory run:
+```
+yarn install
+yarn proto
+yarn run build
+yarn run dev
+```
 
-install dependencies: `yarn install`
-
-generate the proto files (the files should appear in the frontend/src/proto directory) `yarn proto`
-
-check if everything is correct: `yarn run build`
-
-deploy: `yarn run dev`
-
-#### run envoy for the backend connection WITHOUT bidirectional streams
-
-navigate to the http://localhost:3000
-
-The envoy.yaml file is configured such that the admin access can be found through http://127.0.0.1:9901/
-
-to check if envoy is running correctly run `lsof -i :9901`
-
-To run envoy without bidirectional streams `envoy -c docker/envoy.yaml`
 
 #### run envoy for the backend connection WITH bidirectional streams
 
@@ -61,7 +50,7 @@ When creating the cert and key, fill in by `Common Name (e.g. server FQDN or YOU
 
 use the `envoy -c docker/envoy.dev.yaml` file to start envoy
 
-When testing, your browser will not trust this certificate. you can trust this in by goint to a backend server link (e.g: https://127.0.0.1:8081/twin.TwinService/getAllTwins). this will show a warning, click on trust certificate.
+When testing, your browser will not trust this certificate. you can trust this in by going to a backend server link (e.g: https://127.0.0.1:8081/twin.TwinService/getAllTwins). this will show a warning, click on trust certificate.
 The stream works only in following browsers: https://caniuse.com/mdn-api_request_request_request_body_readablestream
 
 #### environment
@@ -70,6 +59,19 @@ set `NEXT_PUBLIC_GEO_SERVICE_URL=https://127.0.0.1:8081` in the frontend/.env fi
 
 ### problems
 
+#### problems when running `yarn proto`
+
+error: ./build-proto.sh: Bad substitution
+
+there are two possible solutions:
+
+1) install bash
+`sudo apt-get install bash` for linux or `brew install bash` for macos
+2) open the build-proto.sh file and comment the following lines out:
+```
+#! /bin/sh
+#! /usr/bin/env bash
+```
 #### docker problems:
 
 if you get following error:

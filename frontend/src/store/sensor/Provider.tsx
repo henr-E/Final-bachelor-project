@@ -1,6 +1,7 @@
-import React, { createContext, useEffect, useReducer, useState } from 'react';
-import { fetchSensors } from '@/api/sensor/crud';
-import { BigInt } from '@/proto/sensor/sensor-crud';
+'use client'
+import React, {createContext, useContext, useEffect, useReducer, useState} from 'react';
+import {BigInt, Sensor} from '@/proto/sensor/sensor-crud';
+import {TwinContext} from "@/store/twins";
 
 enum Quantity {
     // SI base quantities
@@ -219,36 +220,7 @@ const prefixes: Array<Prefix> = [
     Prefix.QUECTO,
 ];
 
-interface Signal {
-    quantity: string;
-    unit: string;
-    ingestionUnit: string;
-    ingestionColumnAlias: string;
-    ingestionPrefix: BigInt;
-}
-
-// coordinates stored as 64-bit IEEE754 floats for now
-// potentially use better representation
-interface Sensor {
-    id: string; // id can be an UUID
-    name: string;
-    description: string;
-    signals: Signal[];
-    location: { lat: number; lng: number };
-}
-
 interface SensorState {
-    sensors: Sensor[];
-}
-
-interface LoadSensorsAction {
-    type: 'load_sensors';
-    sensors: Sensor[];
-}
-
-interface CreateSensorAction {
-    type: 'create_sensor';
-    sensor: Sensor;
 }
 
 interface DeleteSensorAction {
@@ -256,45 +228,13 @@ interface DeleteSensorAction {
     sensorId: string;
 }
 
-interface UpdateSensorAction {
-    type: 'update_sensor';
-    sensorId: string;
-    sensor: Sensor;
-}
-
 type SensorAction =
-    | LoadSensorsAction
-    | CreateSensorAction
-    | DeleteSensorAction
-    | UpdateSensorAction;
+    | DeleteSensorAction;
 
 function reducer(state: SensorState, action: SensorAction): SensorState {
     switch (action.type) {
-        case 'create_sensor': {
-            return {
-                ...state,
-                sensors: state.sensors.concat([action.sensor]),
-            };
-        }
-        case 'load_sensors': {
-            return {
-                ...state,
-                sensors: action.sensors,
-            };
-        }
         case 'delete_sensor': {
-            return {
-                ...state,
-                sensors: state.sensors.filter(s => s.id !== action.sensorId),
-            };
-        }
-        case 'update_sensor': {
-            return {
-                ...state,
-                sensors: state.sensors
-                    .filter(s => s.id !== action.sensorId)
-                    .concat([action.sensor]),
-            };
+            return true;
         }
         default: {
             return {
@@ -304,28 +244,13 @@ function reducer(state: SensorState, action: SensorAction): SensorState {
     }
 }
 
-const initialState: SensorState = {
-    sensors: [],
-};
+const SensorContext = createContext<[{state: SensorState }, React.Dispatch<SensorAction>]>([{state: () => {}}, async () => {}]);
 
-const SensorContext = createContext<
-    [{ isLoading: boolean; state: SensorState }, React.Dispatch<SensorAction>]
->([{ isLoading: true, state: initialState }, async () => { }]);
-
-function SensorProvider({ children }: { children: React.ReactNode }) {
-    const [state, dispatch] = useReducer(reducer, initialState);
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        (async () => {
-            setIsLoading(true);
-            await fetchSensors(dispatch);
-            setIsLoading(false);
-        })();
-    }, []);
+function SensorProvider({children}: { children: React.ReactNode }) {
+    const [state, dispatch] = useReducer(reducer, {});
 
     return (
-        <SensorContext.Provider value={[{ isLoading: isLoading, state: state }, dispatch]}>
+        <SensorContext.Provider value={[{state: state}, dispatch]}>
             {children}
         </SensorContext.Provider>
     );
@@ -335,8 +260,6 @@ export {
     Quantity,
     Unit,
     Prefix,
-    type Signal,
-    type Sensor,
     prefixExponents,
     quantityBaseUnits,
     quantities,

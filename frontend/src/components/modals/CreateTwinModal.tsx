@@ -1,15 +1,17 @@
 'use client';
-import React, {useContext, useEffect, useRef, useState} from 'react';
-import {Circle, MapContainer, Marker, Popup, Rectangle, TileLayer, useMap} from 'react-leaflet';
+import React, {useContext, useEffect, useState} from 'react';
+import {MapContainer, Marker, Rectangle, TileLayer, useMap} from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import {Button, Modal, TextInput} from 'flowbite-react';
-import {Twin, TwinContext} from '@/store/twins';
+import {TwinContext} from '@/store/twins';
 import L, {LatLngBoundsExpression} from 'leaflet';
 import Image from 'next/image';
 import ToastNotification from "@/components/notification/ToastNotification";
-import {createTwin} from "@/components/modals/CreateTwinModalBackend";
+import {BackendCreateTwin} from "@/api/twins/crud";
 
 import loadingGif from '@/../public/loader/loading.gif';
+import {Sensor} from "@/proto/sensor/sensor-crud";
+import {Simulations} from "@/proto/simulation/frontend";
 
 /**
  * The icon to put on the map
@@ -193,26 +195,24 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
         const latitude = position[0];
         const longitude = position[1];
 
-        const id = twinContext.twins.length.toString();
-        const twin_id = await createTwin(customName, latitude, longitude, mapRadius);
-
-        // Create TWIN
-        if (twin_id) {
+        const response = await BackendCreateTwin(customName, latitude, longitude, mapRadius);
+        if (response) {
             let twin = {
-                id: twin_id,
+                id: response.id,
                 name: customName,
                 longitude: longitude,
                 latitude: latitude,
                 radius: mapRadius,
+                sensors: [],
+                simulations: []
             };
-            dispatchTwin({ type: 'create_twin', twin: twin });
+            dispatchTwin({type: 'create_twin', twin: twin});
+            ToastNotification("success", "The twin was created successfully.");
 
             setIsConfirmModalOpen(false);
             closeCreateTwinModal();
-
             resetAll();
         }
-
         setCreateTwinLoading(false);
     };
 
@@ -272,11 +272,11 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
                         }}
                     >
                         {/* Additional container div for image and text */}
-                        <div style={{ textAlign: 'center' }}>
+                        <div style={{textAlign: 'center'}}>
                             <Image
                                 src={loadingGif} // Corrected path
                                 alt='Loading...'
-                                style={{ marginBottom: '10px' }} // Adjust as needed
+                                style={{marginBottom: '10px'}} // Adjust as needed
                             />
                             <h1>Creating your twin ...</h1>
                         </div>
@@ -298,7 +298,7 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
                 >
                     <Modal.Header>Create Twin</Modal.Header>
                     <Modal.Body>
-                        <div style={{ display: 'flex', gap: '20px' }}>
+                        <div style={{display: 'flex', gap: '20px'}}>
                             {/* Left Side - MapContainer */}
                             <div style={{flex: 4, height: '400px'}}>
                                 <MapContainer center={position} zoom={14} style={{height: '100%', width: '100%'}}>

@@ -2,16 +2,21 @@
 
 
 import {Alert, Button, Modal} from 'flowbite-react';
-import {Sensor} from "@/proto/sensor/sensor-crud";
+import {Simulation} from "@/proto/simulation/frontend";
 
-interface DeleteMultipleSensorsModalProps {
+interface DeleteMultipleSimulationsModalProps {
     isModalOpen: boolean;
-    sensors: Sensor[];
+    simulations: Simulation[];
     confirm: () => void;
     closeModal: () => void;
 }
 
-function DeleteMultipleSensorsModal({isModalOpen, sensors, closeModal, confirm}: DeleteMultipleSensorsModalProps) {
+function DeleteMultipleSimulationsModal({
+                                            isModalOpen,
+                                            simulations,
+                                            closeModal,
+                                            confirm
+                                        }: DeleteMultipleSimulationsModalProps) {
     const handleConfirmButtonClick = () => {
         confirm();
         closeModal();
@@ -19,13 +24,13 @@ function DeleteMultipleSensorsModal({isModalOpen, sensors, closeModal, confirm}:
 
     return (
         <Modal show={isModalOpen} onClose={closeModal}>
-            <Modal.Header>Delete Sensors ({sensors.length})</Modal.Header>
+            <Modal.Header>Delete Simulations ({simulations.length})</Modal.Header>
             <Modal.Body>
                 <div className='mb-2 flex flex-col space-y-2'>
-                    <span>You are about to delete the following sensors:</span>
+                    <span>You are about to delete the following simulations:</span>
                     <div>
                         <ul className='max-w-md space-y-1 text-gray-600 list-disc list-inside'>
-                            {sensors.map((sensor, index) => (
+                            {simulations.map((sensor, index) => (
                                 <li key={index} className='text-sm'>
                                     {sensor.name}
                                 </li>
@@ -35,7 +40,7 @@ function DeleteMultipleSensorsModal({isModalOpen, sensors, closeModal, confirm}:
                 </div>
                 <Alert color='warning' rounded>
                     <span>
-                        Warning: all data associated with these sensors will be permanently lost.
+                        Warning: all data associated with these simulations will be permanently lost.
                     </span>
                 </Alert>
             </Modal.Body>
@@ -61,4 +66,4 @@ function DeleteMultipleSensorsModal({isModalOpen, sensors, closeModal, confirm}:
     );
 }
 
-export default DeleteMultipleSensorsModal;
+export default DeleteMultipleSimulationsModal;
