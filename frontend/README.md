@@ -2,27 +2,22 @@
 
 ## before running the project
 
-### install envoy
-
-##### linux:
-
-https://www.envoyproxy.io/docs/envoy/latest/start/install#install-envoy-on-ubuntu-linux
-
-##### mac: `brew install envoy`
-
 ### env file
-
+## in root:
 rename `.env.example` to `.env`
+## in frontend directory:
+rename `.env.copy` to `.env` and set `NEXT_PUBLIC_GEO_SERVICE_URL=http://127.0.0.1:8081`
 
 ## Running the project
 
 #### in the root directory run:
 
 ```
-docker compose down --volumes
+docker compose down --volumes 
 cargo clean
 tools/generate-secrets.sh
-docker compose up
+docker compose up (for linux,... users)
+docker compose -f docker-compose.mac.yml up (for MACOS users)
 tools/run-migrations.sh
 cargo build
 
@@ -38,24 +33,7 @@ yarn proto
 yarn run build
 yarn run dev
 ```
-
-
-#### run envoy for the backend connection WITH bidirectional streams
-
-To use a stream via web-grpc a tsl certicate is needed (to test this localy),
-this can be genereded with following command:
-
-`openssl req -x509 -out localhost.crt -keyout localhost.key   -newkey rsa:2048 -nodes -sha256`
-When creating the cert and key, fill in by `Common Name (e.g. server FQDN or YOUR name)`: `localhost`
-
-use the `envoy -c docker/envoy.dev.yaml` file to start envoy
-
-When testing, your browser will not trust this certificate. you can trust this in by going to a backend server link (e.g: https://127.0.0.1:8081/twin.TwinService/getAllTwins). this will show a warning, click on trust certificate.
-The stream works only in following browsers: https://caniuse.com/mdn-api_request_request_request_body_readablestream
-
-#### environment
-
-set `NEXT_PUBLIC_GEO_SERVICE_URL=https://127.0.0.1:8081` in the frontend/.env file
+docker might not have a connection with the backend yet, so you should try to refresh.
 
 ### problems
 

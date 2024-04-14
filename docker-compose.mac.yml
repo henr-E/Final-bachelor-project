@@ -34,8 +34,7 @@ services:
   grpcwebpoxy:
     container_name: grpcwebpoxy
     image: webis/grpcwebproxy:0.14.0
-    command: ["grpcwebproxy", "--backend_addr=localhost:8080", "--server_http_debug_port", "8081", "--use_websockets", "--allow_all_origins", "--run_tls_server=false"]
-    network_mode: host
+    command: ["grpcwebproxy", "--backend_addr=host.docker.internal:8080", "--server_http_debug_port", "8081", "--use_websockets", "--allow_all_origins", "--run_tls_server=false"]
     ports:
       - "8081:8081"
 

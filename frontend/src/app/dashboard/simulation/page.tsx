@@ -5,7 +5,7 @@ import {useContext, useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import CreateSimulationModal from "@/components/modals/CreateSimulationModal";
 import {TwinContext} from "@/store/twins";
-import {mdiCheck} from "@mdi/js";
+import {mdiCheck, mdiClose} from "@mdi/js";
 import Icon from "@mdi/react";
 import {BackendGetSimulations, BackendDeleteSimulation} from "@/api/simulation/crud";
 import {Simulation} from "@/proto/simulation/frontend";
@@ -156,7 +156,7 @@ function SimulationOverviewPage() {
                                                     ).toLocaleString()}
                                                 </td>
                                                 <td className='p-3 px-3' onClick={() => handleClick(simulation.id)}>{simulation.framesLoaded}</td>
-                                                <td className='p-3 px-3 text-center items-center flex justify-center w-20' onClick={() => handleClick(simulation.id)}>
+                                                <td className='p-3 px-3 text-center items-center flex justify-center w-20'>
                                                     {simulation.status == 0 ? (
                                                         <div>
                                                             <Spinner
@@ -170,14 +170,22 @@ function SimulationOverviewPage() {
                                                             aria-label='Medium sized spinner example'
                                                             size='md'
                                                         />
-                                                    ) : (
+                                                    ) : simulation.status == 2 ? (
                                                         <Icon
                                                             path={mdiCheck}
                                                             color='green'
                                                             size={1}
                                                             className='content-center'
                                                         />
-                                                    )}
+                                                    ) : (
+                                                        <Icon
+                                                            path={mdiClose}
+                                                            color='red'
+                                                            size={1}
+                                                            className='content-center'
+                                                        />
+                                                    )
+                                                    }
                                                 </td>
                                                 <td
                                                     className='p-3 px-3 w-16'

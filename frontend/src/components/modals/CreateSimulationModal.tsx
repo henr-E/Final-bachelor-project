@@ -147,7 +147,6 @@ function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalP
             formRef.current?.reportValidity();
             return;
         }
-        setStep(step + 1);
 
         try {
             JSON.parse(globalComponents);

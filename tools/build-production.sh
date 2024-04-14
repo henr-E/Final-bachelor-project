@@ -14,7 +14,7 @@ docker build -t $NIX_IMAGE -f ./tools/build-production/Dockerfile .
 echo
 echo "Running build script..."
 mkdir -p .out
-docker run -it --cpus $NUM_CPUS -v $NIX_VOLUME:/nix --mount type=bind,source=$(pwd)/.out,target=/out $NIX_IMAGE ./tools/build-production/build-script.sh
+docker run -it --cpus $(nproc) -v $NIX_VOLUME:/nix --mount "type=bind,source=$(pwd)/.out,target=/out" $NIX_IMAGE ./tools/build-production/build-script.sh
 
 echo
 echo "Loading generated images..."
