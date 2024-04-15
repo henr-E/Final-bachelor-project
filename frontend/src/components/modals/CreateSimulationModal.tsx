@@ -289,4 +289,3 @@ function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalP
 }
 
 export default CreateSimulationModal;
-
