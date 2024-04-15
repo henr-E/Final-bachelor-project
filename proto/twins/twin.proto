@@ -23,6 +23,8 @@ message createTwinRequest {
 message createTwinResponse {
     //the ID is defined by the database (SERIAL type)
     int32 id = 1;
+    //unix timestamp
+    int32 creation_date_time = 2;
 }
 
 //get all twins
@@ -34,6 +36,9 @@ message twinObject {
     double longitude = 4;
     //radius in meters
     double radius = 5;
+    //unix timestamp
+    int32 creation_date_time = 6;
+    int64 simulation_amount = 7;
 }
 message getAllTwinsRequest {}
 message getAllTwinsResponse {

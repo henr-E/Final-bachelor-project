@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+sensor-store = { workspace = true }
+futures = "0.3.30"
 environment-config = { workspace = true }
 serde = { version = "1.0.196", features = ["derive"] }
 serde_json = "1.0.113"
@@ -13,7 +15,16 @@ tonic = "0.11.0"
 prost = "0.12.3"
 prost-types = "0.12.3"
 tokio = { version = "1.36.0", features = ["macros", "rt-multi-thread"] }
+tokio-stream = "0.1.15"
 proto = { path = "../../crates/proto" }
+rand = "0.8.5"
+rand_distr = "0.4.3"
+unit-conversions = "0.1.16"
+sqlx = { version = "0.7.4", features = ["bigdecimal", "uuid"] }
+uuid = { version = "1.7.0", features = ["v4"] }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+thiserror = "1.0.57"
 
 
 [build-dependencies]

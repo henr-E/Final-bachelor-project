@@ -20,6 +20,8 @@ enum SimulationStatus {
     COMPUTING = 1;
     // The simulation has been fully computed.
     FINISHED = 2;
+    // The simulation has failed
+    FAILED = 3;
 }
 
 message CreateSimulationResponse {

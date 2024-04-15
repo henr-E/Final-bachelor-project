@@ -26,3 +26,4 @@ CREATE TABLE buildings
     twin_id INTEGER NOT NULL,
     FOREIGN KEY (twin_id) REFERENCES twins(id)
 );
+

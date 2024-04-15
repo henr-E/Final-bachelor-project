@@ -1,0 +1,45 @@
+services:
+  database:
+    image: timescale/timescaledb:2.14.1-pg16
+    restart: unless-stopped
+    # Use environment variables from the `.env` file without copying the entire
+    # file and being able to use aliases for variables depending on the service.
+    environment:
+      # Do not set the following env variable as this user should be `postgres`
+      # and is only used to create other databases and users.
+      # POSTGRES_USER: ...
+      POSTGRES_PASSWORD_FILE: /run/secrets/DATABASE_PASSWORD
+      # Store db data in different directory. See `PGDATA` section of
+      # https://hub.docker.com/_/postgres/.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      # Add the healthcheck script.
+      - ./docker/postgres-multiple-db-healthcheck.sh:/postgres-multiple-db-healthcheck.sh
+      # Persist contents of the database to the host.
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      # Check health of the databases. Useful for startup order or monitoing
+      # whether silent errors happened that did not fully crash the service.
+      test: ["CMD", "/bin/bash", "/postgres-multiple-db-healthcheck.sh"]
+      # Initial wait time and frequency the check will be run at.
+      interval: 5s
+      # Startup time of the service. Checks will be run, but non-zero return
+      # codes will not result in an unhealthy service. When 0 is returned,
+      # immediately marked as healthy.
+      start_period: 10s
+    secrets:
+      - DATABASE_PASSWORD
+  grpcwebpoxy:
+    container_name: grpcwebpoxy
+    image: webis/grpcwebproxy:0.14.0
+    command: ["grpcwebproxy", "--backend_addr=host.docker.internal:8080", "--server_http_debug_port", "8081", "--use_websockets", "--allow_all_origins", "--run_tls_server=false"]
+    ports:
+      - "8081:8081"
+
+volumes:
+  postgres:
+secrets:
+  DATABASE_PASSWORD:
+    file: .secrets/DATABASE_PASSWORD

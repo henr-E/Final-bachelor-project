@@ -21,6 +21,9 @@ service SimulationManager {
 
   // Opens a stream for requesting simulation frames.
   rpc GetSimulationFrames(stream SimulationFrameRequest) returns (stream SimulationFrame);
+
+  // Delete a simulation from the database by removing all connected records by using the simulation name
+  rpc DeleteSimulation (simulation_manager.SimulationId) returns (google.protobuf.Empty);
 };
 
 // Information for all known components.
@@ -67,6 +70,8 @@ enum SimulationStatus {
   COMPUTING = 1;
   // The simulation has been fully computed.
   FINISHED = 2;
+  // The simulation has failed to fully run
+  FAILED = 3;
 }
 
 message SimulationFrameRequest {

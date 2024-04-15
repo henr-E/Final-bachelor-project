@@ -1,23 +1,25 @@
 'use client';
 
-import { useContext, useState, useRef } from 'react';
+import { useState, useRef, useEffect, useContext } from 'react';
 import {
-    Sensor,
-    SensorContext,
     Quantity,
-    Signal,
-    quantityBaseUnits,
-    quantities as allQuantities,
     prefixes as allPrefixes,
+    prefixExponents,
     Unit,
     Prefix,
+    QuantityWithUnits,
 } from '@/store/sensor';
 import { v4 as uuidv4 } from 'uuid';
-import { Button, Modal, Label, ButtonGroup, Table } from 'flowbite-react';
+import { Button, ButtonGroup, Label, Modal } from 'flowbite-react';
 import { HiXMark } from 'react-icons/hi2';
+import { Sensor } from '@/proto/sensor/sensor-crud';
+import ToastNotification from '@/components/notification/ToastNotification';
+import { TwinContext } from '@/store/twins';
+import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
 
 interface CreateSensorModalProps {
     isModalOpen: boolean;
+    handleCreateSensor: (sensor: Sensor) => Promise<void>;
     closeModal: () => void;
 }
 
@@ -27,31 +29,81 @@ enum ModalPage {
     INGEST,
 }
 
-function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) {
-    const [sensorState, dispatchSensor] = useContext(SensorContext);
+function CreateSensorModal({
+    isModalOpen,
+    closeModal,
+    handleCreateSensor,
+}: CreateSensorModalProps) {
+    const getFirstQuantity = (
+        q: Record<string, QuantityWithUnits>
+    ): QuantityWithUnits | undefined => {
+        return Object.values(q).length === 0 ? undefined : Object.values(q)[0];
+    };
+
+    const getBaseUnit = (q: QuantityWithUnits): Unit => {
+        const baseUnitId = q.baseUnit;
+        const unit = q.units.find(u => u.id === baseUnitId);
+        if (unit === undefined) {
+            throw Error('Base unit id not found in map of units (should be unreachable).');
+        }
+        return unit;
+    };
 
     const [modalPage, setModalPage] = useState<ModalPage>(ModalPage.BASIC);
+    const [quantitiesWithUnits, setQuantitiesWithUnits] = useState<
+        Record<string, QuantityWithUnits>
+    >({});
 
     // step 1: general settings
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
 
     // step 2: quantities
-    const [quantity, setQuantity] = useState<Quantity>(Quantity.TEMPERATURE);
+    const [quantity, setQuantity] = useState<Quantity | undefined>();
     const [quantities, setQuantities] = useState<Quantity[]>([]);
 
     // step 3: signals
+    const [allUnits, setAllUnits] = useState<Record<string, Unit>>({});
     const [units, setUnits] = useState<Unit[]>([]);
     const [prefixes, setPrefixes] = useState<Prefix[]>([]);
     const [aliases, setAliases] = useState<string[]>([]);
 
+    const [twinState, dispatch] = useContext(TwinContext);
+
     const basicFormRef = useRef<HTMLFormElement>(null);
+
+    useEffect(() => {
+        (async () => {
+            const quantitiesWithUnits = await BackendGetQuantityWithUnits();
+            setQuantitiesWithUnits(quantitiesWithUnits);
+        })();
+    }, []);
+
+    useEffect(() => {
+        // Construct all units by merging arrays of units on id.
+        setAllUnits(
+            Object.values(quantitiesWithUnits)
+                .map(q => q.units)
+                // Collect all units into array with duplicates included.
+                .reduce((units, us) => units.concat(us), [])
+                // Convert array into record with id being the key.
+                .reduce(
+                    (units, u) => {
+                        // Only set the value of the unit if the id is not
+                        // already present in the map.
+                        units[u.id] ??= u;
+                        return units;
+                    },
+                    {} as Record<string, Unit>
+                )
+        );
+    }, [quantitiesWithUnits]);
 
     const handleModalClose = () => {
         setModalPage(ModalPage.BASIC);
         setName('');
         setDescription('');
-        setQuantity(Quantity.TEMPERATURE);
+        setQuantity(getFirstQuantity(quantitiesWithUnits)?.quantity);
         setQuantities([]);
         setUnits([]);
         setPrefixes([]);
@@ -60,7 +112,7 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
         closeModal();
     };
 
-    const handleNextButtonClick = () => {
+    const handleNextButtonClick = async () => {
         switch (modalPage) {
             case ModalPage.BASIC: {
                 if (!basicFormRef.current?.reportValidity()) return;
@@ -70,30 +122,41 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
             case ModalPage.SIGNALS: {
                 setModalPage(modalPage + 1);
 
-                setUnits(quantities.map(q => quantityBaseUnits[q]));
-                setPrefixes(quantities.map(q => Prefix.ONE));
-                setAliases(quantities.map(q => `${Quantity[q]}-N`));
+                setUnits(quantities.map(q => getBaseUnit(quantitiesWithUnits[q.id])));
+                setPrefixes(quantities.map(_ => Prefix.ONE));
+                setAliases(quantities.map(q => `${q.repr}-N`));
 
                 break;
             }
             case ModalPage.INGEST: {
+                if (!twinState.current?.id) {
+                    ToastNotification('error', 'Something went wrong when creating the sensor.');
+                    break;
+                }
                 setModalPage(0);
 
                 const sensor: Sensor = {
                     id: uuidv4(),
+                    twinId: twinState.current?.id,
                     name: name,
                     description: description,
-                    location: { lat: 51, lng: 4.1 },
+                    latitude: 51,
+                    longitude: 4.1,
                     signals: quantities.map((q, i) => ({
-                        quantity: q,
-                        unit: quantityBaseUnits[q],
-                        ingestionUnit: units[i],
-                        ingestionPrefix: prefixes[i],
-                        ingestionColumnAlias: aliases[i],
+                        quantity: q.id,
+                        unit: getBaseUnit(quantitiesWithUnits[q.id]).id,
+                        ingestionUnit: units[i].id,
+                        prefix: {
+                            sign: false,
+                            integer: [1],
+                            exponent: prefixExponents[prefixes[i]],
+                        },
+
+                        alias: aliases[i],
                     })),
                 };
 
-                dispatchSensor({ type: 'create_sensor', sensor });
+                await handleCreateSensor(sensor);
 
                 handleModalClose();
                 break;
@@ -107,7 +170,7 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
         if (modalPage === ModalPage.BASIC) {
             setName('');
             setDescription('');
-            setQuantity(Quantity.TEMPERATURE);
+            setQuantity(getFirstQuantity(quantitiesWithUnits)?.quantity);
 
             handleModalClose();
         }
@@ -135,7 +198,8 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
                     </span>
                 </li>
                 <li
-                    className={`flex md:w-full items-center ${page === ModalPage.INGEST || page === ModalPage.SIGNALS ? activeStyles : ''} after:content-[''] after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
+                    className={`flex md:w-full items-center ${page === ModalPage.INGEST || page === ModalPage.SIGNALS ? activeStyles : ''
+                        } after:content-[''] after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
                 >
                     <span
                         className={`flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-gray-200`}
@@ -171,7 +235,7 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
     };
 
     const handleAddSignalButtonClick = () => {
-        setQuantities([...quantities, quantity]);
+        setQuantities(quantity === undefined ? quantities : [...quantities, quantity]);
     };
 
     return (
@@ -228,13 +292,15 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
                                 <select
                                     id='quantity'
                                     className='bg-gray-50 border border-gray-300 text-gray-900 rounded-l-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5'
-                                    value={quantity}
-                                    onChange={e => setQuantity(parseInt(e.target.value))}
+                                    value={quantity?.id}
+                                    onChange={e =>
+                                        setQuantity(quantitiesWithUnits[e.target.value].quantity)
+                                    }
                                     required
                                 >
-                                    {allQuantities.map((q, i) => (
-                                        <option key={i} value={i}>
-                                            {Quantity[q]}
+                                    {Object.values(quantitiesWithUnits).map((q, i) => (
+                                        <option key={i} value={q.quantity.id}>
+                                            {q.quantity.repr}
                                         </option>
                                     ))}
                                 </select>
@@ -263,7 +329,7 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
                                         }}
                                         pill
                                     >
-                                        {Quantity[quantity]}
+                                        {quantity.repr}
                                         <HiXMark className='ml-2 text-gray-200' size={20} />
                                     </Button>
                                 ))}
@@ -297,16 +363,29 @@ function CreateSensorModal({ isModalOpen, closeModal }: CreateSensorModalProps) 
                                     {quantities.map((quantity, i) => (
                                         <tr key={i}>
                                             <td className='w-32 p-2'>
-                                                <span>{Quantity[quantity]}</span>
+                                                <span>{quantity.repr}</span>
                                             </td>
                                             <td className='w-48 p-2'>
                                                 <select
-                                                    value={units[i]}
+                                                    value={units[i].id}
+                                                    onChange={e =>
+                                                        setUnits(
+                                                            units.map((u, j) =>
+                                                                j === i
+                                                                    ? allUnits[e.target.value]
+                                                                    : u
+                                                            )
+                                                        )
+                                                    }
                                                     className='block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-indigo-500 focus:border-indigo-500'
                                                 >
-                                                    <option value={quantityBaseUnits[quantity]}>
-                                                        {Unit[quantityBaseUnits[quantity]]}
-                                                    </option>
+                                                    {quantitiesWithUnits[quantity.id].units.map(
+                                                        u => (
+                                                            <option key={u.id} value={u.id}>
+                                                                {u.repr}
+                                                            </option>
+                                                        )
+                                                    )}
                                                 </select>
                                             </td>
                                             <td className='w-24 p-2'>

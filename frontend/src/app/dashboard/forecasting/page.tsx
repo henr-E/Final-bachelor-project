@@ -1,6 +1,6 @@
 'use client';
 
-import {Twin, TwinContext} from '@/store/twins';
+import {TwinFromProvider, TwinContext} from '@/store/twins';
 import {useContext, useState} from 'react';
 import {Accordion, Button, Label, TextInput} from 'flowbite-react';
 import {PredictionMapProps} from "@/components/maps/PredictionMap";

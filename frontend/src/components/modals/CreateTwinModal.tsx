@@ -1,15 +1,17 @@
 'use client';
-import React, {useContext, useEffect, useRef, useState} from 'react';
-import {Circle, MapContainer, Marker, Popup, Rectangle, TileLayer, useMap} from 'react-leaflet';
+import React, {useContext, useEffect, useState} from 'react';
+import {MapContainer, Marker, Rectangle, TileLayer, useMap} from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import {Button, Modal, TextInput} from 'flowbite-react';
-import {Twin, TwinContext} from '@/store/twins';
+import {TwinContext} from '@/store/twins';
 import L, {LatLngBoundsExpression} from 'leaflet';
 import Image from 'next/image';
 import ToastNotification from "@/components/notification/ToastNotification";
-import {createTwin} from "@/components/modals/CreateTwinModalBackend";
+import {BackendCreateTwin} from "@/api/twins/crud";
 
 import loadingGif from '@/../public/loader/loading.gif';
+import {Sensor} from "@/proto/sensor/sensor-crud";
+import {Simulations} from "@/proto/simulation/frontend";
 
 /**
  * The icon to put on the map
@@ -170,7 +172,6 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
                 ) {
                     twinExists = true;
                     ToastNotification('warning', 'Hmm, looks like this twin already exists.');
-                    ToastNotification("warning", 'Hmm, looks like a twin with these coordinates already exists');
                 }
                 if (twinContext.twins[i].name == customName) {
                     twinExists = true;
@@ -194,19 +195,21 @@ function CreateTwinModal({isCreateTwinModalOpen, closeCreateTwinModal}: CreateTw
         const latitude = position[0];
         const longitude = position[1];
 
-        const id = twinContext.twins.length.toString();
-        const twin_id = await createTwin(customName, latitude, longitude, mapRadius);
-
-        // Create TWIN
-        if (twin_id) {
+        const response = await BackendCreateTwin(customName, latitude, longitude, mapRadius);
+        if (response) {
             let twin = {
-                id: twin_id,
+                id: response.id,
                 name: customName,
                 longitude: longitude,
                 latitude: latitude,
                 radius: mapRadius,
+                sensors: [],
+                simulations: [],
+                creation_date_time: response.creationDateTime,
+                simulation_amount: 0
             };
-            dispatchTwin({ type: 'create_twin', twin: twin });
+            dispatchTwin({type: 'create_twin', twin: twin});
+            ToastNotification("success", "The twin was created successfully.");
 
             setIsConfirmModalOpen(false);
             closeCreateTwinModal();

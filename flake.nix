@@ -64,6 +64,7 @@
                 || (builtins.match ".*\\.proto$" path != null)
                 || (builtins.match ".*\\.sql$" path != null)
                 || (builtins.match ".*\\.sqlx/.*" path != null)
+                || (builtins.match ".*\\.csv$" path != null)
                 # Add all markdown files, except the ones from the `docs/` directory.
                 || (lib.hasSuffix ".md" path && (builtins.match ".*/docs/.*" path == null)));
           };
@@ -172,7 +173,7 @@
             copyToRoot = builds.frontend;
             config.Cmd = ["/bin/frontend"];
           };
-          rustBins = pkgs.dockerTools.buildImage {
+          rust-bins = pkgs.dockerTools.buildImage {
             name = "rust-bins";
             tag = "latest";
 
@@ -221,7 +222,7 @@
                       name: value: ''
                         echo "Publishing ${lib.strings.toLower name}..."
 
-                        ${pkgs.skopeo}/bin/skopeo copy \
+                        ${pkgs.skopeo}/bin/skopeo --insecure-policy copy \
                           --dest-creds "''${3:-null}" \
                           docker-archive://${containers.${name}} \
                           "$(echo $REGISTRY)${lib.strings.toLower name}:$TAG"
@@ -260,6 +261,8 @@
             cargo-test = craneLib.cargoTest (commonArgs.rustBins
               // {
                 cargoArtifacts = dependencies.rustBins;
+
+                ASSETS_SENSOR_DATA_PATH = ./assets/sensor-data;
               });
 
             # Ensure people connect to the database the right way.
@@ -328,6 +331,11 @@
                 # MacOS specific packages
                 ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
                   darwin.apple_sdk.frameworks.SystemConfiguration
+                ]
+                # Linux-only packages
+                ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+                  # Grpc-web proxy
+                  envoy
                 ];
 
               RUST_SRC_PATH = "${devToolchain}/lib/rustlib/src/rust/library";

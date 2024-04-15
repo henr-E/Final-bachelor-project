@@ -1,68 +1,61 @@
+use chrono::{NaiveDate, NaiveDateTime};
+use tracing::debug;
+
 use environment_config::env;
-use proto::sensor_data_ingest::sensor_data_file::FileFormat;
-use proto::sensor_data_ingest::{
-    data_ingest_service_client::DataIngestServiceClient, JsonFileFormat, SensorDataFile,
-};
+use proto::sensor_data_ingest::DataIngestServiceClient;
+use sensor_store::SensorStore;
 
-use crate::data_generator::SensorDataGenerator;
-use crate::sensors::precipitation::SensorPrecipitation;
-use crate::sensors::temperature::SensorTemperature;
-use crate::sensors::Coordinates;
+use crate::sensor_data_generator::SensorDataGenerator;
 
-// mod csv_reader;
-mod data_generator;
-mod sensors;
+mod measurements;
+mod sensor_data_generator;
+mod virtual_sensor;
 
+const INGEST_SERVICE_URL_ENV: &str = "SENSOR_DATA_INGESTOR_URL";
 const DEFAULT_INGEST_SERVICE_URL: &str = "http://0.0.0.0:8080";
 
+/// Generate fake sensor data and send it to the ingest service.
 #[tokio::main]
 async fn main() {
-    // TODO: read address and port from environment
+    tracing_subscriber::fmt().init();
+
+    // create a SensorDataGenerator object that can be used to generate fake sensor data
+    let mut sensor_data_generator: SensorDataGenerator = SensorDataGenerator::new();
+    // create an instance of the database wrapper
+    let mut sensor_store = SensorStore::new().await.unwrap();
+    // retrieve registered sensors from the database
+    sensor_data_generator
+        .retrieve_sensors_from_db(&mut sensor_store)
+        .await;
+
+    // establish the time frame for which sensor data should be generated
+    let date_time_begin: NaiveDateTime = NaiveDate::from_ymd_opt(2024, 3, 2)
+        .unwrap()
+        .and_hms_opt(20, 44, 44)
+        .unwrap();
+    let timestamp_begin = date_time_begin.and_utc().timestamp();
+
+    let date_time_end: NaiveDateTime = NaiveDate::from_ymd_opt(2024, 3, 3)
+        .unwrap()
+        .and_hms_opt(1, 0, 0)
+        .unwrap();
+    let timestamp_end = date_time_end.and_utc().timestamp();
+
+    // generate the sensor data
+    let sensor_data_files =
+        sensor_data_generator.generate(timestamp_begin as u64, timestamp_end as u64);
+
     // connect to DataIngestService
-    let mut client = DataIngestServiceClient::connect(dbg!(
-        env("SENSOR_DATA_INGESTOR_URL").unwrap_or(DEFAULT_INGEST_SERVICE_URL)
-    ))
+    let mut client = DataIngestServiceClient::connect(
+        env(INGEST_SERVICE_URL_ENV).unwrap_or(DEFAULT_INGEST_SERVICE_URL),
+    )
     .await
     .unwrap();
 
-    // create a SensorDataGenerator object
-    let mut sensor_data_generator = SensorDataGenerator::new();
-
-    // Add a temperature sensor
-    let sensor1 = Box::new(SensorTemperature {
-        coordinates: Coordinates {
-            latitude: 23.5,
-            longitude: 60.2,
-        },
-        interval: 30, // set the interval to 30 seconds
-    });
-
-    // Add a precipitation sensor
-    let sensor2 = Box::new(SensorPrecipitation {
-        coordinates: Coordinates {
-            latitude: 18.5,
-            longitude: 0.2,
-        },
-        interval: 60, // set the interval to 60 seconds
-    });
-
-    // add sensors to data generator
-    sensor_data_generator.add_sensor(sensor1);
-    sensor_data_generator.add_sensor(sensor2);
-
-    // generate data for a time range
-    let begin: u64 = 0;
-    let end: u64 = 75;
-    let generated_data = sensor_data_generator.generate_data(begin, end);
-
-    // send data to DataIngestService
-    let request = tonic::Request::new(SensorDataFile {
-        data: generated_data,
-        sensor_id: "".to_string(),
-        file_format: Some(FileFormat::Json(JsonFileFormat {})), // TODO: add correct file format
-    });
-
     // print response
-    let response = client.test_parse_sensor_data(request).await.unwrap();
-    println!("RESPONSE={:?}", response);
+    let response = client
+        .ingest_sensor_data_file_stream(tonic::Request::new(tokio_stream::iter(sensor_data_files)))
+        .await
+        .expect("failed to send request");
+    debug!("RESPONSE={:?}", response);
 }

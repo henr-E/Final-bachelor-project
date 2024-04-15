@@ -10,17 +10,15 @@ import {
     mdiTransmissionTower,
     mdiWindTurbine
 } from "@mdi/js";
-import {useContext, useEffect, useRef, useState, Ref, MutableRefObject} from "react";
+import {MutableRefObject, useContext, useEffect, useRef, useState} from "react";
 import {PredictionMapProps} from "@/components/maps/PredictionMap"
 import dynamic from "next/dynamic";
-import {Twin, TwinContext} from "@/store/twins";
+import {TwinContext} from "@/store/twins";
 import {BuildingItem, LineItem, MapItems, MapItemType, NodeItem} from "@/components/maps/MapItem";
 import ToastNotification from "@/components/notification/ToastNotification";
-import {buildingObject, TwinServiceDefinition} from '@/proto/twins/twin';
-import {createChannel, createClient} from "nice-grpc-web";
-import {uiBackendServiceUrl} from "@/api/urls";
-import {it} from "node:test";
 import {JsonToTable} from "react-json-to-table";
+import {BackendDeleteBuilding, BackendGetBuildings, BackendUndoDeleteBuilding} from "@/api/twins/crud"
+import {buildingObject} from "@/proto/twins/twin";
 
 enum CursorState {
     NONE,
@@ -56,6 +54,29 @@ export interface MapEditorProps {
 
 const PredictionMapImport = dynamic<PredictionMapProps>(() => import("@/components/maps/PredictionMap"), {ssr: false});
 
+function calculateCenterPoint(building: buildingObject): LatLngExpression {
+    let totalX = 0;
+    let totalY = 0;
+    let totalCount = 0;
+
+    for (var coord of building.coordinates) {
+        totalX += coord[0]; // Add latitude
+        totalY += coord[1]; // Add longitude
+        totalCount++;
+    }
+
+    if (totalCount === 0) {
+        throw new Error("No coordinates provided");
+    }
+
+    // Calculate the average for each
+    const centerX = totalX / totalCount;
+    const centerY = totalY / totalCount;
+
+    return [centerX, centerY] as LatLngExpression;
+
+}
+
 function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
     const [twinState, dispatch] = useContext(TwinContext);
     const [cursor, setCursor] = useState<CursorState>(CursorState.GRAB);
@@ -67,30 +88,7 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
     const [itemComponents, setItemComponents] = useState("{}");
 
     const [selectedBuildingIndex, setSelectedBuildingIndex] = useState<number>(-1);
-    const [selectedBuilding, setSelectedBuilding] = useState<BuildingItem>();
-    const [selectedBuildingVisible, setSelectedBuildingVisible] = useState<boolean | null>(null);
 
-    function calculateCenterPoint(building: buildingObject): LatLngExpression {
-        let totalX = 0;
-        let totalY = 0;
-        let totalCount = 0;
-
-        for (var coord of building.coordinates) {
-            totalX += coord[0]; // Add latitude
-            totalY += coord[1]; // Add longitude
-            totalCount++;
-        }
-
-        if (totalCount === 0) {
-            throw new Error("No coordinates provided");
-        }
-
-        // Calculate the average for each
-        const centerX = totalX / totalCount;
-        const centerY = totalY / totalCount;
-
-        return [centerX, centerY] as LatLngExpression;
-    }
 
     //Update the reference when state changes
     useEffect(() => {
@@ -108,15 +106,12 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
             try {
                 if (twinState.current) {
                     ToastNotification("success", "Your twin is being loaded.");
-                    const channel = createChannel(uiBackendServiceUrl);
-                    const client = createClient(TwinServiceDefinition, channel);
-                    const request = {id: twinState.current.id};
-
-                    const response = await client.getBuildings(request);
+                    const response = await BackendGetBuildings(twinState.current.id);
                     //convert buildings to mapItems
                     if (!response) {
                         return;
                     }
+
                     let buildings: Array<MapItemType> = response?.buildings.map((building: buildingObject, index) => {
                         const center = calculateCenterPoint(building);
                         const item: BuildingItem = {
@@ -145,20 +140,11 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
             }
         }
         if(!noBuildings){
-             let _ = fetchBuildings();
+            let _ = fetchBuildings();
         }
 
         // eslint-disable-next-line
     }, [twinState]);
-
-    useEffect(() => {
-        setSelectedBuilding(mapItemsRef.current[selectedBuildingIndex] as BuildingItem)
-    }, [selectedBuildingIndex]);
-
-    useEffect(() => {
-        const building = mapItemsRef.current[selectedBuildingIndex] as BuildingItem;
-        setSelectedBuildingVisible(building?.visible); // Update visibility state
-    }, [selectedBuildingIndex]);
 
     if (!twinState.current) {
         return <h1>Please select a Twin</h1>
@@ -204,7 +190,7 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
             moveMapItem(index);
         }
         setSelectedItems([index]);
-        if(mapItemsRef.current[index].components){
+        if (mapItemsRef.current[index].components) {
             setItemComponents(JSON.stringify(mapItemsRef.current[index].components))
             return
         }
@@ -305,74 +291,57 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
         }
     } as LeafletEventHandlerFnMap;
 
-    const handleDeleteBuilding = async () => {
-        const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(TwinServiceDefinition, channel);
-        const request = {id: selectedBuilding?.id};
-
-        const response = await client.deleteBuilding(request);
-        if (response.deleted) {
-            setSelectedBuildingVisible(false);
-            (mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible = false;
-            ToastNotification("info", "Building succesfully deleted.")
-            updateBuildingColor(selectedBuildingIndex);
-        }
-    }
-
-    const handleUndoDeleteBuilding = async () => {
-        const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(TwinServiceDefinition, channel);
-        const request = {id: selectedBuilding?.id};
-
-        const response = await client.undoDeleteBuilding(request);
-        if (response.undone) {
-            setSelectedBuildingVisible(true);
-            (mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible = true;
-            ToastNotification("info", "Building succesfully restored.")
-            updateBuildingColor(selectedBuildingIndex);
-        }
-    }
-
     const saveBuildingComponents = async (jsonString: string) => {
-        if(!mapItemRef?.current){
+        if (!mapItemRef?.current) {
             return
         }
         try {
             (mapItemRef.current[selectedItemsRef.current[0]] as NodeItem).components = JSON.parse(jsonString);
             ToastNotification("success", "Vars set");
-        }
-        catch (e){
+        } catch (e) {
             ToastNotification("error", "Not a valid json format for global vars");
         }
     }
 
     return (
         <div className="flex h-full grid grid-cols-12">
-            <div className="h-full col-span-9" style={{ cursor: `url(${iconPaths[cursor]}) 15 15, crosshair` }} >
-                <div style={{height:"90%"}}>
+            <div className="h-full col-span-9" style={{cursor: `url(${iconPaths[cursor]}) 15 15, crosshair`}}>
+                <div style={{height: "90%"}}>
                     <PredictionMapImport twin={twinState.current} eventHandlers={eventHandlers} mapItems={mapItems}/>
                 </div>
                 <div className="flex justify-start gap-2">
                     <div className="bg-white gap-4 p-2 my-1 rounded-md flex justify-start">
-                        <Button outline={cursor !== CursorState.GRAB} onClick={(_: any) => changeCursor(CursorState.GRAB)}>
-                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiCursorPointer} size={1} /></span>
+                        <Button outline={cursor !== CursorState.GRAB}
+                                onClick={(_: any) => changeCursor(CursorState.GRAB)}>
+                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon
+                                path={mdiCursorPointer} size={1}/></span>
                         </Button>
-                        <Button outline={cursor !== CursorState.PLACE_TOWER} onClick={(_: any) => changeCursor(CursorState.PLACE_TOWER)}>
-                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiTransmissionTower} size={1.2} /></span>
+                        <Button outline={cursor !== CursorState.PLACE_TOWER}
+                                onClick={(_: any) => changeCursor(CursorState.PLACE_TOWER)}>
+                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon
+                                path={mdiTransmissionTower} size={1.2}/></span>
                         </Button>
-                        <Button outline={cursor !== CursorState.PLACE_BOLT} onClick={(_: any) => changeCursor(CursorState.PLACE_BOLT)}>
-                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiHomeLightningBoltOutline} size={1.2} /></span>
+                        <Button outline={cursor !== CursorState.PLACE_BOLT}
+                                onClick={(_: any) => changeCursor(CursorState.PLACE_BOLT)}>
+                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon
+                                path={mdiHomeLightningBoltOutline} size={1.2}/></span>
                         </Button>
-                        <Button outline={cursor !== CursorState.PLACE_TURBINE} onClick={(_: any) => changeCursor(CursorState.PLACE_TURBINE)}>
-                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiWindTurbine} size={1.2} /></span>
+                        <Button outline={cursor !== CursorState.PLACE_TURBINE}
+                                onClick={(_: any) => changeCursor(CursorState.PLACE_TURBINE)}>
+                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon
+                                path={mdiWindTurbine} size={1.2}/></span>
                         </Button>
                     </div>
                     <div className="bg-white grid-cols-12 gap-4 p-2 my-1 rounded-md flex">
-                        <Button outline={cursor !== CursorState.CONNECT_ITEMS} onClick={(_: any) => changeCursor(CursorState.CONNECT_ITEMS)}>
-                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiTransitConnectionHorizontal} size={1.2} /></span>
+                        <Button outline={cursor !== CursorState.CONNECT_ITEMS}
+                                onClick={(_: any) => changeCursor(CursorState.CONNECT_ITEMS)}>
+                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon
+                                path={mdiTransitConnectionHorizontal} size={1.2}/></span>
                         </Button>
-                        <Button outline={cursor !== CursorState.MOVE_ITEMS} onClick={(_: any) => changeCursor(CursorState.MOVE_ITEMS)}>
-                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon path={mdiCursorMove } size={1.2} /></span>
+                        <Button outline={cursor !== CursorState.MOVE_ITEMS}
+                                onClick={(_: any) => changeCursor(CursorState.MOVE_ITEMS)}>
+                            <span className="whitespace-nowrap text-xl font-semibold dark:text-white"><Icon
+                                path={mdiCursorMove} size={1.2}/></span>
                         </Button>
                     </div>
                 </div>
@@ -382,11 +351,12 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
                     <div
                         className="bg-white grid-cols-12 gap-4 my-1 rounded-md flex flex-col justify-start w-full p-3">
                         {
-                            selectedItems.length == 1 &&  (
+                            selectedItems.length == 1 && (
                                 <>
                                     <h1>{mapItems[selectedItems[0]].name}</h1>
-                                    <JsonToTable json={mapItems[selectedItems[0]].components} />
-                                    <Textarea id="itemVar" placeholder="{}" required rows={4} value={itemComponents} onChange={(e)=> setItemComponents(e.target.value)} />
+                                    <JsonToTable json={mapItems[selectedItems[0]].components}/>
+                                    <Textarea id="itemVar" placeholder="{}" required rows={4} value={itemComponents}
+                                              onChange={(e) => setItemComponents(e.target.value)}/>
                                     <Button
                                         onClick={() => saveBuildingComponents(itemComponents)}
                                     >Opslaan</Button>
@@ -394,33 +364,57 @@ function MapEditor({mapItemRef, noBuildings}: MapEditorProps) {
                             )
                         }
                         {selectedBuildingIndex === -1 ? (
-                            selectedItems.length != 1 &&  <div className="text-gray-700 text-md mb-2">Please select a building or edge.</div>
+                            selectedItems.length != 1 &&
+                            <div className="text-gray-700 text-md mb-2">Please select a building or edge.</div>
                         ) : (
                             <>
                                 <div
-                                    className={`text-lg font-semibold mb-4 ${!selectedBuildingVisible ? 'blur-sm' : ''}`}>
+                                    className={`text-lg font-semibold mb-4 ${!(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible ? 'blur-sm' : ''}`}>
                                     Selected Building Details:
                                 </div>
-                                <div className={`text-gray-700 text-md ${!selectedBuildingVisible ? 'blur-sm' : ''}`}>
-                                    <div><span className="font-semibold">Building Number:</span> {selectedBuilding?.id}
-                                    </div>
-                                    <div><span className="font-semibold">City:</span> {selectedBuilding?.city}</div>
+                                <div
+                                    className={`text-gray-700 text-md ${!(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible ? 'blur-sm' : ''}`}>
                                     <div><span
-                                        className="font-semibold">House Number:</span> {selectedBuilding?.houseNumber}
+                                        className="font-semibold">Building Number:</span> {mapItemsRef.current[selectedBuildingIndex]?.id}
                                     </div>
-                                    <div><span className="font-semibold">Postcode:</span> {selectedBuilding?.postcode}
+                                    <div><span
+                                        className="font-semibold">City:</span> {(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).city}
                                     </div>
-                                    <div><span className="font-semibold">Street:</span> {selectedBuilding?.street}</div>
+                                    <div><span
+                                        className="font-semibold">House Number:</span> {(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).houseNumber}
+                                    </div>
+                                    <div><span
+                                        className="font-semibold">Postcode:</span> {(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).postcode}
+                                    </div>
+                                    <div><span
+                                        className="font-semibold">Street:</span> {(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).street}
+                                    </div>
                                 </div>
-                                {selectedBuildingVisible ? (
+                                {(mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible ? (
                                     <Button
                                         color={"red"}
-                                        onClick={() => handleDeleteBuilding()}
+                                        onClick={() => {
+                                            BackendDeleteBuilding(mapItemsRef.current[selectedBuildingIndex]?.id).then(r => {
+                                                if (r.valueOf()) {
+                                                    (mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible = false;
+                                                    ToastNotification("info", "Building succesfully deleted.")
+                                                    updateBuildingColor(selectedBuildingIndex);
+                                                }
+                                            });
+                                        }}
                                     >Delete building</Button>
                                 ) : (
                                     <Button
                                         color={"red"}
-                                        onClick={() => handleUndoDeleteBuilding()}
+                                        onClick={() => {
+                                            BackendUndoDeleteBuilding(mapItemsRef.current[selectedBuildingIndex]?.id).then(r => {
+                                                if (r.valueOf()) {
+                                                    (mapItemsRef.current[selectedBuildingIndex] as BuildingItem).visible = true;
+                                                    ToastNotification("info", "Building succesfully restored.");
+                                                    updateBuildingColor(selectedBuildingIndex);
+                                                }
+                                            });
+                                        }}
                                     >Restore building</Button>
                                 )}
                             </>

@@ -49,6 +49,26 @@ The branch has to be created from the related feature branch and should be merge
 
 TODO for someone currently working on the frontend
 
+## Running production (locally)
+Be sure to first generate all secrets as described below.
+
+The containers should first be built if you want to run the production setup locally. This can be
+done as follows:
+- If you have nix installed: `nix run .#release <tag>`
+- Otherwise: `tools/build-production.sh` (uses tag `latest`)
+
+Next, configure the `IMAGE_TAG` in your .env file (either the tag you provided to nix run or 
+`latest`). Be sure to set `DOCKER_REPOSITORY=""` to indicate that no repository is used.
+
+You should now be able to run the production setup: `docker compose -f docker-compose.prod.yml up`.
+It may be necessary to run this command with root privileges in order to bind certain ports. If
+docker does not find some of the images, it may be necessary to run build-production with root
+privileges.
+
+You can configure the amount of threads to use to build the production environment using the
+`NUM_CPUS` environment variable. You may need to do this if docker complains about the cpus
+provided being higher than the maximum amount available.
+
 ## Database configuration
 
 ### Defining a new database

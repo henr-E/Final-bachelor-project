@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM simulations WHERE twin_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "twin_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "start_date_time",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "end_date_time",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "creation_date_time",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2db3b107827cb259c946528887695ccedbe9c7934ed6eeeeb549375ebd3cc5ed"
+}

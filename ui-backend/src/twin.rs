@@ -1,18 +1,21 @@
+use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use futures::stream::FuturesUnordered;
 use futures::StreamExt;
 use prost_types::value::Kind;
 use prost_types::Value as ProstValue;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use sqlx::PgPool;
+use tonic::{Request, Response, Status};
+
 use proto::frontend::proto_twin::{
     BuildingObject, CreateTwinRequest, CreateTwinResponse, DeleteBuildingRequest,
     DeleteBuildingResponse, GetAllTwinsRequest, GetAllTwinsResponse, GetBuildingsRequest,
     GetBuildingsResponse, TwinObject, UndoDeleteBuildingRequest, UndoDeleteBuildingResponse,
 };
 use proto::frontend::TwinService;
-use serde::{Deserialize, Serialize};
-use serde_json::json;
-use sqlx::PgPool;
-use std::collections::HashMap;
-use tonic::{Request, Response, Status};
 
 pub struct MyTwinService {
     pool: PgPool,
@@ -190,9 +193,9 @@ async fn request_and_process_twin_data(
                     building.visible,
                     twin_id
                 )
-                    .execute(transaction.as_mut())
-                    .await
-                    .map_err(|e| Status::internal(e.to_string()))?;
+            .execute(transaction.as_mut())
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
     }
 
     Ok(())
@@ -214,11 +217,17 @@ impl TwinService for MyTwinService {
             radius: req.radius,
         };
 
-        let twin_id = sqlx::query!("INSERT INTO twins (name, longitude, latitude, radius) VALUES ($1, $2, $3, $4) RETURNING id",
+        //calculate creation time
+        let creation_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards");
+
+        let twin_id = sqlx::query!("INSERT INTO twins (name, longitude, latitude, radius, creation_date_time) VALUES ($1, $2, $3, $4, $5) RETURNING id",
             twin.name,
             twin.longitude,
             twin.latitude,
-            twin.radius
+            twin.radius,
+            creation_time.as_secs() as i32
         )
             .fetch_one(&self.pool)
             .await
@@ -292,28 +301,51 @@ impl TwinService for MyTwinService {
             return Err(Status::internal(err.to_string()));
         }
 
-        Ok(Response::new(CreateTwinResponse { id: twin_id }))
+        Ok(Response::new(CreateTwinResponse {
+            id: twin_id,
+            creation_date_time: creation_time.as_secs() as i32,
+        }))
     }
 
     async fn get_all_twins(
         &self,
         _request: Request<GetAllTwinsRequest>,
     ) -> Result<Response<GetAllTwinsResponse>, Status> {
-        let twins_result = sqlx::query!("SELECT id, name, longitude, latitude, radius FROM twins")
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| Status::internal(format!("Failed to fetch twins: {}", e)))?;
+        let twins_result = sqlx::query!(
+            "SELECT id, name, longitude, latitude, radius, creation_date_time FROM twins"
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| Status::internal(format!("Failed to fetch twins: {}", e)))?;
 
-        let twins = twins_result
-            .into_iter()
-            .map(|t| TwinObject {
-                id: t.id,
-                name: t.name,
-                longitude: t.longitude,
-                latitude: t.latitude,
-                radius: t.radius,
-            })
-            .collect();
+        let mut twins = Vec::new();
+
+        for twin in twins_result {
+            let simulation_amount = sqlx::query!(
+                "SELECT COUNT(*) as count FROM simulations WHERE twin_id = $1",
+                twin.id
+            )
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| {
+                Status::internal(format!(
+                    "Failed to count simulations for twin_id {}: {}",
+                    twin.id, e
+                ))
+            })?
+            .count
+            .unwrap_or(0);
+
+            twins.push(TwinObject {
+                id: twin.id,
+                name: twin.name,
+                longitude: twin.longitude,
+                latitude: twin.latitude,
+                radius: twin.radius,
+                creation_date_time: twin.creation_date_time,
+                simulation_amount,
+            });
+        }
 
         Ok(Response::new(GetAllTwinsResponse { twins }))
     }

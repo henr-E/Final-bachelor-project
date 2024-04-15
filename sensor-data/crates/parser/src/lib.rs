@@ -3,9 +3,6 @@ use proto::sensor_data_ingest::{ParseFailure, ParseFailureReason};
 
 mod error;
 
-// TODO: Allow the user to specify a sensor-unique format that contains a mapping in the
-// database.
-
 /// Input formats supported by the parser. These formats should line up with the formats defined in
 /// [`sensor_data_ingest::sensor_data::FileFormat`](proto::sensor_data_ingest::sensor_data_file::FileFormat).
 pub enum FileFormat {

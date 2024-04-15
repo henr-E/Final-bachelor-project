@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/*",
     "sensor-data/crates/parser",
+    "sensor-data/crates/validator",
     "sensor-data/crates/sensor-store",
     "sensor-data/generator",
     "sensor-data/ingestor",
@@ -24,6 +25,7 @@ proto = { path = "crates/proto" }
 secrets = { path = "crates/secrets" }
 sensor-store = { path = "sensor-data/crates/sensor-store" }
 simulator-communication = { path = "crates/simulator-communication" }
+walk-dir-tree = { path = "crates/walk-dir-tree" }
 
 [profile.release-small]
 inherits = "release"

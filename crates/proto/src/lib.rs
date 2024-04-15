@@ -25,6 +25,18 @@ pub mod sensor_data_ingest {
         }
     }
 
+    impl ParseResult {
+        pub fn new_ok() -> Self {
+            Self {
+                failures: Vec::new(),
+            }
+        }
+
+        pub fn ok(&self) -> bool {
+            self.failures.is_empty()
+        }
+    }
+
     // Convert a single [`ParseFailure`] into a [`ParseResult`].
     impl From<ParseFailure> for ParseResult {
         fn from(value: ParseFailure) -> Self {
@@ -97,7 +109,7 @@ pub mod frontend {
     pub use proto_twin::twin_service_server::{TwinService, TwinServiceServer};
 
     pub use auth_proto::{authentication_service_client::*, authentication_service_server::*, *};
-    pub use proto_sensor_crud::{sensor_crud_service_client::*, sensor_crud_service_server::*};
+    pub use proto_sensor_crud::{sensor_crud_service_client::*, sensor_crud_service_server::*, *};
 
     mod auth_proto {
         tonic::include_proto!("authentication.auth");
@@ -109,7 +121,131 @@ pub mod frontend {
     pub mod proto_twin {
         tonic::include_proto!("twin");
     }
-    pub mod proto_sensor_crud {
+    mod proto_sensor_crud {
         tonic::include_proto!("sensor.crud");
+    }
+
+    impl CrudFailure {
+        pub fn new(reasons: impl IntoIterator<Item = CrudFailureReason>) -> Self {
+            Self {
+                reasons: reasons.into_iter().map(i32::from).collect(),
+            }
+        }
+
+        pub fn new_single(reason: CrudFailureReason) -> Self {
+            Self {
+                reasons: vec![reason.into()],
+            }
+        }
+
+        pub fn new_database_error() -> Self {
+            Self::new_single(CrudFailureReason::DatabaseInsertionError)
+        }
+
+        pub fn new_uuid_format_error() -> Self {
+            Self::new_single(CrudFailureReason::UuidFormatError)
+        }
+
+        pub fn new_uuid_not_found_error() -> Self {
+            Self::new_single(CrudFailureReason::UuidNotPresentError)
+        }
+    }
+
+    impl BigInt {
+        pub fn one() -> Self {
+            Self {
+                sign: false,
+                integer: vec![1],
+                exponent: 0,
+            }
+        }
+    }
+
+    impl CreateSensorResponse {
+        pub fn uuid(uuid: uuid::Uuid) -> Self {
+            use self::create_sensor_response::Result;
+            Self {
+                result: Some(Result::Uuid(uuid.to_string())),
+            }
+        }
+
+        pub fn failures(failures: CrudFailure) -> Self {
+            use self::create_sensor_response::Result;
+            Self {
+                result: Some(Result::Failures(failures)),
+            }
+        }
+    }
+
+    impl ReadSensorResponse {
+        pub fn sensor(sensor: self::Sensor) -> Self {
+            use self::read_sensor_response::Result;
+            Self {
+                result: Some(Result::Sensor(sensor)),
+            }
+        }
+
+        pub fn failures(failures: CrudFailure) -> Self {
+            use self::read_sensor_response::Result;
+            Self {
+                result: Some(Result::Failures(failures)),
+            }
+        }
+    }
+
+    impl UpdateSensorResponse {
+        pub fn success(success: bool) -> Self {
+            use self::update_sensor_response::Result;
+            Self {
+                result: Some(Result::Success(success)),
+            }
+        }
+
+        pub fn failures(failures: CrudFailure) -> Self {
+            use self::update_sensor_response::Result;
+            Self {
+                result: Some(Result::Failures(failures)),
+            }
+        }
+    }
+
+    impl DeleteSensorResponse {
+        pub fn success(success: bool) -> Self {
+            use self::delete_sensor_response::Result;
+            Self {
+                result: Some(Result::Success(success)),
+            }
+        }
+
+        pub fn failures(failures: CrudFailure) -> Self {
+            use self::delete_sensor_response::Result;
+            Self {
+                result: Some(Result::Failures(failures)),
+            }
+        }
+    }
+
+    impl From<CreateSensorResponse> for Result<tonic::Response<CreateSensorResponse>, tonic::Status> {
+        fn from(value: CreateSensorResponse) -> Self {
+            Ok(tonic::Response::new(value))
+        }
+    }
+
+    impl From<ReadSensorResponse> for Result<tonic::Response<ReadSensorResponse>, tonic::Status> {
+        fn from(value: ReadSensorResponse) -> Self {
+            Ok(tonic::Response::new(value))
+        }
+    }
+
+    impl From<UpdateSensorResponse> for Result<tonic::Response<UpdateSensorResponse>, tonic::Status> {
+        fn from(value: UpdateSensorResponse) -> Self {
+            Ok(tonic::Response::new(value))
+        }
+    }
+
+    impl From<DeleteSensorResponse> for Result<tonic::Response<DeleteSensorResponse>, tonic::Status> {
+        fn from(value: DeleteSensorResponse) -> Self {
+            Ok(tonic::Response::new(value))
+        }
     }
 }

@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO sensor_signals (sensor_id, alias, quantity, unit, prefix)\n                SELECT $1::uuid, alias, quantity::quantity, unit::unit, prefix\n                FROM UNNEST($2::text[], $3::text[], $4::text[], $5::decimal[])\n                    AS x(alias, quantity, unit, prefix);\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "TextArray",
+        "TextArray",
+        "NumericArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9d4b3add5d67788bd39a7694f69a9620a9957464a4b0963b2d03021a35fd7813"
+}

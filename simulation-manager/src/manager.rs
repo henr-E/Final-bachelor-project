@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use prost_types::Value;
 use sqlx::PgPool;
 use tokio::sync::{mpsc, Mutex};
 use tokio_stream::StreamExt;
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 
-use prost_value::*;
+use crate::database::SimulationsDB;
 use proto::simulation::simulator::{simulator_client::SimulatorClient, IoConfigRequest};
 use proto::simulation::{
     simulation_manager::{
@@ -17,8 +16,6 @@ use proto::simulation::{
     },
     Graph, State,
 };
-use proto::simulation::{Edge, Node};
-
 /// The Manager handles incoming requests from the frontend. It can return all known component types
 /// at a certain time, queue new simulations, return info about a simulation and return the state of
 /// a simulation at a requested timestep.
@@ -27,21 +24,23 @@ use proto::simulation::{Edge, Node};
 /// asynchronous channel created in main.rs. The sender is used to notify the runner that a new
 /// simulation has been queued.
 pub struct Manager {
-    pool: PgPool,
     simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
+    db: Arc<Mutex<SimulationsDB>>,
     notif_sender: mpsc::Sender<()>,
 }
 
 impl Manager {
     /// Create a new manager
-    pub fn new(
+    pub async fn new(
         pool: PgPool,
         simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
         notif_sender: mpsc::Sender<()>,
     ) -> Self {
+        let db: SimulationsDB = SimulationsDB::from_pg_pool(pool).await.unwrap();
+        let db: Arc<Mutex<SimulationsDB>> = Arc::new(Mutex::new(db));
         Self {
-            pool,
             simulators,
+            db,
             notif_sender,
         }
     }
@@ -82,6 +81,28 @@ impl SimulationManager for Manager {
         Ok(Response::new(components))
     }
 
+    /// Delete an old simulation
+    ///
+    /// Based on the name of the given simulation all tables in the database will be cleared of the
+    /// records that are coupled to this simulation.
+    async fn delete_simulation(
+        &self,
+        request: Request<SimulationId>,
+    ) -> Result<Response<()>, Status> {
+        let simulation_id = request.into_inner().uuid;
+
+        // Start transaction
+        let mut db = self.db.lock().await;
+        db.begin_transaction().await.unwrap();
+
+        // Delete the simulation
+        db.delete_simulation_via_name(&simulation_id).await.unwrap();
+
+        // Commit transaction
+        db.commit().await.unwrap();
+        Ok(Response::new(()))
+    }
+
     /// Queue a new simulation
     ///
     /// The manager starts by decomposing the request into the needed components to populate the database
@@ -108,77 +129,38 @@ impl SimulationManager for Manager {
         let global = initial_state.global_components;
 
         // Start transaction
-        let mut transaction = self
-            .pool
-            .begin()
-            .await
-            .map_err(|err| Status::from_error(Box::new(err)))?;
+        let mut db = self.db.lock().await;
+        db.begin_transaction().await.unwrap();
+
         //add a new simulation to the simulation table
-        let simulation_index = sqlx::query!(
-            "INSERT INTO simulations (name, step_size_ms, max_steps) VALUES($1, $2, $3) RETURNING id",
-            simulation_id,
-            (simulation.timestep_delta * 1000.0) as i32,
-            simulation.timesteps as i32
-        )
-        .fetch_one(&mut *transaction)
-        .await
-        .map_err(|err| Status::from_error(Box::new(err)))?
-        .id;
+        let simulation_index = db
+            .add_simulation(
+                simulation_id.as_str(),
+                (simulation.timestep_delta * 1000.0) as i32,
+                simulation.timesteps as i32,
+                "Pending" as &str,
+            )
+            .await
+            .unwrap();
+
         //place simulation id in queue
-        sqlx::query!(
-            "INSERT INTO queue (simulation_id) VALUES($1)",
-            simulation_index
-        )
-        .execute(&mut *transaction)
-        .await
-        .map_err(|err| Status::from_error(Box::new(err)))?;
+        db.enqueue(simulation_index).await.unwrap();
 
         // Store graph in database
         for node in nodes {
-            let node_id = sqlx::query!(
-                "INSERT INTO nodes (node_id, simulation_id, time_step, longitude, latitude) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-                node.id as i32, simulation_index, 0, node.longitude, node.latitude
-            )
-                .fetch_one(&mut *transaction)
-                .await
-                .map_err(|err| Status::from_error(Box::new(err)))?
-                .id;
-            for (key, value) in node.components {
-                sqlx::query!(
-                    "INSERT INTO node_components (name, node_id, component_data) VALUES ($1, $2, $3)",
-                    key, node_id, prost_to_serde_json(value)
-                )
-                    .execute(&mut *transaction)
-                    .await
-                    .map_err(|err| Status::from_error(Box::new(err)))?;
-            }
+            db.add_node(node, simulation_index, 0).await.unwrap();
         }
         for edge in edges {
-            let edge_component = edge.component_data.expect("Edges should have a component.");
-            sqlx::query!(
-                "INSERT INTO edges (edge_id, simulation_id, time_step, from_node, to_node, component_data, component_type) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                edge.id as i32, simulation_index, 0, edge.from as i32, edge.to as i32, prost_to_serde_json(edge_component), edge.component_type
-            )
-                .execute(&mut *transaction)
-                .await
-                .map_err(|err| Status::from_error(Box::new(err)))?;
+            db.add_edge(edge, simulation_index, 0).await.unwrap();
         }
         for (key, value) in global {
-            sqlx::query!(
-                "INSERT INTO global_components (time_step, name, simulation_id, component_data) VALUES ($1, $2, $3, $4)",
-                0, key, simulation_index, prost_to_serde_json(value)
-            )
-                .execute(&mut *transaction)
+            db.add_global_component(&key, value, simulation_index, 0)
                 .await
-                .map_err(|err| Status::from_error(Box::new(err)))?;
+                .unwrap();
         }
 
         // Commit transaction
-        transaction
-            .commit()
-            .await
-            .map_err(|err| Status::from_error(Box::new(err)))?;
-
+        db.commit().await.unwrap();
         self.notif_sender.try_send(()).ok();
         Ok(Response::new(()))
     }
@@ -193,47 +175,29 @@ impl SimulationManager for Manager {
         let simulation_id = request.into_inner().uuid;
 
         // Start transaction
-        let mut transaction = self
-            .pool
-            .begin()
-            .await
-            .map_err(|err| Status::from_error(Box::new(err)))?;
+        let mut db = self.db.lock().await;
+        db.begin_transaction().await.unwrap();
 
-        let simulation = sqlx::query!("SELECT * FROM simulations WHERE name = $1", simulation_id)
-            .fetch_one(&mut *transaction)
-            .await
-            // Convert sqlx::error To tonic::Status
-            .map_err(|err| Status::from_error(Box::new(err)))?;
+        let simulation = db.get_simulation_via_name(&simulation_id).await.unwrap();
 
         // Get current timestep
-        let node_timestep = sqlx::query!(
-            "SELECT time_step FROM nodes WHERE simulation_id = $1 ORDER BY time_step DESC",
-            simulation.id
-        )
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(|err| Status::from_error(Box::new(err)))?
-        .map(|t| t.time_step)
-        .unwrap_or(0);
+        let node_timestep = db.get_node_max_timestep(simulation.id).await.unwrap();
 
-        let component_timestep = sqlx::query!(
-            "SELECT time_step FROM global_components WHERE simulation_id = $1 ORDER BY time_step DESC",
-            simulation.id
-        )
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(|err| Status::from_error(Box::new(err)))?
-        .map(|t| t.time_step)
-        .unwrap_or(0);
+        let component_timestep = db
+            .get_global_components_max_timestep(simulation.id)
+            .await
+            .unwrap();
 
         let timestep = node_timestep.max(component_timestep);
 
+        let sim_status = db.get_status(simulation.id).await.unwrap();
         // current status, a simulation has only started computing
         // iff there is a node in the database with timestep > 0
-        let simulation_status = match timestep {
-            0 => SimulationStatus::Pending,
-            i if i < simulation.max_steps => SimulationStatus::Computing,
-            _ => SimulationStatus::Finished,
+        let simulation_status = match sim_status.as_str() {
+            "Pending" => SimulationStatus::Pending,
+            "Computing" => SimulationStatus::Computing,
+            "Finished" => SimulationStatus::Finished,
+            _ => SimulationStatus::Failed,
         };
 
         // Create response
@@ -248,10 +212,7 @@ impl SimulationManager for Manager {
         };
 
         // Commit transaction
-        transaction
-            .commit()
-            .await
-            .map_err(|err| Status::from_error(Box::new(err)))?;
+        db.commit().await.expect("Commit transaction has failed");
 
         Ok(Response::new(simulation_data))
     }
@@ -270,14 +231,12 @@ impl SimulationManager for Manager {
         &self,
         request: Request<tonic::Streaming<SimulationFrameRequest>>,
     ) -> Result<Response<Self::GetSimulationFramesStream>, Status> {
-        // clone the postgres pool
-        let db_pool = self.pool.clone();
-
         // input stream
         let mut stream: tonic::Streaming<SimulationFrameRequest> = request.into_inner();
-
+        let db_clone = self.db.clone();
         // output stream
         let output = async_stream::stream! {
+            let db = db_clone;
             while let Some(frame_request) = stream.next().await {
                 let frame_request = frame_request?;
                 let simulation_name;
@@ -289,19 +248,12 @@ impl SimulationManager for Manager {
                 };
 
                 // Start transaction
-                let mut transaction = db_pool
-                .begin()
-                .await
-                .map_err(|err| Status::from_error(Box::new(err)))?;
+                let mut db = db.lock().await;
+
+                db.begin_transaction().await.unwrap();
 
                 // Simulation index
-                let simulation_id = sqlx::query!(
-                    "SELECT id FROM simulations WHERE name = $1", simulation_name
-                )
-                .fetch_one(&mut *transaction)
-                .await
-                .map_err(|err| Status::from_error(Box::new(err)))?
-                .id;
+                let simulation_id = db.get_simulation_via_name(&simulation_name).await.unwrap().id;
 
                 let frame_index = frame_request.frame_nr as i32;
 
@@ -310,99 +262,29 @@ impl SimulationManager for Manager {
                     edge: vec![],
                 };
 
-                let nodes_send = sqlx::query!(
-                    "SELECT * FROM nodes WHERE simulation_id = $1 AND time_step = $2",
-                    simulation_id,
-                    frame_index
-                )
-                .fetch_all(&mut *transaction)
-                .await
-                .map_err(|err| Status::from_error(Box::new(err)))?;
+                let nodes_send = db.get_nodes(simulation_id, frame_index).await.unwrap();
 
                 for node in nodes_send {
-                    let id = node.id; // id of the node for the given time step and simulation
-                    let node_id = node.node_id; // the actual id of the node
-                    let longitude = node.longitude;
-                    let latitude = node.latitude;
-                    let mut grpc_node = Node {
-                        longitude,
-                        latitude,
-                        components: Default::default(),
-                        id: node_id as u64,
-                    };
-
-                    // look for the node components based on the database id of the node
-                    let components = sqlx::query!(
-                        "SELECT * FROM node_components Where node_id = $1", id
-                    )
-                    .fetch_all(&mut *transaction)
-                    .await
-                    .map_err(|err| Status::from_error(Box::new(err)))?;
-
-                    for component in components {
-                        let name = component.name;
-                        let data = component.component_data;
-                        grpc_node.components.insert(name, serde_json_to_prost(data));
-                    }
-
-                    graph.nodes.push(grpc_node);
+                    graph.nodes.push(node);
                 }
 
-                let edges_send = sqlx::query!(
-                    "SELECT * FROM edges WHERE simulation_id = $1 AND time_step = $2",
-                    simulation_id,
-                    frame_index
-                )
-                .fetch_all(&mut *transaction)
-                .await
-                .map_err(|err| Status::from_error(Box::new(err)))?;
+                let edges_send = db.get_edges(simulation_id, frame_index).await.unwrap();
 
                 for edge in edges_send {
-                    let edge_id = edge.edge_id; // the actual id of the edge
-                    let from = edge.from_node;
-                    let to = edge.to_node;
-                    let component_type = edge.component_type;
-                    let component_data = edge.component_data;
-
-                    let grpc_edge = Edge {
-                        from: from as u64,
-                        to: to as u64,
-                        component_type,
-                        component_data: Option::from(serde_json_to_prost(component_data)),
-                        id: edge_id as u64,
-                    };
-                    graph.edge.push(grpc_edge);
+                    graph.edge.push(edge);
                 }
 
-                let globals = sqlx::query!(
-                    "SELECT * FROM global_components WHERE simulation_id = $1 AND time_step = $2",
-                    simulation_id, frame_index
-                )
-                .fetch_all(&mut * transaction)
-                .await
-                .map_err(|err| Status::from_error(Box::new(err)))?;
-
-                let mut grpc_global: HashMap<String, Value> = HashMap::new();
-
-                for component in globals {
-                    let component_name = component.name;
-                    let component_data = component.component_data;
-
-                    grpc_global.insert(component_name, serde_json_to_prost(component_data));
-                }
+                let globals = db.get_global_components(simulation_id, frame_index).await.unwrap();
 
                 // Commit transaction
-                transaction
-                .commit()
-                .await
-                .map_err(|err| Status::from_error(Box::new(err)))?;
+                db.commit().await.unwrap();
 
                 // output
                 yield Ok(SimulationFrame {
                     request: Some(frame_request),
                     state: Some(State {
                         graph: Some(graph),
-                        global_components: grpc_global
+                        global_components: globals
                     })
                 });
             }
@@ -415,7 +297,6 @@ impl SimulationManager for Manager {
 #[cfg(test)]
 mod manager_grpc_test {
     use std::net::SocketAddr;
-
     use tokio::time::{sleep, Duration};
     use tonic::transport::Server;
 
@@ -443,12 +324,12 @@ mod manager_grpc_test {
     #[cfg(feature = "db_test")]
     #[sqlx::test(migrations = "../migrations/simulator/")]
     async fn test_push_simulation(pool: PgPool) {
-        use prost_types::value;
         //set up
-        let simulations: Vec<SimulatorClient<Channel>> = Vec::default();
+        let simulations: Arc<Mutex<Vec<SimulatorClient<Channel>>>> =
+            Arc::new(Mutex::new(Vec::default()));
 
         let (send, _recv) = mpsc::channel(1);
-        let manager = Manager::new(pool.clone(), simulations, send);
+        let mut manager = Manager::new(pool, simulations, send);
         let request1 = PushSimulationRequest {
             id: Some(SimulationId {
                 uuid: "sim1".to_string(),
@@ -503,7 +384,7 @@ mod manager_grpc_test {
             }),
         };
 
-        Manager::push_simulation(&manager, Request::new(request1))
+        Manager::push_simulation(&manager.await, Request::new(request1))
             .await
             .expect("");
         //check if the data in the database is correct
@@ -631,6 +512,13 @@ mod manager_grpc_test {
             _request: Request<PushSimulationRequest>,
         ) -> Result<Response<()>, Status> {
             unreachable!()
+        }
+
+        async fn delete_simulation(
+            &self,
+            _request: Request<SimulationId>,
+        ) -> Result<Response<()>, Status> {
+            Ok(Response::new(()))
         }
 
         // requests an ID and returns the same ID

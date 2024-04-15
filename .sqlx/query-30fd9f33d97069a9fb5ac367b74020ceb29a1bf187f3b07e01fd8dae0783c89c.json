@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO simulations (name, step_size_ms, max_steps, status) VALUES($1, $2, $3, $4) RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Int4",
+        "Int4",
+        {
+          "Custom": {
+            "name": "enum_status",
+            "kind": {
+              "Enum": [
+                "Pending",
+                "Computing",
+                "Finished",
+                "Failed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "30fd9f33d97069a9fb5ac367b74020ceb29a1bf187f3b07e01fd8dae0783c89c"
+}

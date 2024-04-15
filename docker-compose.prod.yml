@@ -1,11 +1,11 @@
 services:
-
   # USER INTERFACE
   # ==============
 
   frontend:
     container_name: frontend
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/frontend:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}frontend:$IMAGE_TAG
+    pull_policy: if_not_present
     command: ["/bin/frontend"]
     networks:
       - backend
@@ -15,10 +15,11 @@ services:
     depends_on:
       database-migrator:
         condition: service_completed_successfully
-        
+
   ui-backend:
     restart: unless-stopped
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+    pull_policy: if_not_present
     command: ["/bin/ui-backend"]
     networks:
       - backend
@@ -43,7 +44,8 @@ services:
   # ==========
 
   simulation-manager:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+    pull_policy: if_not_present
     command: ["/bin/simulation-manager"]
     networks:
       - backend
@@ -60,9 +62,10 @@ services:
         condition: service_completed_successfully
     secrets:
       - DATABASE_PASSWORD
-        
+
   simulator-time:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    pull_policy: if_not_present
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/time-simulator"]
     networks:
       - backend
@@ -71,9 +74,10 @@ services:
     environment:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       TIME_SIMULATOR_ADDR: 0.0.0.0:8101
-      
+
   simulator-energy-supply-and-demand:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    pull_policy: if_not_present
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/energy-supply-and-demand-simulator"]
     networks:
       - backend
@@ -82,9 +86,10 @@ services:
     environment:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
-      
+
   simulator-energy-transmission:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    pull_policy: if_not_present
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/energy-simulator"]
     networks:
       - backend
@@ -98,8 +103,27 @@ services:
   # ===========
 
   sensor-data-ingestor:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    pull_policy: if_not_present
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-ingestor"]
+    networks:
+      - backend
+    environment:
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      SENSOR_DATA_INGESTOR_PORT: 8080
+      ENV_IMPURE: true
+    depends_on:
+      database-migrator:
+        condition: service_completed_successfully
+    secrets:
+      - DATABASE_PASSWORD
+
+  sensor-data-transformer:
+    pull_policy: if_not_present
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+    command: ["/bin/sensor-data-transformer"]
     networks:
       - backend
     environment:
@@ -114,7 +138,8 @@ services:
       - DATABASE_PASSWORD
 
   sensor-data-generator:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    pull_policy: if_not_present
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-generator"]
     networks:
       - backend
@@ -134,7 +159,8 @@ services:
   # ==============
 
   database-migrator:
-    image: gitlab.ilabt.imec.be:4567/r2l/students/bacheloreindwerk2324/energie-simulator/rustbins:$IMAGE_TAG
+    pull_policy: if_not_present
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/database-migrator"]
     networks:
       - backend
@@ -151,10 +177,10 @@ services:
     depends_on:
       database:
         condition: service_started
-        
+
   # THIRD+PARTY SERVICES
   # ==============
-  
+
   database:
     container_name: database
     image: timescale/timescaledb:2.14.1-pg16
@@ -196,16 +222,15 @@ services:
       - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - frontend
-      - envoy
+      - grpcwebpoxy
 
   # gRPC-web proxy.
-  envoy:
-    container_name: envoy
-    image: envoyproxy/envoy:v1.29-latest
+  grpcwebpoxy:
+    container_name: grpcwebpoxy
+    image: webis/grpcwebproxy:0.14.0
+    command: ["grpcwebproxy", "--backend_addr=ui-backend:8080", "--server_http_debug_port", "8081", "--use_websockets", "--allow_all_origins", "--run_tls_server=false"]
     networks:
       - backend
-    volumes:
-      - ./docker/envoy.yaml:/etc/envoy/envoy.yaml
     depends_on:
       - ui-backend
 

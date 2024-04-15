@@ -24,7 +24,7 @@ mod twin;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
-        .with_max_level(tracing_subscriber::filter::LevelFilter::DEBUG)
+        .with_env_filter("ui_backend=DEBUG")
         .init();
 
     dotenvy::dotenv().ok();
@@ -39,7 +39,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .expect("A valid bind address");
 
     let twin_service = TwinServiceServer::new(twin::MyTwinService::new(pool.clone()));
-    let simulation_service = SimulationInterfaceServiceServer::new(SimulationService::new().await);
+    let simulation_service =
+        SimulationInterfaceServiceServer::new(SimulationService::new(pool.clone()).await);
     let sensor_crud_service = SensorCrudServiceServer::new(SensorStore::new().await);
     let authentication_service =
         AuthenticationServiceServer::new(MyAuthenticationService::new(pool.clone()));

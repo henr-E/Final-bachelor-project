@@ -1,0 +1,12 @@
+[package]
+name = "sensor-data-validator"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bson = "2.9.0"
+proto = { path = "../../../crates/proto" }
+rust_decimal = "1.34.3"
+sensor-store = { workspace = true }

@@ -121,7 +121,7 @@ impl TransformerJob {
         let timestamp = measurement
             .as_document()
             .unwrap()
-            .get_str(timestamp_name)
+            .get_f64(timestamp_name)
             .unwrap()
             .to_string();
 
@@ -261,13 +261,24 @@ impl TransformerJob {
             let timestamps: Vec<chrono::DateTime<Utc>> = chunk
                 .iter()
                 .map(|item| {
-                    sqlx::types::chrono::DateTime::<Utc>::from_str(&item.timestamp).unwrap()
+                    sqlx::types::chrono::DateTime::<Utc>::from_timestamp(
+                        item.timestamp.parse::<i64>().unwrap(),
+                        0,
+                    )
+                    .unwrap()
                 })
                 .collect();
             let values: Vec<BigDecimal> = chunk
                 .iter()
                 .map(|item| {
-                    BigDecimal::from_str(item.value.split_whitespace().next().unwrap()).unwrap()
+                    dbg!(&item.value);
+                    let value = item
+                        .value
+                        .split_whitespace()
+                        .find(|item| item.parse::<f64>().is_ok())
+                        .unwrap();
+
+                    BigDecimal::from_str(value).unwrap()
                 })
                 .collect();
             let ids: Vec<i32> = chunk.iter().map(|item| item.sensor_signal_id).collect();

@@ -1,21 +1,22 @@
 'use client';
 
-import { Sensor } from '@/store/sensor';
-import { Button, Modal, Alert } from 'flowbite-react';
+import {Alert, Button, Modal} from 'flowbite-react';
+import {Sensor} from "@/proto/sensor/sensor-crud";
 
 interface DeleteSensorModalProps {
+    isModalOpen: boolean;
     sensor?: Sensor;
     confirm: (sensor: Sensor) => void;
     cancel: () => void;
 }
 
-function DeleteSensorModal({ sensor, cancel, confirm }: DeleteSensorModalProps) {
+function DeleteSensorModal({isModalOpen, sensor, cancel, confirm}: DeleteSensorModalProps) {
     if (!sensor) {
         return <></>;
     }
 
     return (
-        <Modal show={sensor !== undefined} onClose={cancel}>
+        <Modal show={isModalOpen} onClose={cancel}>
             <Modal.Header>Delete Sensor &quot;{sensor.name}&quot;</Modal.Header>
             <Modal.Body>
                 <Alert color='warning' rounded>

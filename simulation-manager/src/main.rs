@@ -66,7 +66,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse::<SocketAddr>()?;
     info!("Listening on {listen_addr}");
 
-    let manager = manager::Manager::new(pool.clone(), server_connections.clone(), notif_sender);
+    let manager =
+        manager::Manager::new(pool.clone(), server_connections.clone(), notif_sender).await;
     let server = SimulationManagerServer::new(manager);
 
     // Set up simulation runner

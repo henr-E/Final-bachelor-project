@@ -15,26 +15,28 @@ database-config = { workspace = true }
 environment-config = { workspace = true }
 jsonwebtoken = "9.2.0"
 futures = "0.3.30"
-num-bigint = {version = "0.4.4" }
+num-bigint = { version = "0.4.4" }
 prost = "0.12.3"
 prost-types = "0.12.3"
-proto = {path = "../crates/proto"}
+proto = { path = "../crates/proto" }
 protobuf = "3.3.0"
 regex = "1.10.3"
 reqwest = { version = "0.11", features = ["json", "rustls-tls"] }
 secrets.workspace = true
-sensor-store = {path = "../sensor-data/crates/sensor-store" }
+sensor-store = { path = "../sensor-data/crates/sensor-store" }
 serde = { version = "1.0.197", features = ["derive"] }
 serde_json = "1.0"
-sqlx = { version = "0.7.3", features = ["bigdecimal",
+sqlx = { version = "0.7.3", features = [
+    "bigdecimal",
     "chrono",
     "postgres",
     "runtime-tokio",
     "uuid",
-    "json"
+    "json",
 ] }
 thiserror = "1.0.57"
 tokio = { version = "1.36.0", features = ["full"] }
+tokio-stream = "0.1.15"
 tonic = "0.11.0"
 tonic-types = "0.11.0"
 tonic-web = "0.11.0"
@@ -45,4 +47,6 @@ uuid = { version = "1.7.0", features = ["v7", "v4"] }
 [build-dependencies]
 database-config.workspace = true
 tokio = { version = "1.36.0", features = ["macros", "rt"] }
-tonic-build = { version = "0.11.0", default-features = false, features = ["prost"] }
+tonic-build = { version = "0.11.0", default-features = false, features = [
+    "prost",
+] }
