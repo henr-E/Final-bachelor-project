@@ -26,6 +26,7 @@ enum SimulationStatus {
 
 message CreateSimulationResponse {
     bool success = 1;
+    int32 id = 2; //id of the created simulation
 }
 
 message CreateSimulationParams {
@@ -43,7 +44,7 @@ message Simulations {
 
 message Simulation {
     string name = 1;
-    string id = 2; //id of simulation
+    int32 id = 2; //id of simulation
     int32 start_date_time = 3;//unix timestamp
     int32 end_date_time = 4;//unix timestamp
     int32 creation_date_time = 5;//unix timestamp

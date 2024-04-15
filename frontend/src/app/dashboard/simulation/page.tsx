@@ -22,13 +22,13 @@ function SimulationOverviewPage() {
     const [selectedSimulations, setSelectedSimulations] = useState<Simulation[]>([]);
     const [simulationToDelete, setSimulationToDelete] = useState<Simulation>();
 
-    const handleClick = (id: string) => {
+    const handleClick = (id: number) => {
         router.push('simulation/' + id);
     }
 
     const handleConfirmSimulationDelete = async () => {
         if(simulationToDelete?.id){
-            let response = await BackendDeleteSimulation(simulationToDelete?.id);
+            let response = await BackendDeleteSimulation(simulationToDelete?.id.toString());//TODO fix in proto to number
             if (response) {
                 // ToastNotification('success', `Simulation is deleted`);
                 ToastNotification("error", "Not yet implemented")

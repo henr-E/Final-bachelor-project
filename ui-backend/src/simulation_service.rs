@@ -157,7 +157,10 @@ impl SimulationInterfaceService for SimulationService {
             )
             .await
             .is_ok();
-        let response = CreateSimulationResponse { success };
+        let response = CreateSimulationResponse {
+            success,
+            id: simulation_id,
+        };
 
         Ok(Response::new(response))
     }
@@ -187,7 +190,7 @@ impl SimulationInterfaceService for SimulationService {
                 .expect("Failed to get a simulation");
 
             all_simulations.push(Simulation {
-                id: item.id.to_string(),
+                id: item.id,
                 name: item.name,
                 start_date_time: item.start_date_time,
                 end_date_time: item.end_date_time,
@@ -235,7 +238,7 @@ impl SimulationInterfaceService for SimulationService {
 
         // create a simulation object to be wrapped in a response, note: no twin_id
         let simulation_found = Simulation {
-            id: item.id.to_string(),
+            id: item.id,
             name: item.name,
             start_date_time: item.start_date_time,
             end_date_time: item.end_date_time,
