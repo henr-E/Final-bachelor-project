@@ -5,6 +5,9 @@ package sensor.crud;
 import "google/protobuf/empty.proto";
 
 service SensorCRUDService {
+    // Get a list of supported quantities and units.
+    rpc GetQuantitiesAndUnits(google.protobuf.Empty) returns (stream GetQuantitiesAndUnitsResponse);
+
     // Get a list of all existing sensors.
     rpc GetSensors(GetSensorsRequest) returns (stream GetSensorsResponse);
 
@@ -33,6 +36,10 @@ enum CrudFailureReason {
     INVALID_UNIT_ERROR = 3;
     // There was an issue inserting the data into the database.
     DATABASE_INSERTION_ERROR = 4;
+}
+
+message CrudFailure {
+    repeated CrudFailureReason reasons = 1;
 }
 
 message BigInt {
@@ -79,12 +86,9 @@ message GetSensorsRequest {
     int32 twin_id = 1;
 }
 
+// Retrieving all sensors.
 message GetSensorsResponse {
     Sensor sensor = 1;
-}
-
-message CrudFailure {
-    repeated CrudFailureReason reasons = 1;
 }
 
 // Creating a sensor.
@@ -135,4 +139,32 @@ message DeleteSensorResponse {
 message SensorUpdateMessage {
     string sensor_id = 1;
     Sensor sensor = 2;
+}
+
+// Retrieving supported quantities and units.
+message GetQuantitiesAndUnitsResponse {
+    message Quantity {
+        // Id of the quantity that should be used when identifying a quantity
+        // to the server.
+        string id = 1;
+        // More presentable version of the quantity. Should NOT be used to
+        // identify a quantity.
+        string repr = 2;
+    }
+
+    message Unit {
+        // Id of the unit that should be used when identifying a unit to the
+        // server.
+        string id = 1;
+        // More presentable version of the unit. Should NOT be used to
+        // identify a unit.
+        string repr = 2;
+    }
+
+    // Quantity being supported
+    Quantity quantity = 1;
+    // List of supported units associated with the quantity.
+    repeated Unit units = 2;
+    // Id of the base unit associated with the quantity.
+    string base_unit = 3;
 }

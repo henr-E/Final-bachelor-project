@@ -1,9 +1,11 @@
 use num_bigint::{BigInt, Sign};
 use proto::frontend::{
+    get_quantities_and_units_response::{Quantity as ProtoQuantity, Unit as ProtoUnit},
     BigInt as ProtoBigInt, CreateSensorRequest, CreateSensorResponse, CrudFailure,
-    CrudFailureReason, DeleteSensorRequest, DeleteSensorResponse, GetSensorsRequest,
-    GetSensorsResponse, ReadSensorRequest, ReadSensorResponse, Sensor as ProtoSensor,
-    SensorCrudService, Signal as ProtoSignal, UpdateSensorRequest, UpdateSensorResponse,
+    CrudFailureReason, DeleteSensorRequest, DeleteSensorResponse, GetQuantitiesAndUnitsResponse,
+    GetSensorsRequest, GetSensorsResponse, ReadSensorRequest, ReadSensorResponse,
+    Sensor as ProtoSensor, SensorCrudService, Signal as ProtoSignal, UpdateSensorRequest,
+    UpdateSensorResponse,
 };
 use sensor_store::{Quantity, Sensor, SensorStore as SensorStoreInner, Unit};
 use sqlx::types::BigDecimal;
@@ -115,7 +117,7 @@ fn into_sensor(sensor: ProtoSensor) -> Result<Sensor<'static>, SignalError> {
             Ok(q) => q,
             Err(_) => return Err(SignalError::QuantityParseError),
         };
-        let unit = match Unit::from_str(&signal.unit) {
+        let unit = match Unit::from_str(&signal.ingestion_unit) {
             Ok(u) => u,
             Err(_) => return Err(SignalError::UnitParseError),
         };
@@ -127,6 +129,43 @@ fn into_sensor(sensor: ProtoSensor) -> Result<Sensor<'static>, SignalError> {
 
 #[tonic::async_trait]
 impl SensorCrudService for SensorStore {
+    type GetQuantitiesAndUnitsStream = Pin<
+        Box<
+            dyn tokio_stream::Stream<Item = Result<GetQuantitiesAndUnitsResponse, Status>>
+                + Send
+                + 'static,
+        >,
+    >;
+    /// Get all supported quantities with associated units.
+    async fn get_quantities_and_units(
+        &self,
+        _request: tonic::Request<()>,
+    ) -> Result<Response<Self::GetQuantitiesAndUnitsStream>, Status> {
+        fn response_from_quantity(q: Quantity) -> GetQuantitiesAndUnitsResponse {
+            GetQuantitiesAndUnitsResponse {
+                quantity: Some(ProtoQuantity {
+                    id: q.to_string(),
+                    repr: q.to_string(),
+                }),
+                units: q
+                    .associated_units()
+                    .into_iter()
+                    .map(|u| ProtoUnit {
+                        id: u.to_string(),
+                        repr: u.to_string(),
+                    })
+                    .collect::<Vec<_>>(),
+                base_unit: q.associated_base_unit().to_string(),
+            }
+        }
+
+        Ok(tonic::Response::new(Box::pin(futures::stream::iter(
+            sensor_store::Quantity::all()
+                .into_iter()
+                .map(|q| Ok(response_from_quantity(q))),
+        ))))
+    }
+
     type GetSensorsStream = Pin<
         Box<dyn tokio_stream::Stream<Item = Result<GetSensorsResponse, Status>> + Send + 'static>,
     >;

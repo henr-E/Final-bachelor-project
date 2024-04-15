@@ -292,4 +292,38 @@ mod unit_quantity_tests {
                 .all(|s| s == unit_set || s.is_disjoint(unit_set)));
         }
     }
+
+    #[test]
+    fn quantities_string_round_trip() {
+        use std::str::FromStr;
+
+        let all_quantities = EnumSet::<Quantity>::all();
+
+        let quantities_round_trip = all_quantities
+            .iter()
+            .map(|q| q.to_string())
+            .map(|s| Quantity::from_str(&s));
+
+        let quantities_round_trip = quantities_round_trip
+            .collect::<Result<EnumSet<_>, _>>()
+            .unwrap();
+
+        assert!(quantities_round_trip == all_quantities);
+    }
+
+    #[test]
+    fn units_string_round_trip() {
+        use std::str::FromStr;
+
+        let all_units = EnumSet::<Unit>::all();
+
+        let units_round_trip = all_units
+            .iter()
+            .map(|q| q.to_string())
+            .map(|s| Unit::from_str(&s));
+
+        let units_round_trip = units_round_trip.collect::<Result<EnumSet<_>, _>>().unwrap();
+
+        assert!(units_round_trip == all_units);
+    }
 }
