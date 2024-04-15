@@ -107,8 +107,8 @@ deploy:
     - docker compose -f docker-compose.prod.yml pull
     - docker compose -f docker-compose.prod.yml up -d
   rules:
-    # Run on `prod` branch.
-    - if: $CI_COMMIT_REF_SLUG =~ /^(prod)$/
+    # Run on `dev` and `prod` branch.
+    - if: $CI_COMMIT_REF_SLUG =~ /^(dev|prod)$/
 
 deploy:remove-volumes:
   # Run the job under the `deploy` stage.
@@ -132,5 +132,5 @@ deploy:remove-volumes:
     - export IMAGE_TAG="$CI_COMMIT_REF_SLUG"
     - docker compose -f docker-compose.prod.yml up -d
   rules:
-    # Run on `prod` branch.
-    - if: $CI_COMMIT_REF_SLUG =~ /^(prod)$/
+    # Run on `dev` and `prod` branch.
+    - if: $CI_COMMIT_REF_SLUG =~ /^(dev|prod)$/
