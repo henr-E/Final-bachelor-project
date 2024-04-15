@@ -5,7 +5,6 @@ services:
   frontend:
     container_name: frontend
     image: ${DOCKER_REPOSITORY}frontend:$IMAGE_TAG
-    pull_policy: if_not_present
     command: ["/bin/frontend"]
     networks:
       - backend
@@ -19,7 +18,6 @@ services:
   ui-backend:
     restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    pull_policy: if_not_present
     command: ["/bin/ui-backend"]
     networks:
       - backend
@@ -45,7 +43,6 @@ services:
 
   simulation-manager:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    pull_policy: if_not_present
     command: ["/bin/simulation-manager"]
     networks:
       - backend
@@ -64,7 +61,6 @@ services:
       - DATABASE_PASSWORD
 
   simulator-time:
-    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/time-simulator"]
     networks:
@@ -75,35 +71,32 @@ services:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       TIME_SIMULATOR_ADDR: 0.0.0.0:8101
 
-  simulator-energy-supply-and-demand:
-    pull_policy: if_not_present
-    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/energy-supply-and-demand-simulator"]
-    networks:
-      - backend
-    depends_on:
-      - simulation-manager
-    environment:
-      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
-      ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
+  # simulator-energy-supply-and-demand:
+  #   image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+  #   command: ["/bin/energy-supply-and-demand-simulator"]
+  #   networks:
+  #     - backend
+  #   depends_on:
+  #     - simulation-manager
+  #   environment:
+  #     SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
+  #     ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
 
-  simulator-energy-transmission:
-    pull_policy: if_not_present
-    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/energy-simulator"]
-    networks:
-      - backend
-    depends_on:
-      - simulation-manager
-    environment:
-      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
-      ENERGY_SIMULATOR_ADDR: 0.0.0.0:8101
+  # simulator-energy-transmission:
+  #   image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+  #   command: ["/bin/energy-simulator"]
+  #   networks:
+  #     - backend
+  #   depends_on:
+  #     - simulation-manager
+  #   environment:
+  #     SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
+  #     ENERGY_SIMULATOR_ADDR: 0.0.0.0:8101
 
   # SENSOR DATA
   # ===========
 
   sensor-data-ingestor:
-    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-ingestor"]
     networks:
@@ -121,7 +114,6 @@ services:
       - DATABASE_PASSWORD
 
   sensor-data-transformer:
-    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-transformer"]
     networks:
@@ -138,7 +130,6 @@ services:
       - DATABASE_PASSWORD
 
   sensor-data-generator:
-    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-generator"]
     networks:
@@ -159,7 +150,6 @@ services:
   # ==============
 
   database-migrator:
-    pull_policy: if_not_present
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/database-migrator"]
     networks:
