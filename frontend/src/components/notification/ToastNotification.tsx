@@ -5,7 +5,7 @@ import {Browser} from "leaflet";
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
-function ToastNotification(type: ToastType, message: string): void {
+function ToastNotification(type: ToastType, message: string, onClickAction:  () => void = () => {}): void {
     const options = {
         duration: 4000, // Equivalent to autoClose
         // React Hot Toast does not use a hideProgressBar option; progress bars are not a built-in feature
@@ -17,7 +17,7 @@ function ToastNotification(type: ToastType, message: string): void {
 
     switch (type) {
         case 'success':
-            toast(message, {...options, style: {background: '#80D05A', color: '#fff'}}); // Custom styling for warning; adjust as needed
+            toast(<div onClick={onClickAction}>{message}</div>, {...options, style: {background: '#80D05A', color: '#fff'}}); // Custom styling for warning; adjust as needed
             break;
         case 'error':
             toast(message, {...options, style: {background: '#EC5A53', color: '#fff'}}); // Custom styling for warning; adjust as needed

@@ -9,23 +9,34 @@ import {LineItem, MapItemType, NodeItem} from "@/components/maps/MapItem";
 import {Edge, Graph, Node, State} from "@/proto/simulation/simulation";
 import ToastNotification from '@/components/notification/ToastNotification';
 import {BackendCreateSimulation, BackendGetSimulations} from "@/api/simulation/crud";
+import {useRouter} from "next/navigation";
 
 interface CreateSimulationModalProps {
     isModalOpen: boolean;
     closeModal: () => void;
+    title?: string;
+    startDate?: Date;
+    endDate?: Date;
+    startTime?: string;
+    endTime?: string;
+    timeStepDelta?: number;
+    globalComponents?: string;
+    initialNodes?: Map<number, NodeItem>;
+    initialEdges?: Array<LineItem>;
 }
 
-function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalProps) {
+function CreateSimulationModal(propItems: CreateSimulationModalProps) {
     const [twinState, dispatchTwin] = useContext(TwinContext);
-    const [name, setName] = useState<string>("");
-    const [startDate, setStartDate] = useState<Date>(new Date(Date.now()));
-    const [endDate, setEndDate] = useState<Date>(new Date(Date.now()));
-    const [startTime, setStartTime] = useState<string>("");
-    const [endTime, setEndTime] = useState<string>("");
-    const [timeStepDelta, setTimeStepDelta] = useState<number>(0);
-    const [globalComponents, setGlobalComponents] = useState("{}");
+    const [name, setName] = useState<string>(propItems.title || "");
+    const [startDate, setStartDate] = useState<Date>(propItems.startDate || new Date(Date.now()));
+    const [endDate, setEndDate] = useState<Date>(propItems.endDate || new Date(Date.now()));
+    const [startTime, setStartTime] = useState<string>(propItems.startTime || "");
+    const [endTime, setEndTime] = useState<string>(propItems.endTime ||"");
+    const [timeStepDelta, setTimeStepDelta] = useState<number>(propItems.timeStepDelta || 0);
+    const [globalComponents, setGlobalComponents] = useState(propItems.globalComponents || "{\"global_time\": {\"unix_timestamp_millis\": 1000} }");
     const [step, setStep] = useState<number>(0);
-    const mapItemsRef = useRef<Array<MapItemType>>();
+    const nodeItemsRef = useRef<Map<number, NodeItem>>();
+    const edgeItemsRef = useRef<Array<LineItem>>();
 
     const formRef = useRef<HTMLFormElement>(null);
 
@@ -40,31 +51,33 @@ function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalP
 
         //Convert map edges and nodes to simulation edges and nodes
         let nodes = new Array<Node>();
-        let edges = new Array<Edge>();
-        mapItemsRef.current?.map(item => {
-            if (item.type == 3) {
-                let lineItem = item as LineItem;
-                edges.push(Edge.create({
-                    id: lineItem.id,
-                    from: lineItem.items[0].id,
-                    // @ts-ignore
-                    to: lineItem.items[1].id,
-                    componentType: "Edge",
-                    componentData: lineItem.components,
-                }));
-                return;
-            }
+        Array.from(nodeItemsRef.current?.values()? nodeItemsRef.current?.values():[]).map(item => {
             let markerItem = item as NodeItem;
             nodes.push(Node.create({
                 components: markerItem.components,
                 id: item.id,
                 // @ts-ignore
-                longitude: markerItem.location.lng,
+                longitude: markerItem.location[1],
                 // @ts-ignore
-                latitude: markerItem.location.lat,
+                latitude: markerItem.location[0],
             }))
 
         });
+
+        let edges = new Array<Edge>();
+       edgeItemsRef.current?.map(item => {
+            let lineItem = item as LineItem;
+            edges.push(Edge.create({
+                id: lineItem.id,
+                from: lineItem.items[0].id,
+                // @ts-ignore
+                to: lineItem.items[1].id,
+                componentType: "Edge",
+                componentData: lineItem.components,
+            }));
+            return
+        });
+
         if (!twinState.current) {
             ToastNotification('error', 'Select a twin');
             return;
@@ -72,6 +85,8 @@ function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalP
 
         let globalComponentsObject: {} = JSON.parse(globalComponents);
 
+        console.log(nodes);
+        console.log(edges);
         const twin: CreateSimulationParams = {
             name: name,
             twinId: twinState.current?.id.toString(),
@@ -95,21 +110,21 @@ function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalP
             ToastNotification('success', `Simulation \"${name}\" is created`);
             let simulations = await BackendGetSimulations(String(twinState.current?.id));
             dispatchTwin({type: "load_simulations", simulations: simulations.item})
-            closeModal();
+            propItems.closeModal();
         }
     };
 
 
     const closeModelAndReset = () => {
         setStep(0);
-        setName('');
-        setStartDate(new Date());
-        setEndDate(new Date());
-        setStartTime("00:00:00");
-        setEndTime("00:00:00");
-        setTimeStepDelta(1);
-        setGlobalComponents("{}");
-        closeModal();
+        setName(propItems.title || '');
+        setStartDate(propItems.startDate || new Date());
+        setEndDate(propItems.endDate ||new Date());
+        setStartTime(propItems.startTime ||"00:00:00");
+        setEndTime(propItems.endTime||"00:00:00");
+        setTimeStepDelta(propItems.timeStepDelta || 1);
+        setGlobalComponents(propItems.globalComponents ||"{}");
+        propItems.closeModal();
     };
 
     const handleCancelButtonClick = () => {
@@ -164,7 +179,7 @@ function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalP
 
     return (<>
         <Modal
-            show={isModalOpen}
+            show={propItems.isModalOpen}
             onClose={closeModelAndReset}
             size={step === 0 ? 'xl' : ''}
             className='flex flex-row'
@@ -206,7 +221,7 @@ function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalP
                                     <div className="mb-2 block">
                                         <Label htmlFor="startdate" value="Start date"/>
                                     </div>
-                                    <Datepicker id="startdate" style={{zIndex: 50}} required
+                                    <Datepicker id="startdate" style={{zIndex: 50}} defaultDate={startDate} required
                                                 onSelectedDateChanged={(date) => setStartDate(date)}/>
                                 </div>
                             </div>
@@ -224,7 +239,7 @@ function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalP
                                     <div className="mb-2 block">
                                         <Label htmlFor="enddate" value="End date"/>
                                     </div>
-                                    <Datepicker id="enddate" style={{zIndex: 50}} required
+                                    <Datepicker id="enddate" style={{zIndex: 50}} defaultDate={endDate} required
                                                 onSelectedDateChanged={(date) => setEndDate(date)}/>
                                 </div>
                             </div>
@@ -253,7 +268,7 @@ function CreateSimulationModal({isModalOpen, closeModal}: CreateSimulationModalP
                     <Modal.Body>
                         <div className="h-screen w-full">
                             <div style={{height: "65%"}}>
-                                <MapEditor mapItemRef={mapItemsRef} noBuildings={true}></MapEditor>
+                                <MapEditor nodeItemRef={nodeItemsRef} edgeItemRef={edgeItemsRef} initialNodes={propItems.initialNodes} initialEdges={propItems.initialEdges}></MapEditor>
                             </div>
                         </div>
                     </Modal.Body>
