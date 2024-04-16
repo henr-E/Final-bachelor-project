@@ -82,6 +82,7 @@
               [
                 pkg-config
                 protobuf
+                fontconfig
               ]
               ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
                 darwin.apple_sdk.frameworks.SystemConfiguration

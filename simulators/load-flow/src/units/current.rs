@@ -9,6 +9,7 @@ pub struct Current {
     pub angle: f64,
 }
 
+#[allow(dead_code)]
 impl Current {
     /// Creates a new instance of `Current` with given magnitude and angle.
     pub fn new(magnitude: f64, angle: f64) -> Self {
@@ -22,5 +23,22 @@ impl Current {
             magnitude: complex.norm(), // Magnitude of the complex number.
             angle: complex.arg(),      // Angle of the complex number in radians.
         }
+    }
+    /// Converts the current to a complex number representation.
+    pub fn to_complex(self) -> Complex<f64> {
+        Complex::new(
+            self.magnitude * self.angle.cos(),
+            self.magnitude * self.angle.sin(),
+        )
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_new() {
+        let current = Current::new(1.0, 0.0);
+        assert_eq!(current.magnitude, 1.0);
+        assert_eq!(current.angle, 0.0);
     }
 }
