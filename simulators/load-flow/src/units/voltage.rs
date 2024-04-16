@@ -1,7 +1,7 @@
 use num_complex::Complex;
 
 /// Electrical potential difference between two points, driving the flow of electric current
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, PartialOrd)]
 pub struct Voltage {
     /// Amplitude (|V|) in volts (V), the RMS value indicating the effective voltage level.
     pub amplitude: f64,

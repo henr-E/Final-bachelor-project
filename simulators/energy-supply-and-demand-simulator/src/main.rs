@@ -1,4 +1,4 @@
-use component_library::energy::{EnergyConsumerNode, EnergyProducerNode};
+use component_library::energy::{ConsumerNode, ProducerNode};
 use component_library::global::chrono::{NaiveDateTime, Timelike};
 use component_library::global::{TemperatureComponent, TimeComponent};
 use rand::prelude::*;
@@ -46,12 +46,10 @@ pub struct EnergySupplyAndDemandSimulator {
 impl Simulator for EnergySupplyAndDemandSimulator {
     fn get_component_info() -> ComponentsInfo {
         ComponentsInfo::new()
-            .add_required_component::<EnergyConsumerNode>()
-            .add_required_component::<EnergyProducerNode>()
             .add_optional_component::<TimeComponent>()
             .add_optional_component::<TemperatureComponent>()
-            .add_output_component::<EnergyConsumerNode>()
-            .add_output_component::<EnergyProducerNode>()
+            .add_output_component::<ConsumerNode>()
+            .add_output_component::<ProducerNode>()
     }
 
     fn new(delta_time: std::time::Duration, _graph: Graph) -> Self {
@@ -80,21 +78,22 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         let temp_effect = (current_temp - 17.5).abs();
         let target_demand = 100.0 + temp_effect * 10.0 * time_effect;
 
-        for (_, _, component) in graph.get_all_nodes_mut::<EnergyConsumerNode>().unwrap() {
-            let current_demand = component.demand;
+        for (_, _, component) in graph.get_all_nodes_mut::<ConsumerNode>().unwrap() {
+            let current_demand = component.active_power;
             let adjustment = rand::thread_rng().gen_range(-0.01..0.05);
             let delta_demand =
                 (target_demand - current_demand) * adjustment * self.delta_time.as_secs() as f64;
             let mut rng = rand::thread_rng();
             let direction_factor = if rng.gen_bool(0.1) { -1.0 } else { 1.0 };
-            component.demand = (current_demand + delta_demand * direction_factor).clamp(0.0, 500.0)
+            component.active_power =
+                (current_demand + delta_demand * direction_factor).clamp(0.0, 500.0)
         }
 
-        for (_, _, component) in graph.get_all_nodes_mut::<EnergyProducerNode>().unwrap() {
-            let current_capacity = component.capacity;
+        for (_, _, component) in graph.get_all_nodes_mut::<ProducerNode>().unwrap() {
+            let current_capacity = component.active_power;
             let delta_capacity =
                 rand::thread_rng().gen_range(-50.0..50.0) * self.delta_time.as_secs() as f64;
-            component.capacity = (current_capacity + delta_capacity).clamp(1000.0, 2000.0)
+            component.active_power = (current_capacity + delta_capacity).clamp(1000.0, 2000.0)
         }
         graph
     }

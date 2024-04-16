@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 component-library.workspace = true
 dotenvy = "0.15.7"
-noise = "0.7.0"
+noise = "0.9.0"
 simulator-communication.workspace = true
 tokio = { version = "1.36.0", features = ["rt", "tracing", "macros"] }
 tracing = "0.1.40"
