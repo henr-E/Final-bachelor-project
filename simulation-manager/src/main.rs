@@ -26,8 +26,8 @@ pub mod runner;
 /// Main function that spawns runner and manager to handle requests for new simulations and
 /// manage currently running simulations
 ///
-/// First this function sets up its needed databse connection based on the values provided in .env
-/// Then the runner is set up on a seperate thread
+/// First this function sets up its needed database connection based on the values provided in .env
+/// Then the runner is set up on a separate thread
 /// Lastly the manager will be setup on its own thread to handle requests from the frontend.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

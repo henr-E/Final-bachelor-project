@@ -200,7 +200,6 @@ impl Runner {
         let guard = self.simulators.lock().await;
         let simulators = guard.clone();
         drop(guard);
-
         for i in 0..iterations {
             // parallel execution of the simulators in the simulation for the current time step
             let results = future::join_all(

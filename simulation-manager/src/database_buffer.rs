@@ -31,7 +31,7 @@ impl DatabaseBuffer {
     }
 
     /// Start the infinite loop in which the database buffer will check if new messages have arrived
-    /// on the async channel.
+    /// at the async channel.
     /// If there is a new message it will process the timeframe by writing all nodes, node components,
     /// edges and global components to the database. While writing all the different parts of the state
     /// to the database it keeps track of which nodes, edges and components were returned. If this does

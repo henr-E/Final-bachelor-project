@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use sqlx::PgPool;
@@ -66,18 +65,7 @@ impl SimulationManager for Manager {
             for (key, value) in response_components {
                 components.components.insert(key, value);
             }
-            let mut temp = HashMap::default();
-            for (key, value) in components.components {
-                // entry is more efficient, says clippy
-                // if temp doesn't contain key, insert value
-                if let std::collections::hash_map::Entry::Vacant(e) = temp.entry(key) {
-                    e.insert(value);
-                    break;
-                };
-            }
-            components.components = temp;
         }
-
         Ok(Response::new(components))
     }
 
@@ -145,7 +133,6 @@ impl SimulationManager for Manager {
 
         //place simulation id in queue
         db.enqueue(simulation_index).await.unwrap();
-
         // Store graph in database
         for node in nodes {
             db.add_node(node, simulation_index, 0).await.unwrap();
@@ -158,7 +145,6 @@ impl SimulationManager for Manager {
                 .await
                 .unwrap();
         }
-
         // Commit transaction
         db.commit().await.unwrap();
         self.notif_sender.try_send(()).ok();
