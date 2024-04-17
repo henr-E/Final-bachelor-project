@@ -1,19 +1,16 @@
-'use client'
-import React, {createContext, useContext, useEffect, useReducer, useState} from 'react';
-import {TwinContext} from "@/store/twins";
-import {Simulation} from "@/proto/simulation/frontend";
+'use client';
+import React, { createContext, useContext, useEffect, useReducer, useState } from 'react';
+import { TwinContext } from '@/store/twins';
+import { Simulation } from '@/proto/simulation/frontend';
 
-interface SimulationState {
-}
+interface SimulationState {}
 
 interface DeleteSimulationAction {
     type: 'delete_simulation';
     simulationId: string;
 }
 
-type SimulationAction =
-    | DeleteSimulationAction;
-
+type SimulationAction = DeleteSimulationAction;
 
 function reducer(state: SimulationState, action: SimulationAction): SimulationState {
     switch (action.type) {
@@ -28,19 +25,18 @@ function reducer(state: SimulationState, action: SimulationAction): SimulationSt
     }
 }
 
-
 const SimulationContext = createContext<
-    [{state: SimulationState }, React.Dispatch<SimulationAction>]>([{state: () => {}}, async () => {}]);
+    [{ state: SimulationState }, React.Dispatch<SimulationAction>]
+>([{ state: () => {} }, async () => {}]);
 
-
-function SimulationProvider({children}: { children: React.ReactNode }) {
+function SimulationProvider({ children }: { children: React.ReactNode }) {
     const [state, dispatch] = useReducer(reducer, {});
 
     return (
-        <SimulationContext.Provider value={[{state: state}, dispatch]}>
+        <SimulationContext.Provider value={[{ state: state }, dispatch]}>
             {children}
         </SimulationContext.Provider>
     );
 }
 
-export {SimulationProvider, SimulationContext};
+export { SimulationProvider, SimulationContext };

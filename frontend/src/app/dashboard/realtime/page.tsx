@@ -1,8 +1,8 @@
 'use client';
-import {PredictionMapProps} from "@/components/maps/PredictionMap";
-import {useContext} from "react";
-import {TwinContext} from "@/store/twins";
-import dynamic from "next/dynamic";
+import { PredictionMapProps } from '@/components/maps/PredictionMap';
+import { useContext } from 'react';
+import { TwinContext } from '@/store/twins';
+import dynamic from 'next/dynamic';
 
 const PredictionMapImport = dynamic<PredictionMapProps>(
     () => import('@/components/maps/PredictionMap'),
@@ -18,7 +18,7 @@ function RealTimePage() {
 
     return (
         <>
-            <PredictionMapImport twin={twinState.current}/>
+            <PredictionMapImport twin={twinState.current} />
         </>
     );
 }

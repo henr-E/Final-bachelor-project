@@ -1,8 +1,7 @@
 'use client';
 
-
-import {Alert, Button, Modal} from 'flowbite-react';
-import {Sensor} from "@/proto/sensor/sensor-crud";
+import { Alert, Button, Modal } from 'flowbite-react';
+import { Sensor } from '@/proto/sensor/sensor-crud';
 
 interface DeleteMultipleSensorsModalProps {
     isModalOpen: boolean;
@@ -11,7 +10,12 @@ interface DeleteMultipleSensorsModalProps {
     closeModal: () => void;
 }
 
-function DeleteMultipleSensorsModal({isModalOpen, sensors, closeModal, confirm}: DeleteMultipleSensorsModalProps) {
+function DeleteMultipleSensorsModal({
+    isModalOpen,
+    sensors,
+    closeModal,
+    confirm,
+}: DeleteMultipleSensorsModalProps) {
     const handleConfirmButtonClick = () => {
         confirm();
         closeModal();

@@ -95,7 +95,7 @@ interface QuantityWithUnits {
     baseUnit: string;
 }
 
-interface SensorState { }
+interface SensorState {}
 
 interface DeleteSensorAction {
     type: 'delete_sensor';
@@ -118,8 +118,8 @@ function reducer(state: SensorState, action: SensorAction): SensorState {
 }
 
 const SensorContext = createContext<[{ state: SensorState }, React.Dispatch<SensorAction>]>([
-    { state: () => { } },
-    async () => { },
+    { state: () => {} },
+    async () => {},
 ]);
 
 function SensorProvider({ children }: { children: React.ReactNode }) {

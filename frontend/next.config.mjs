@@ -5,8 +5,8 @@ const nextConfig = {
         {
             source: '/dashboard',
             destination: '/dashboard/overview',
-            permanent: false
-        }
+            permanent: false,
+        },
     ],
     output: 'standalone',
 };

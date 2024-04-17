@@ -1,21 +1,21 @@
 'use client';
 import 'leaflet/dist/leaflet.css';
-import {LatLngExpression, LeafletEventHandlerFnMap} from 'leaflet'
+import { LatLngExpression, LeafletEventHandlerFnMap } from 'leaflet';
 
 export enum MapItems {
     TransformerHouse,
     Turbine,
     Line,
     Building,
-    None
+    None,
 }
 
 export const iconPaths = {
-    [MapItems.TransformerHouse]: "/icons/home-lightning-bolt-outline.svg",
-    [MapItems.Turbine]: "/icons/wind-turbine.svg",
-    [MapItems.Line]: "/icons/transit-connection-horizontal.svg",
-    [MapItems.Building]: "",
-}
+    [MapItems.TransformerHouse]: '/icons/home-lightning-bolt-outline.svg',
+    [MapItems.Turbine]: '/icons/wind-turbine.svg',
+    [MapItems.Line]: '/icons/transit-connection-horizontal.svg',
+    [MapItems.Building]: '',
+};
 
 export interface MapItemType {
     name: string;
@@ -30,7 +30,7 @@ export interface NodeItem extends MapItemType {
     location: LatLngExpression;
 }
 
-export interface LineItem extends MapItemType{
+export interface LineItem extends MapItemType {
     items: Array<NodeItem>;
 }
 

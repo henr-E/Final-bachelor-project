@@ -1,12 +1,12 @@
 'use client';
 
-import {Button, Label, Modal, TextInput} from 'flowbite-react';
+import { Button, Label, Modal, TextInput } from 'flowbite-react';
 
-import {useState} from 'react';
-import {register} from '@/lib/authentication';
-import {FaUser} from 'react-icons/fa';
-import {RiLockPasswordFill} from 'react-icons/ri';
-import {removeCookie} from 'typescript-cookie';
+import { useState } from 'react';
+import { register } from '@/lib/authentication';
+import { FaUser } from 'react-icons/fa';
+import { RiLockPasswordFill } from 'react-icons/ri';
+import { removeCookie } from 'typescript-cookie';
 import ToastNotification from '@/components/notification/ToastNotification';
 
 interface RegisterModalProps {
@@ -14,7 +14,7 @@ interface RegisterModalProps {
     closeRegisterModal: () => void;
 }
 
-export function RegisterModal({isRegisterModalOpen, closeRegisterModal}: RegisterModalProps) {
+export function RegisterModal({ isRegisterModalOpen, closeRegisterModal }: RegisterModalProps) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -95,7 +95,7 @@ export function RegisterModal({isRegisterModalOpen, closeRegisterModal}: Registe
                     <Modal.Body>
                         <div>
                             <div className='mb-2 block'>
-                                <Label htmlFor='username' value='Your username'/>
+                                <Label htmlFor='username' value='Your username' />
                             </div>
                             <TextInput
                                 id='name'
@@ -105,12 +105,12 @@ export function RegisterModal({isRegisterModalOpen, closeRegisterModal}: Registe
                                 placeholder='username'
                                 required
                                 onChange={e => setUsername(e.target.value)}
-                                style={{marginBottom: '4px'}}
+                                style={{ marginBottom: '4px' }}
                             />
                         </div>
                         <div>
                             <div className='mb-2 block'>
-                                <Label htmlFor='password' value='Your password'/>
+                                <Label htmlFor='password' value='Your password' />
                             </div>
                             <TextInput
                                 id='password'
@@ -120,12 +120,12 @@ export function RegisterModal({isRegisterModalOpen, closeRegisterModal}: Registe
                                 placeholder='password'
                                 required
                                 onChange={e => setPassword(e.target.value)}
-                                style={{marginBottom: '4px'}}
+                                style={{ marginBottom: '4px' }}
                             />
                         </div>
                         <div>
                             <div className='mb-2 block'>
-                                <Label htmlFor='password' value='Repeat password'/>
+                                <Label htmlFor='password' value='Repeat password' />
                             </div>
                             <TextInput
                                 id='confirm password'
@@ -137,7 +137,7 @@ export function RegisterModal({isRegisterModalOpen, closeRegisterModal}: Registe
                                 onChange={e => {
                                     setConfirmPassword(e.target.value);
                                 }}
-                                style={{marginBottom: '4px'}}
+                                style={{ marginBottom: '4px' }}
                             />
                         </div>
                     </Modal.Body>

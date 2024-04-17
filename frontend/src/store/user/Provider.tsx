@@ -1,4 +1,4 @@
-'use client'
+'use client';
 import React, { createContext, useReducer } from 'react';
 
 // TODO: replace with auto-gen interface from backend protobuffers

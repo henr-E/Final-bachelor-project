@@ -1,7 +1,7 @@
 'use client';
 
-import {Alert, Button, Modal} from 'flowbite-react';
-import {Sensor} from "@/proto/sensor/sensor-crud";
+import { Alert, Button, Modal } from 'flowbite-react';
+import { Sensor } from '@/proto/sensor/sensor-crud';
 
 interface DeleteSensorModalProps {
     isModalOpen: boolean;
@@ -10,7 +10,7 @@ interface DeleteSensorModalProps {
     cancel: () => void;
 }
 
-function DeleteSensorModal({isModalOpen, sensor, cancel, confirm}: DeleteSensorModalProps) {
+function DeleteSensorModal({ isModalOpen, sensor, cancel, confirm }: DeleteSensorModalProps) {
     if (!sensor) {
         return <></>;
     }

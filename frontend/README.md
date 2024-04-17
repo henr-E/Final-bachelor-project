@@ -3,9 +3,13 @@
 ## before running the project
 
 ### env file
+
 ## in root:
+
 rename `.env.example` to `.env`
+
 ## in frontend directory:
+
 rename `.env.copy` to `.env` and set `NEXT_PUBLIC_GEO_SERVICE_URL=http://127.0.0.1:8081`
 
 ## Running the project
@@ -13,7 +17,7 @@ rename `.env.copy` to `.env` and set `NEXT_PUBLIC_GEO_SERVICE_URL=http://127.0.0
 #### in the root directory run:
 
 ```
-docker compose down --volumes 
+docker compose down --volumes
 cargo clean
 tools/generate-secrets.sh
 docker compose up (for linux,... users)
@@ -27,12 +31,14 @@ cargo run --bin ui-backend
 ```
 
 #### in the frontend directory run:
+
 ```
 yarn install
 yarn proto
 yarn run build
 yarn run dev
 ```
+
 docker might not have a connection with the backend yet, so you should try to refresh.
 
 ### problems
@@ -43,13 +49,15 @@ error: ./build-proto.sh: Bad substitution
 
 there are two possible solutions:
 
-1) install bash
-`sudo apt-get install bash` for linux or `brew install bash` for macos
-2) open the build-proto.sh file and comment the following lines out:
+1. install bash
+   `sudo apt-get install bash` for linux or `brew install bash` for macos
+2. open the build-proto.sh file and comment the following lines out:
+
 ```
 #! /bin/sh
 #! /usr/bin/env bash
 ```
+
 #### docker problems:
 
 if you get following error:

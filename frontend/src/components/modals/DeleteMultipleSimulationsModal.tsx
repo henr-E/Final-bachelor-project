@@ -1,8 +1,7 @@
 'use client';
 
-
-import {Alert, Button, Modal} from 'flowbite-react';
-import {Simulation} from "@/proto/simulation/frontend";
+import { Alert, Button, Modal } from 'flowbite-react';
+import { Simulation } from '@/proto/simulation/frontend';
 
 interface DeleteMultipleSimulationsModalProps {
     isModalOpen: boolean;
@@ -12,11 +11,11 @@ interface DeleteMultipleSimulationsModalProps {
 }
 
 function DeleteMultipleSimulationsModal({
-                                            isModalOpen,
-                                            simulations,
-                                            closeModal,
-                                            confirm
-                                        }: DeleteMultipleSimulationsModalProps) {
+    isModalOpen,
+    simulations,
+    closeModal,
+    confirm,
+}: DeleteMultipleSimulationsModalProps) {
     const handleConfirmButtonClick = () => {
         confirm();
         closeModal();
@@ -40,7 +39,8 @@ function DeleteMultipleSimulationsModal({
                 </div>
                 <Alert color='warning' rounded>
                     <span>
-                        Warning: all data associated with these simulations will be permanently lost.
+                        Warning: all data associated with these simulations will be permanently
+                        lost.
                     </span>
                 </Alert>
             </Modal.Body>
