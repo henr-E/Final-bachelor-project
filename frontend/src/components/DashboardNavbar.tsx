@@ -3,8 +3,8 @@
 import { TwinFromProvider, TwinContext } from '@/store/twins';
 import { Navbar, Dropdown, DropdownItem, Button } from 'flowbite-react';
 import { useContext } from 'react';
-import {useRouter} from "next/navigation";
-import ToastNotification from "@/components/notification/ToastNotification";
+import { useRouter } from 'next/navigation';
+import ToastNotification from '@/components/notification/ToastNotification';
 
 interface DashboardNavbarProps {
     openCreateTwinModal: () => void;
@@ -15,12 +15,11 @@ function DashboardNavbar({ openCreateTwinModal }: DashboardNavbarProps) {
     const router = useRouter();
 
     const onTwinSelect = (twin: TwinFromProvider) => {
-        if(twinState.current?.id != twin.id){
-            localStorage.setItem("selectedTwinID", String(twin.id));
+        if (twinState.current?.id != twin.id) {
+            localStorage.setItem('selectedTwinID', String(twin.id));
             dispatch({ type: 'switch_twin', twin: twin });
-        }
-        else{
-            ToastNotification("info", "This twin is already selected.")
+        } else {
+            ToastNotification('info', 'This twin is already selected.');
         }
     };
 
@@ -54,19 +53,19 @@ function DashboardNavbar({ openCreateTwinModal }: DashboardNavbarProps) {
                 {
                     <DropdownItem
                         onClick={handleCreateTwinButtonClick}
-                        key="create-twin"
+                        key='create-twin'
                         style={{
-                            display: "block",
-                            width: "100%",
-                            padding: "0.5rem 1rem",
-                            textAlign: "center",
-                            backgroundColor: "transparent",
-                            color: "#6366f1",
-                            borderRadius: "0.375rem",
-                            borderWidth: "1px",
-                            borderColor: "#6366f1",
-                            cursor: "pointer",
-                            outline: "none",
+                            display: 'block',
+                            width: '100%',
+                            padding: '0.5rem 1rem',
+                            textAlign: 'center',
+                            backgroundColor: 'transparent',
+                            color: '#6366f1',
+                            borderRadius: '0.375rem',
+                            borderWidth: '1px',
+                            borderColor: '#6366f1',
+                            cursor: 'pointer',
+                            outline: 'none',
                         }}
                     >
                         Create Twin

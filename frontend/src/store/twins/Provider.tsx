@@ -1,15 +1,15 @@
 'use client';
-import React, {createContext, useEffect, useReducer} from "react";
-import {createChannel, createClient} from "nice-grpc-web";
-import {twinObject, TwinServiceDefinition} from '@/proto/twins/twin';
-import {uiBackendServiceUrl} from "@/api/urls";
-import ToastNotification from "@/components/notification/ToastNotification";
-import {BackendGetTwins} from "@/api/twins/crud"
-import {BackendGetSimulations} from "@/api/simulation/crud";
-import {BackendGetSensors} from "@/api/sensor/crud";
-import {Sensor} from "@/proto/sensor/sensor-crud";
-import {Simulation} from "@/proto/simulation/frontend";
-import {useRouter} from "next/navigation";
+import React, { createContext, useEffect, useReducer } from 'react';
+import { createChannel, createClient } from 'nice-grpc-web';
+import { twinObject, TwinServiceDefinition } from '@/proto/twins/twin';
+import { uiBackendServiceUrl } from '@/api/urls';
+import ToastNotification from '@/components/notification/ToastNotification';
+import { BackendGetTwins } from '@/api/twins/crud';
+import { BackendGetSimulations } from '@/api/simulation/crud';
+import { BackendGetSensors } from '@/api/sensor/crud';
+import { Sensor } from '@/proto/sensor/sensor-crud';
+import { Simulation } from '@/proto/simulation/frontend';
+import { useRouter } from 'next/navigation';
 
 interface TwinFromProvider {
     id: number;
@@ -53,7 +53,12 @@ interface LoadSensorsAction {
     sensors: Sensor[];
 }
 
-type TwinAction = SwitchTwinAction | LoadTwinsAction | CreateTwin | LoadSimulationsAction | LoadSensorsAction;
+type TwinAction =
+    | SwitchTwinAction
+    | LoadTwinsAction
+    | CreateTwin
+    | LoadSimulationsAction
+    | LoadSensorsAction;
 
 function reducer(state: TwinState, action: TwinAction): TwinState {
     switch (action.type) {
@@ -79,7 +84,7 @@ function reducer(state: TwinState, action: TwinAction): TwinState {
         }
         case 'load_simulations': {
             if (!state.current) {
-                console.error("Cannot load simulations: current twin is undefined.");
+                console.error('Cannot load simulations: current twin is undefined.');
                 return state;
             }
 
@@ -93,7 +98,7 @@ function reducer(state: TwinState, action: TwinAction): TwinState {
         }
         case 'load_sensors': {
             if (!state.current) {
-                console.error("Cannot load sensors: current twin is undefined.");
+                console.error('Cannot load sensors: current twin is undefined.');
                 return state;
             }
 
@@ -117,14 +122,12 @@ const initialState: TwinState = {
     twins: [],
 };
 
-
 const TwinContext = createContext<[TwinState, React.Dispatch<TwinAction>]>([
     initialState,
-    () => {
-    },
+    () => {},
 ]);
 
-function TwinProvider({children}: { children: React.ReactNode }) {
+function TwinProvider({ children }: { children: React.ReactNode }) {
     const [state, dispatchTwin] = useReducer(reducer, initialState);
     const router = useRouter();
 
@@ -141,18 +144,18 @@ function TwinProvider({children}: { children: React.ReactNode }) {
                     sensors: [],
                     simulations: [],
                     creation_date_time: twinObj.creationDateTime,
-                    simulation_amount: twinObj.simulationAmount
+                    simulation_amount: twinObj.simulationAmount,
                 }));
 
                 if (twinsFromBackend.length > 0) {
                     // Load all twins into the state
-                    dispatchTwin({type: 'load_twins', twins: twinsFromBackend});
+                    dispatchTwin({ type: 'load_twins', twins: twinsFromBackend });
                     // Set the current twin to the first twin from the list
-                    dispatchTwin({type: 'switch_twin', twin: twinsFromBackend[0]});
-                    ToastNotification("info", "All twins are being loaded.")
+                    dispatchTwin({ type: 'switch_twin', twin: twinsFromBackend[0] });
+                    ToastNotification('info', 'All twins are being loaded.');
                 } else {
                     // Optionally handle the case where no twins are returned
-                    ToastNotification("info", "No twins found.");
+                    ToastNotification('info', 'No twins found.');
                 }
             }
         }
@@ -164,15 +167,15 @@ function TwinProvider({children}: { children: React.ReactNode }) {
         const currentId = state.current?.id;
         if (currentId) {
             const fetchSimulations = async () => {
-                ToastNotification("info", "loading all simulations")
+                ToastNotification('info', 'loading all simulations');
                 const simulationsResult = await BackendGetSimulations(String(currentId));
-                dispatchTwin({type: 'load_simulations', simulations: simulationsResult.item});
+                dispatchTwin({ type: 'load_simulations', simulations: simulationsResult.item });
             };
 
             const fetchSensors = async () => {
-                ToastNotification("info", "loading all sensors")
+                ToastNotification('info', 'loading all sensors');
                 const sensorsResult = await BackendGetSensors(currentId);
-                dispatchTwin({type: 'load_sensors', sensors: sensorsResult});
+                dispatchTwin({ type: 'load_sensors', sensors: sensorsResult });
             };
 
             fetchSimulations();
@@ -181,12 +184,7 @@ function TwinProvider({children}: { children: React.ReactNode }) {
         // eslint-disable-next-line
     }, [state.current?.id]);
 
-
-    return (
-        <TwinContext.Provider value={[state, dispatchTwin]}>
-            {children}
-        </TwinContext.Provider>
-    );
+    return <TwinContext.Provider value={[state, dispatchTwin]}>{children}</TwinContext.Provider>;
 }
 
-export {type TwinFromProvider, TwinProvider, TwinContext};
+export { type TwinFromProvider, TwinProvider, TwinContext };

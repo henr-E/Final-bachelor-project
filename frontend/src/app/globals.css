@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-rgb: 230, 230, 230;
+    --foreground-rgb: 0, 0, 0;
+    --background-rgb: 230, 230, 230;
 }
 
 /*
@@ -18,16 +18,14 @@
 }*/
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: rgb(var(--background-rgb));
-  width: 100vw;
-  height: 100vh;
+    color: rgb(var(--foreground-rgb));
+    background: rgb(var(--background-rgb));
+    width: 100vw;
+    height: 100vh;
 }
 
-
-
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+    .text-balance {
+        text-wrap: balance;
+    }
 }

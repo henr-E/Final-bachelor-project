@@ -1,8 +1,7 @@
 'use client';
 
-import {Alert, Button, Modal} from 'flowbite-react';
-import {Simulation} from "@/proto/simulation/frontend";
-
+import { Alert, Button, Modal } from 'flowbite-react';
+import { Simulation } from '@/proto/simulation/frontend';
 
 interface DeleteSimulationModalProps {
     isModalOpen: boolean;
@@ -11,7 +10,12 @@ interface DeleteSimulationModalProps {
     cancel: () => void;
 }
 
-function DeleteSimulationModal({isModalOpen, simulation, cancel, confirm}: DeleteSimulationModalProps) {
+function DeleteSimulationModal({
+    isModalOpen,
+    simulation,
+    cancel,
+    confirm,
+}: DeleteSimulationModalProps) {
     if (!simulation) {
         return <></>;
     }

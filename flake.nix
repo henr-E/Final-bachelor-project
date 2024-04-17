@@ -283,6 +283,16 @@
                 fi
               '';
             };
+
+            # Ensure the frontend remains formatted.
+            frontend-fmt = beLib.mkCheck {
+              name = "frontend-fmt";
+              shellScript = ''
+                cd ${sources.frontend}
+
+                ${pkgs.nodePackages.prettier}/bin/prettier -c --config .prettierrc.json .
+              '';
+            };
           }
           // builds;
 
@@ -328,6 +338,8 @@
                   yarn
                   # javascript linter
                   nodePackages.eslint
+                  # javascript formatter
+                  nodePackages.prettier
                 ]
                 # MacOS specific packages
                 ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [

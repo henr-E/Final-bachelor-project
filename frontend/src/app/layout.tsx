@@ -3,8 +3,6 @@ import './globals.css';
 import AppWrapper from '@/components/AppWrapper';
 import Provider from '@/store/Provider';
 
-
-
 export const metadata: Metadata = {
     title: 'Digital Twin',
     description: 'Gain realtime insight into how your city uses energy.',

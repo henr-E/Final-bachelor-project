@@ -1,17 +1,19 @@
 'use client';
 
-import {useState} from 'react';
+import { useState } from 'react';
 import DashboardNavbar from '@/components/DashboardNavbar';
 import DashboardSidebar from '@/components/DashboardSidebar';
-import {CreateTwinModalProps} from '@/components/modals/CreateTwinModal';
-import {Breadcrumb} from 'flowbite-react';
-import {HiHome} from 'react-icons/hi';
-import {usePathname} from 'next/navigation';
+import { CreateTwinModalProps } from '@/components/modals/CreateTwinModal';
+import { Breadcrumb } from 'flowbite-react';
+import { HiHome } from 'react-icons/hi';
+import { usePathname } from 'next/navigation';
 import Icon from '@mdi/react';
-import {mdiFullscreen, mdiFullscreenExit} from '@mdi/js';
+import { mdiFullscreen, mdiFullscreenExit } from '@mdi/js';
 import dynamic from 'next/dynamic';
 
-export default function DashboardLayout({children}: Readonly<{
+export default function DashboardLayout({
+    children,
+}: Readonly<{
     children: React.ReactNode;
 }>) {
     const [isCreateTwinModalOpen, setIsCreateTwinModalOpen] = useState(false);
@@ -20,34 +22,33 @@ export default function DashboardLayout({children}: Readonly<{
 
     const CreateTwinModalImport = dynamic<CreateTwinModalProps>(
         () => import('@/components/modals/CreateTwinModal'),
-        {ssr: false}
+        { ssr: false }
     );
 
     if (fullscreenContent) {
         return (
             <div className='h-screen'>
                 <a href='#' className='fixed' onClick={() => setFullscreenContent(false)}>
-                    <Icon path={mdiFullscreenExit} size={1} className='mr-3'/>
+                    <Icon path={mdiFullscreenExit} size={1} className='mr-3' />
                 </a>
                 {children}
             </div>
         );
     }
 
-
     return (
         <div className='flex flex-col h-screen'>
-            <DashboardNavbar openCreateTwinModal={() => setIsCreateTwinModalOpen(true)}/>
+            <DashboardNavbar openCreateTwinModal={() => setIsCreateTwinModalOpen(true)} />
             <CreateTwinModalImport
                 isCreateTwinModalOpen={isCreateTwinModalOpen}
                 closeCreateTwinModal={() => setIsCreateTwinModalOpen(false)}
             ></CreateTwinModalImport>
             <div className='flex flex-row grow'>
-                <DashboardSidebar/>
+                <DashboardSidebar />
                 <div className='px-12 py-3 grow h-full flex flex-col'>
                     <div className='my-4 flex flex-row'>
                         <a href='#' onClick={() => setFullscreenContent(true)}>
-                            <Icon path={mdiFullscreen} size={1} className='mr-3'/>
+                            <Icon path={mdiFullscreen} size={1} className='mr-3' />
                         </a>
 
                         <Breadcrumb aria-label='Default breadcrumb example'>

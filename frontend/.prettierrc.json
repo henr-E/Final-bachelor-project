@@ -10,11 +10,11 @@
     "quoteProps": "as-needed",
     "endOfLine": "auto",
     "overrides": [
-      {
-        "files": "*.tsx",
-        "options": {
-          "parser": "typescript"
+        {
+            "files": "*.tsx",
+            "options": {
+                "parser": "typescript"
+            }
         }
-      }
     ]
-  } 
+}
