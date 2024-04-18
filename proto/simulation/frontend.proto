@@ -11,6 +11,7 @@ service SimulationInterfaceService {
     rpc GetAllSimulations (TwinId) returns (Simulations);
     rpc GetSimulation (simulation_manager.SimulationId) returns (Simulation);
     rpc GetSimulationFrames(stream simulation_manager.SimulationFrameRequest) returns (stream simulation_manager.SimulationFrame);
+    rpc GetComponents(google.protobuf.Empty) returns (simulation_manager.ComponentsInfo);
 }
 
 enum SimulationStatus {
