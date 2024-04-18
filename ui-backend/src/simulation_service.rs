@@ -261,4 +261,14 @@ impl SimulationInterfaceService for SimulationService {
             .get_simulation_frames(request.into_inner().map(|frame| frame.unwrap()))
             .await
     }
+
+    async fn get_components(
+        &self,
+        _request: Request<()>,
+    ) -> Result<Response<ComponentsInfo>, Status> {
+        return Ok(self
+            ._get_components_manager()
+            .await
+            .unwrap_or(Response::new(ComponentsInfo::default())));
+    }
 }
