@@ -48,7 +48,7 @@ impl Runner {
     /// Start the runner.
     ///
     /// The runner is currently implemented to use busy waiting to poll the database for new simulations.
-    /// It will then set up every simulator and start the simulation. Currenly Simulations are handled
+    /// It will then set up every simulator and start the simulation. Currently, simulations are handled
     /// one by one.
     /// If no new simulation is found the runner waits 30 sec before checking the database again except
     /// if during this wait time a message is received over the asynchronous channel.
@@ -299,8 +299,8 @@ impl Runner {
             self.state_sender.send(transport).unwrap();
             let status = match i {
                 0 => "Pending",
-                i if i < iterations => "Computing",
-                i if i == iterations => "Finished",
+                i if i < iterations - 1 => "Computing",
+                i if i == iterations - 1 => "Finished",
                 _ => "Failed",
             };
             self.db.update_status(simulation_id, status).await.unwrap();
