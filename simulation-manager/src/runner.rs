@@ -1,4 +1,5 @@
 use futures::future;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -59,7 +60,7 @@ impl Runner {
                 let simulation_id = top.unwrap();
                 self.db.begin_transaction().await.unwrap();
                 // check that the simulators do not change the same information
-                let mut types: Vec<String> = Vec::default();
+                let mut output_components: HashSet<String> = HashSet::default();
                 let guard = self.simulators.lock().await;
                 let simulators = guard.clone();
                 drop(guard);
@@ -67,14 +68,13 @@ impl Runner {
                 for server in &mut simulators.clone() {
                     let request = tonic::Request::new(IoConfigRequest {});
                     let response = server.get_io_config(request).await?.into_inner();
-                    for (key, _value) in response.components {
-                        if !types.contains(&key) {
-                            types.push(key);
-                        } else {
+                    for name in response.output_components {
+                        if !output_components.insert(name) {
                             self.db
                                 .update_status(simulation_id, "Failed")
                                 .await
                                 .unwrap();
+                            break;
                         }
                     }
                 }
