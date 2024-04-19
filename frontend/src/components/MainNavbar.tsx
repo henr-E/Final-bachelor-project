@@ -9,9 +9,9 @@ import {
     NavbarCollapse,
     Button,
 } from 'flowbite-react';
+import { jwtDecode } from 'jwt-decode';
 import { useRouter } from 'next/navigation';
 import { useContext } from 'react';
-import { getCookie } from 'typescript-cookie';
 
 interface MainNavbarProps {
     openLoginModal: () => void;
@@ -23,7 +23,9 @@ function MainNavbar({ openLoginModal, openRegisterModal }: MainNavbarProps) {
     const router = useRouter();
 
     const handleGetStartedButtonClick = () => {
-        if (getCookie('auth')) {
+        const token = localStorage.getItem('authToken');
+
+        if (token) {
             router.push('/dashboard');
         } else {
             openLoginModal();
