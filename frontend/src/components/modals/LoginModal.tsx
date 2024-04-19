@@ -1,12 +1,12 @@
 'use client';
 
-import { Button, Label, Modal, TextInput } from 'flowbite-react';
-import { useState } from 'react';
+import { Button, Modal, Label, TextInput } from 'flowbite-react';
+import { useContext, useState } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import { useRouter } from 'next/navigation';
 import { login } from '@/lib/authentication';
-import { setCookie } from 'typescript-cookie';
 import ToastNotification from '@/components/notification/ToastNotification';
+import { UserContext } from '@/store/user';
 
 interface LoginModalProps {
     isLoginModalOpen: boolean;
@@ -15,6 +15,8 @@ interface LoginModalProps {
 
 function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
     const router = useRouter();
+
+    const [userState, dispatchUser] = useContext(UserContext);
 
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -26,12 +28,12 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
 
         const response = await login(formdata);
         if (response.ok) {
-            // set the jwt token in the cookie
             const token = response.val;
-            const decoded = jwtDecode(token);
-            const expiration_date = decoded.exp;
-            setCookie('auth', token, { expires: expiration_date });
+            const decoded = jwtDecode(token) as any;
+            localStorage.setItem('authToken', token);
+
             ToastNotification('success', 'welcome ' + username);
+            dispatchUser({ type: 'login', token, user: { username: decoded.username } });
             router.push('/dashboard');
             closeLoginModal();
         } else {
