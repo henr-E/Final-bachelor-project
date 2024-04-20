@@ -20,7 +20,7 @@ pub struct SensorDataGenerator<'a> {
 impl<'a> SensorDataGenerator<'a> {
     /// Creates a new [SensorDataGenerator] instance without virtual sensors attached.
     pub fn new() -> Self {
-        SensorDataGenerator {
+        Self {
             virtual_sensors: Vec::new(),
         }
     }
@@ -30,7 +30,7 @@ impl<'a> SensorDataGenerator<'a> {
     /// # Arguments
     ///
     /// * `sensor_store` - A mutable reference to the database wrapper.
-    pub async fn retrieve_sensors_from_db(&mut self, sensor_store: &'a mut SensorStore) {
+    pub async fn retrieve_sensors_from_db(&mut self, sensor_store: &'a SensorStore) {
         let mut virtual_sensors = Vec::new();
 
         match sensor_store.get_all_sensors().await {
@@ -67,16 +67,14 @@ impl<'a> SensorDataGenerator<'a> {
     /// * `begin` - Unix timestamp in seconds, the start of the timeframe
     /// * `end` - Unix timestamp in seconds, the end of the timeframe
     pub fn generate(&mut self, begin: u64, end: u64) -> Vec<SensorDataFile> {
-        // instantiate a MeasurementsGenerator object, this will be used to generate fake data for certain fields in the output
+        // Instantiate a MeasurementsGenerator object to generate fake data for certain fields in the output
         let mut measurements_generator = MeasurementsGenerator::new();
-        // loop over the attached virtual sensors
+
+        // Use iterator map to generate SensorDataFile objects for each virtual sensor
         self.virtual_sensors
-            .iter_mut()
-            .flat_map(|s| {
-                s.generate_sensor_data_files_json(begin, end, &mut measurements_generator)
-                    .into_iter()
-            })
-            .collect::<Vec<_>>()
+            .iter()
+            .map(|sensor| sensor.generate_sensor_data_file(begin, end, &mut measurements_generator))
+            .collect()
     }
 }
 
@@ -160,32 +158,35 @@ mod tests {
         let sensor_data_files =
             sensor_data_generator.generate(timestamp_begin as u64, timestamp_end as u64);
 
-        // Check that there are exactly three messages in sensor_data_files
-        assert_eq!(sensor_data_files.len(), 3);
+        // Check that there are 2 SensorDataFiles present
+        assert_eq!(sensor_data_files.len(), 2);
 
         let mut temperature_count = 0;
         let mut time_count = 0;
 
-        for message in &sensor_data_files {
-            let message_data_json: Value = serde_json::from_slice(&message.data).unwrap();
+        for data_file in &sensor_data_files {
+            let data: Value = serde_json::from_slice(&data_file.data).unwrap();
+            let measurements = data.get("measurements").unwrap().as_array().unwrap();
 
-            // Check if JSON object contains keys for temperature and time
-            if message_data_json.get("Temperature(C)").is_some() {
-                // Increment temperature count
-                temperature_count += 1;
-            } else if let Some(time) = message_data_json.get("time").and_then(Value::as_f64) {
-                // Increment time count
-                time_count += 1;
+            for measurement in measurements {
+                // Check if JSON object contains keys for temperature and time
+                if measurement.get("Temperature(C)").is_some() {
+                    // Increment temperature count
+                    temperature_count += 1;
+                } else if let Some(time) = measurement.get("time").and_then(Value::as_f64) {
+                    // Increment time count
+                    time_count += 1;
 
-                // Assert that time value is within the expected range
-                assert!(time >= timestamp_begin as f64 || time <= timestamp_end as f64);
+                    // Assert that time value is within the expected range
+                    assert!(time >= timestamp_begin as f64 || time <= timestamp_end as f64);
+                }
             }
         }
 
-        // Assert that there is exactly one message with key Temperature(C)
+        // Assert that there is exactly one measurement with key Temperature(C)
         assert_eq!(temperature_count, 1);
 
-        // Assert that there are exactly two messages with key time
+        // Assert that there are exactly two measurements with key time
         assert_eq!(time_count, 2);
     }
 }

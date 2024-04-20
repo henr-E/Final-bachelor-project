@@ -21,7 +21,7 @@ pub mod signal;
 pub mod unit;
 
 /// Sensor database wrapper.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SensorStore {
     db_pool: PgPool,
 }
