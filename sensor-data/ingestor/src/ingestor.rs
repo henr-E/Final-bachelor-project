@@ -189,8 +189,10 @@ impl DataIngestService for DataIngestor {
                 // the `std::io::BufWriter`. Should we use the latter then to avoid the string
                 // allocation?
                 // TODO: Convert this to use `to_vec` when sprint review is over.
-                file.write_all(sensor_data_bson.to_string().as_bytes())
-                    .await?;
+                file.write_all(
+                    &bson::to_vec(&sensor_data_bson).expect("Failed to convert to bytes array."),
+                )
+                .await?;
 
                 // Explicit flush of all buffered contents to disk.
                 file.flush().await?;

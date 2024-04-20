@@ -33,6 +33,7 @@ pub enum Unit {
     Utc,
     Volt,
     Watt,
+    WattsPerSquareMetre,
 }
 
 impl Unit {
@@ -69,6 +70,7 @@ impl Unit {
             Unit::Utc => Quantity::Timestamp,
             Unit::Volt => Quantity::Potential,
             Unit::Watt => Quantity::Power,
+            Unit::WattsPerSquareMetre => Quantity::Irradiance,
         }
     }
 

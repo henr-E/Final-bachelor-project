@@ -5,11 +5,13 @@ use sensor_store::quantity::Quantity;
 use sensor_store::unit::Unit;
 
 use crate::measurements::electricity_consumption::ElectricityConsumptionGenerator;
+use crate::measurements::read_historic_data::HistoricDataReader;
 use crate::measurements::time::TimestampGenerator;
 use crate::measurements::weather::WeatherDataGenerator;
 
 pub mod convert;
 mod electricity_consumption;
+mod read_historic_data;
 mod time;
 mod utilities;
 mod weather;
@@ -27,33 +29,10 @@ pub struct Measurement {
     pub prefix: BigDecimal,
 }
 
-/// The available CSV files.
-enum CsvFile {
-    ElectricityConsumptionMonthlyHourly,
-    AwsSynopsWeather2023Hourly,
-}
-
-impl CsvFile {
-    /// Returns the file name of the CSV file.
-    fn file_name(&self) -> &'static str {
-        match self {
-            CsvFile::ElectricityConsumptionMonthlyHourly => {
-                "electricity_consumption_monthly_hourly.csv"
-            }
-            CsvFile::AwsSynopsWeather2023Hourly => "aws_synops_weather_2023_hourly.csv",
-        }
-    }
-    /// Returns the delimiter used in the CSV file.
-    fn delimiter(&self) -> u8 {
-        match self {
-            CsvFile::ElectricityConsumptionMonthlyHourly => b';',
-            CsvFile::AwsSynopsWeather2023Hourly => b';',
-        }
-    }
-}
-
 /// Instances of [MeasurementsGenerator] can be used to generate fake measurements for different quantities.
 pub struct MeasurementsGenerator {
+    /// Reads historic data values from assets
+    historic_data_reader: HistoricDataReader,
     /// Generates measurements related to energy consumption.
     electricity_consumption_generator: ElectricityConsumptionGenerator,
     /// Generates measurements related to weather.
@@ -64,8 +43,9 @@ pub struct MeasurementsGenerator {
 
 impl MeasurementsGenerator {
     /// Returns a [MeasurementsGenerator] object.
-    pub fn new() -> MeasurementsGenerator {
-        MeasurementsGenerator {
+    pub fn new() -> Self {
+        Self {
+            historic_data_reader: HistoricDataReader::new(),
             electricity_consumption_generator: ElectricityConsumptionGenerator::new(),
             weather_data_generator: WeatherDataGenerator::new(),
             timestamp_generator: TimestampGenerator {},
@@ -89,19 +69,22 @@ impl MeasurementsGenerator {
     ) -> Option<Measurement> {
         let measurement: Option<Measurement> = match quantity {
             // energy consumption
-            Quantity::Power => self
-                .electricity_consumption_generator
-                .get_measurement(timestamp, variance),
+            Quantity::Power => self.electricity_consumption_generator.get_measurement(
+                timestamp,
+                variance,
+                &mut self.historic_data_reader,
+            ),
             // weather related quantities
             Quantity::Temperature
             | Quantity::Rainfall
             | Quantity::WindSpeed
             | Quantity::WindDirection
-            | Quantity::Cloudiness
-            | Quantity::RelativeHumidity
-            | Quantity::Pressure => self
-                .weather_data_generator
-                .get_measurement(timestamp, variance, quantity),
+            | Quantity::Irradiance => self.weather_data_generator.get_measurement(
+                timestamp,
+                variance,
+                quantity,
+                &mut self.historic_data_reader,
+            ),
             Quantity::Timestamp => self.timestamp_generator.get_measurement(timestamp),
             // for currently unsupported quantities, return None
             _ => None,
