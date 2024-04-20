@@ -65,6 +65,7 @@
                 || (builtins.match ".*\\.sql$" path != null)
                 || (builtins.match ".*\\.sqlx/.*" path != null)
                 || (builtins.match ".*\\.csv$" path != null)
+                || (builtins.match ".*\\.parquet$" path != null)
                 # Add all markdown files, except the ones from the `docs/` directory.
                 || (lib.hasSuffix ".md" path && (builtins.match ".*/docs/.*" path == null)));
           };
