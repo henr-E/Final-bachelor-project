@@ -113,7 +113,8 @@ impl SimulationInterfaceService for SimulationService {
         let time_steps =
             ((req.end_date_time - req.start_date_time) as f64 / req.time_step_delta) as u64;
 
-        let twin_id = i32::from_str(&req.twin_id).unwrap();
+        let twin_id =
+            i32::from_str(&req.twin_id).map_err(|err| Status::invalid_argument(err.to_string()))?;
 
         // create a simulation to insert into DB, note: twin_id is also stored
         let new_simulation = SimulationDB {
@@ -171,7 +172,8 @@ impl SimulationInterfaceService for SimulationService {
     ) -> Result<Response<Simulations>, Status> {
         let req = request.into_inner();
 
-        let twin_id = i32::from_str(&req.twin_id).unwrap();
+        let twin_id =
+            i32::from_str(&req.twin_id).map_err(|err| Status::invalid_argument(err.to_string()))?;
 
         // get all simulation matching the twin id in the request
         let items_database = sqlx::query!("SELECT * FROM simulations WHERE twin_id=$1", twin_id)
@@ -184,10 +186,12 @@ impl SimulationInterfaceService for SimulationService {
         for item in items_database {
             let simulation_id = item.id.to_string();
 
-            let simulation_item = self
-                .get_simulation_manager(simulation_id)
-                .await
-                .expect("Failed to get a simulation");
+            let simulation_item =
+                self.get_simulation_manager(simulation_id)
+                    .await
+                    .map_err(|source| {
+                        Status::internal(format!("Failed to get a simulation: {source}"))
+                    })?;
 
             all_simulations.push(Simulation {
                 id: item.id,
@@ -215,12 +219,13 @@ impl SimulationInterfaceService for SimulationService {
 
         let simulation_id: String = req.uuid;
 
-        let database_simulation_id = i32::from_str(&simulation_id).unwrap();
+        let database_simulation_id = i32::from_str(&simulation_id)
+            .map_err(|err| Status::invalid_argument(err.to_string()))?;
 
         let simulation_item = self
             .get_simulation_manager(simulation_id.clone())
             .await
-            .expect("Failed to get a simulation");
+            .map_err(|err| Status::internal(format!("Failed to get a simulation: {err}")))?;
 
         // select the simulation that matches the uuid provided in the request
         let simulation_db = sqlx::query!(
