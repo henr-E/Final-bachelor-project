@@ -33,9 +33,7 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
     const [startTime, setStartTime] = useState<string>(propItems.startTime || '');
     const [endTime, setEndTime] = useState<string>(propItems.endTime || '');
     const [timeStepDelta, setTimeStepDelta] = useState<number>(propItems.timeStepDelta || 0);
-    const [globalComponents, setGlobalComponents] = useState(
-        propItems.globalComponents || '{"global_time": {"unix_timestamp_millis": 1000} }'
-    );
+    const [globalComponents, setGlobalComponents] = useState(propItems.globalComponents || '{}');
     const [step, setStep] = useState<number>(0);
     const nodeItemsRef = useRef<Map<number, NodeItem>>();
     const edgeItemsRef = useRef<Array<LineItem>>();
@@ -90,14 +88,20 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
             return;
         }
 
-        let globalComponentsObject: {} = JSON.parse(globalComponents);
+        let globalComponentsObject: { [key: string]: any | undefined } =
+            JSON.parse(globalComponents);
+        globalComponentsObject['global_time'] = globalComponentsObject['global_time'] || {
+            // Save start time in the global_time component, only if the component does not already
+            // exist.
+            unix_timestamp_millis: startDateTime.getTime(),
+        };
 
         console.log(nodes);
         console.log(edges);
         const twin: CreateSimulationParams = {
             name: name,
             twinId: twinState.current?.id.toString(),
-            //division by 1000 to convert to ms
+            // Division by 1000 to convert to seconds
             startDateTime: startDateTime.getTime() / 1000,
             endDateTime: endDateTime.getTime() / 1000,
             startState: State.create({
