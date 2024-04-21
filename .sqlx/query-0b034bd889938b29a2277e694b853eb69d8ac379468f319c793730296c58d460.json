@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, description, location[0] as lon, location[1] as lat, twin_id FROM sensors WHERE twin_id = $1::int",
+  "query": "SELECT id, name, description, location[0] as lon, location[1] as lat, twin_id, building_id FROM sensors",
   "describe": {
     "columns": [
       {
@@ -32,12 +32,15 @@
         "ordinal": 5,
         "name": "twin_id",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "building_id",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
-      "Left": [
-        "Int4"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -45,8 +48,9 @@
       true,
       null,
       null,
-      false
+      false,
+      true
     ]
   },
-  "hash": "a23dc56b9e75a035af539a6236e814dd6f7bfaeea788bade3a20e217166bfe5b"
+  "hash": "0b034bd889938b29a2277e694b853eb69d8ac379468f319c793730296c58d460"
 }

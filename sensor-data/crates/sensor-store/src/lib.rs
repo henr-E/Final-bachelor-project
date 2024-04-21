@@ -46,7 +46,7 @@ impl SensorStore {
     /// Get a single [`Sensor`] from the database given its [`Uuid`].
     pub async fn get_sensor(&self, sensor_id: uuid::Uuid) -> Result<Sensor<'_>, Error> {
         let sensor = sqlx::query!(
-            "SELECT name, description, location[0]::float as lon, location[1]::float as lat, twin_id FROM sensors WHERE id = $1::uuid",
+            "SELECT name, description, location[0]::float as lon, location[1]::float as lat, twin_id, building_id FROM sensors WHERE id = $1::uuid",
             sensor_id
         )
         .fetch_one(&self.db_pool)
@@ -58,6 +58,7 @@ impl SensorStore {
             sensor.description,
             (sensor.lon.unwrap(), sensor.lat.unwrap()),
             sensor.twin_id,
+            sensor.building_id,
         );
         Ok(self.add_signals_to_builder(sensor).await?.build())
     }
@@ -75,8 +76,8 @@ impl SensorStore {
         let sensor_id = sensor.id;
         // insert sensor into the database.
         let _sensor = sqlx::query!(
-            "INSERT INTO sensors (id, name, description, location, user_id, twin_id) values ($1::uuid, $2::text, $3::text, POINT($4::float, $5::float), $6::int, $7::int)",
-            sensor_id, &sensor.name, &sensor.description.clone().unwrap_or_default(), sensor.location.0, sensor.location.1, 1, sensor.twin_id
+            "INSERT INTO sensors (id, name, description, location, user_id, twin_id, building_id) values ($1::uuid, $2::text, $3::text, POINT($4::float, $5::float), $6::int, $7::int, $8)",
+            sensor_id, &sensor.name, &sensor.description.clone().unwrap_or_default(), sensor.location.0, sensor.location.1, 1, sensor.twin_id, sensor.building_id
         )
         .execute(&mut *transaction)
         .await?;
@@ -147,7 +148,7 @@ impl SensorStore {
         use futures::stream::{self, StreamExt};
 
         let sensors = sqlx::query!(
-            "SELECT id, name, description, location[0] as lon, location[1] as lat, twin_id FROM sensors"
+            "SELECT id, name, description, location[0] as lon, location[1] as lat, twin_id, building_id FROM sensors"
         )
         .fetch_all(&self.db_pool)
         .await?
@@ -158,7 +159,8 @@ impl SensorStore {
                 s.name,
                 s.description,
                 (s.lon.unwrap(), s.lat.unwrap()),
-                s.twin_id
+                s.twin_id,
+                s.building_id
             )
         });
 
@@ -178,7 +180,7 @@ impl SensorStore {
         use futures::stream::{self, StreamExt};
 
         let sensors = sqlx::query!(
-            "SELECT id, name, description, location[0] as lon, location[1] as lat, twin_id FROM sensors WHERE twin_id = $1::int",
+            "SELECT id, name, description, location[0] as lon, location[1] as lat, twin_id, building_id FROM sensors WHERE twin_id = $1::int",
             twin_id
         )
             .fetch_all(&self.db_pool)
@@ -190,7 +192,8 @@ impl SensorStore {
                     s.name,
                     s.description,
                     (s.lon.unwrap(), s.lat.unwrap()),
-                    s.twin_id
+                    s.twin_id,
+                    s.building_id
                 )
             });
 

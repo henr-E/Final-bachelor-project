@@ -3,6 +3,7 @@ syntax = "proto3";
 package sensor.crud;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/wrappers.proto";
 
 service SensorCRUDService {
     // Get a list of supported quantities and units.
@@ -79,6 +80,8 @@ message Sensor {
     double latitude = 6;
     // List of signals the sensor is composed with.
     repeated Signal signals = 7;
+    //can be null if it is a global sensor, or can be the actual building_id if it is a building sensor
+    optional int32 building_id = 8;
 }
 
 message GetSensorsRequest {

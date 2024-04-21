@@ -106,6 +106,7 @@ mod tests {
             location: (0.0, 0.0),
             signals: Default::default(),
             twin_id: -1,
+            building_id: None,
         };
         sensor_builder.add_signal(
             0,
@@ -126,6 +127,7 @@ mod tests {
             location: (1.0, 1.0),
             signals: Default::default(),
             twin_id: -1,
+            building_id: None,
         };
 
         sensor_builder2.add_signal(

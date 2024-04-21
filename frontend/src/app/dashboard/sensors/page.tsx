@@ -4,6 +4,7 @@ import { Button } from 'flowbite-react';
 import { useContext, useState } from 'react';
 import { MdOutlineDeleteOutline } from 'react-icons/md';
 import CreateSensorModal from '@/components/modals/CreateSensorModal';
+import ShowSignalsModal from '@/components/modals/ShowSignalsModal';
 import DeleteSensorModal from '@/components/modals/DeleteSensorModal';
 import DeleteMultipleSensorsModal from '@/components/modals/DeleteMultipleSensorsModal';
 import { BackendCreateSensor, BackendDeleteSensor, BackendGetSensors } from '@/api/sensor/crud';
@@ -18,9 +19,11 @@ function SensorPage() {
     const [isDeleteSensorModalOpen, setIsDeleteSensorModalOpen] = useState(false);
     const [isDeleteMultipleSensorsModalOpen, setIsDeleteMultipleSensorsModalOpen] = useState(false);
     const [sensorToDelete, setSensorToDelete] = useState<Sensor>();
-
-    const handleClick = (id: string) => {
-        alert('opening the sensor.');
+    const [isShowSignalsModalOpen, setIsShowSignalsModalOpen] = useState(false);
+    const [selectedSensor, setSelectedSensor] = useState<Sensor>();
+    const handleClick = (sensor: Sensor) => {
+        setIsShowSignalsModalOpen(true);
+        setSelectedSensor(sensor);
     };
 
     const handleCreateSensor = async (sensor: Sensor) => {
@@ -120,6 +123,9 @@ function SensorPage() {
                                             <th scope='col' className='p-3 px-3'>
                                                 Location
                                             </th>
+                                            <th scope='col' className='p-3 px-3'>
+                                                Building Number
+                                            </th>
                                             <th scope='col' className='p-3 px-3 text-center w-20'>
                                                 Delete
                                             </th>
@@ -127,7 +133,11 @@ function SensorPage() {
                                     </thead>
                                     <tbody>
                                         {twinState.current?.sensors.map(sensor => (
-                                            <tr key={sensor.id} className='my-6'>
+                                            <tr
+                                                key={sensor.id}
+                                                className='my-6'
+                                                style={{ cursor: 'pointer' }}
+                                            >
                                                 <th scope='row' className='px-3 py-3 w-8'>
                                                     <div className='flex items-center'>
                                                         <input
@@ -159,41 +169,47 @@ function SensorPage() {
                                                 </th>
                                                 <td
                                                     className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor.id)}
+                                                    onClick={() => handleClick(sensor)}
                                                 >
                                                     {sensor.name}
                                                 </td>
                                                 <td
                                                     className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor.id)}
+                                                    onClick={() => handleClick(sensor)}
                                                 >
                                                     {sensor.description}
                                                 </td>
                                                 <td
                                                     className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor.id)}
+                                                    onClick={() => handleClick(sensor)}
                                                 >
                                                     {sensor.signals.length}
                                                 </td>
                                                 <td
                                                     className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor.id)}
+                                                    onClick={() => handleClick(sensor)}
                                                 >
                                                     <span> {new Date().toLocaleDateString()}</span>
                                                 </td>
                                                 <td
                                                     className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor.id)}
+                                                    onClick={() => handleClick(sensor)}
                                                 >
                                                     0
                                                 </td>
                                                 <td
                                                     className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor.id)}
+                                                    onClick={() => handleClick(sensor)}
                                                 >
                                                     <a href='#'>
                                                         {sensor.latitude},{sensor.longitude}
                                                     </a>
+                                                </td>
+                                                <td
+                                                    className='p-3 px-3'
+                                                    onClick={() => handleClick(sensor)}
+                                                >
+                                                    {sensor.buildingId || 'Global Sensor'}
                                                 </td>
                                                 <td
                                                     className='p-3 px-3'
@@ -218,8 +234,16 @@ function SensorPage() {
                     </div>
                     <CreateSensorModal
                         isModalOpen={isCreateSensorModalOpen}
+                        selectedBuildingId={null}
                         handleCreateSensor={handleCreateSensor}
                         closeModal={() => setIsCreateSensorModalOpen(false)}
+                    />
+                    <ShowSignalsModal
+                        isModalOpen={isShowSignalsModalOpen}
+                        sensor={selectedSensor}
+                        closeModal={() => {
+                            setIsShowSignalsModalOpen(false);
+                        }}
                     />
                     <DeleteSensorModal
                         isModalOpen={isDeleteSensorModalOpen}

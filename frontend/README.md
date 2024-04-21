@@ -26,8 +26,9 @@ tools/run-migrations.sh
 cargo build
 
 cargo run --bin simulation-manager
-cargo run --bin energy-simulator
+cargo run --bin time-simulator
 cargo run --bin ui-backend
+
 ```
 
 #### in the frontend directory run:
