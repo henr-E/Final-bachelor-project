@@ -98,7 +98,30 @@ function MapEditor({ frame, frameNr }: MapFrameProps) {
         setNodes(mapItems[0]);
 
         if (!mapItems[1]) return;
-        setEdges(mapItems[1]);
+        console.log('check');
+
+        //Converts edges with the same nodes to one edge with multiple components
+        let checkEdges = new Map<string, number>();
+        let tempEdges: LineItem[] = [];
+        mapItems[1].map(edge => {
+            if (!checkEdges.has(edge.items[0].id + ',' + edge.items[1].id)) {
+                tempEdges.push(edge);
+                checkEdges.set(edge.items[0].id + ',' + edge.items[1].id, tempEdges.length - 1);
+                return;
+            }
+            let index = checkEdges.get(edge.items[0].id + ',' + edge.items[1].id);
+            if (index == undefined) {
+                //Normally should not come here
+                ToastNotification('error', `There when something wrong with edge: ${edge.id}`);
+                return;
+            }
+            let components: { [id: string]: any } = tempEdges[index].components || {};
+            Object.entries(edge.components || {}).forEach(([keyItem, value]) => {
+                components[keyItem] = value;
+            });
+            tempEdges[index].components = components;
+        });
+        setEdges(tempEdges);
     }, [frame]);
 
     if (!twinState.current) {
@@ -110,6 +133,7 @@ function MapEditor({ frame, frameNr }: MapFrameProps) {
     };
 
     const showEdge = (id: number) => {
+        console.log('edges');
         setClickedItem(edgesRef.current[id]);
     };
 
