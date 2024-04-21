@@ -69,17 +69,22 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
 
         let edges = new Array<Edge>();
         edgeItemsRef.current?.map(item => {
-            let lineItem = item as LineItem;
-            edges.push(
-                Edge.create({
-                    id: lineItem.id,
-                    from: lineItem.items[0].id,
-                    // @ts-ignore
-                    to: lineItem.items[1].id,
-                    componentType: 'Edge',
-                    componentData: lineItem.components,
-                })
-            );
+            //Convert multiple components to multiple edges for simulators, will be converted back in the interface in the MapFrame page.
+            Object.entries(item.components || {}).forEach(([keyItem, value]) => {
+                let lineItem = item as LineItem;
+                let component: { [id: string]: any } = {};
+                component[keyItem] = value;
+                edges.push(
+                    Edge.create({
+                        id: lineItem.id,
+                        from: lineItem.items[0].id,
+                        // @ts-ignore
+                        to: lineItem.items[1].id,
+                        componentType: keyItem,
+                        componentData: component,
+                    })
+                );
+            });
             return;
         });
 
