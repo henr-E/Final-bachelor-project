@@ -13,7 +13,7 @@ use runner::Runner;
 use sqlx::postgres::PgPool;
 use tokio::sync::{mpsc, Mutex};
 use tonic::transport::{Channel, Server};
-use tracing::info;
+use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 // modules
@@ -93,7 +93,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Runner thread
-    let task3 = tokio::spawn(async move { runner.start().await });
+    let task3 = tokio::spawn(async move {
+        // Infinitely loop in order to retry if the runner encounters an error.
+        loop {
+            if let Err(err) = runner.start().await {
+                error!("Error encountered in runner: {err:?}");
+            };
+        }
+    });
 
     // Manager
     let task4 = Server::builder().add_service(server).serve(listen_addr);
@@ -102,7 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::select! {
         err = task1 => { err??; },
         err = task2 => { err??; },
-        err = task3 => { err??; },
+        err = task3 => { err?; },
         err = task4 => { err?; },
     }
 

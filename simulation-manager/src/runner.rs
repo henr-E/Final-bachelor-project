@@ -1,7 +1,9 @@
+use anyhow::Context;
 use futures::future;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::error;
 
 // sqlx
 use sqlx::PgPool;
@@ -55,10 +57,16 @@ impl Runner {
     /// if during this wait time a message is received over the asynchronous channel.
     pub async fn start(&mut self) -> anyhow::Result<()> {
         loop {
-            let top = self.db.dequeue().await.unwrap();
-            if top.is_some() {
-                let simulation_id = top.unwrap();
-                self.db.begin_transaction().await.unwrap();
+            let top = self
+                .db
+                .dequeue()
+                .await
+                .context("could not dequeue simulation")?;
+            if let Some(simulation_id) = top {
+                self.db
+                    .begin_transaction()
+                    .await
+                    .context("could not begin transaction")?;
                 // check that the simulators do not change the same information
                 let mut output_components: HashSet<String> = HashSet::default();
                 let guard = self.simulators.lock().await;
@@ -73,17 +81,38 @@ impl Runner {
                             self.db
                                 .update_status(simulation_id, "Failed")
                                 .await
-                                .unwrap();
+                                .context("could not update status")?;
                             break;
                         }
                     }
                 }
-                let status = self.db.get_status(simulation_id).await.unwrap();
+                let status = self
+                    .db
+                    .get_status(simulation_id)
+                    .await
+                    .context("could not get status")?;
                 if status != "Failed" {
-                    self.set_up(simulation_id).await?;
-                    self.start_simulation(simulation_id).await?;
+                    // Make error handling easier by putting the two functions below into one async
+                    // block. This allows errors from both to be handled by the same code.
+                    let do_simulation = async {
+                        self.set_up(simulation_id).await.context("in `set_up`")?;
+                        self.start_simulation(simulation_id)
+                            .await
+                            .context("in `start_simulation`")?;
+                        anyhow::Ok(())
+                    };
+                    if let Err(err) = do_simulation.await {
+                        error!("Simulation `{simulation_id}` failed: {err:?}");
+                        self.db
+                            .update_status(simulation_id, "Failed")
+                            .await
+                            .context("could not update status after failed simulation")?;
+                    }
                 }
-                self.db.commit().await.unwrap();
+                self.db
+                    .commit()
+                    .await
+                    .context("could not commit transaction")?;
             } else {
                 tokio::select! {
                     _ = sleep(Duration::from_secs(30)) => {},
@@ -109,18 +138,30 @@ impl Runner {
         drop(guard);
 
         // get tick delta
-        let delta = self.db.get_delta(simulation_id).await.unwrap();
+        let delta = self
+            .db
+            .get_delta(simulation_id)
+            .await
+            .context("error getting delta")?;
         let mut graph = Graph {
             nodes: vec![],
             edge: vec![],
         };
 
         // get current simulation nodes at timestep 0 and add to graph
-        let mut nodes = self.db.get_nodes(simulation_id, 0).await.unwrap();
+        let mut nodes = self
+            .db
+            .get_nodes(simulation_id, 0)
+            .await
+            .context("error getting nodes")?;
         graph.nodes.append(&mut nodes);
 
         // get current simulation edges at timestep 0 and add to graph
-        let mut edges = self.db.get_edges(simulation_id, 0).await.unwrap();
+        let mut edges = self
+            .db
+            .get_edges(simulation_id, 0)
+            .await
+            .context("error getting edges")?;
         graph.edge.append(&mut edges);
 
         // add all global components to the graph
@@ -128,7 +169,7 @@ impl Runner {
             .db
             .get_global_components(simulation_id, 0)
             .await
-            .unwrap();
+            .context("error getting global components")?;
 
         // create initial state
         let initial_state = InitialState {
@@ -140,17 +181,17 @@ impl Runner {
         };
 
         // // setup of simulators
-        future::join_all(
+        future::try_join_all(
             simulators
                 .clone()
                 .into_iter()
                 .map(|server| (initial_state.clone(), server))
                 .map(|(initial_state, mut server)| async move {
                     let setup_request = tonic::Request::new(initial_state);
-                    let _setup_response = server.setup(setup_request).await.unwrap();
+                    server.setup(setup_request).await
                 }),
         )
-        .await;
+        .await?;
         Ok(())
     }
 
@@ -172,24 +213,36 @@ impl Runner {
     /// back will be duplicated into the next timestep so that they are available in the next tick
     async fn start_simulation(&mut self, simulation_id: i32) -> anyhow::Result<()> {
         // get amount of iterations to run the simulation for
-        let iterations = self.db.get_iterations(simulation_id).await.unwrap();
+        let iterations = self
+            .db
+            .get_iterations(simulation_id)
+            .await
+            .context("error getting iterations")?;
 
         // get initial state
         let mut graph = Graph {
             nodes: vec![],
             edge: vec![],
         };
-        let mut nodes_send = self.db.get_nodes(simulation_id, 0).await.unwrap();
+        let mut nodes_send = self
+            .db
+            .get_nodes(simulation_id, 0)
+            .await
+            .context("error getting nodes")?;
         graph.nodes.append(&mut nodes_send);
 
-        let mut edges_send = self.db.get_edges(simulation_id, 0).await.unwrap();
+        let mut edges_send = self
+            .db
+            .get_edges(simulation_id, 0)
+            .await
+            .context("error getting edges")?;
         graph.edge.append(&mut edges_send);
 
         let globals = self
             .db
             .get_global_components(simulation_id, 0)
             .await
-            .unwrap();
+            .context("error getting glboal components")?;
 
         let mut prev: State = State {
             graph: Some(graph),
@@ -202,7 +255,7 @@ impl Runner {
         drop(guard);
         for i in 0..iterations {
             // parallel execution of the simulators in the simulation for the current time step
-            let results = future::join_all(
+            let results = future::try_join_all(
                 simulators
                     .clone()
                     .into_iter()
@@ -232,21 +285,26 @@ impl Runner {
                             graph: Some(graph.clone()),
                             global_components: grpc_global.clone(),
                         });
-                        let do_time_step_response =
-                            server.do_timestep(do_time_step_request).await.unwrap();
+                        let do_time_step_response = server
+                            .do_timestep(do_time_step_request)
+                            .await
+                            .context("in call `do_timestep`")?;
 
                         // read out results of simulator
-                        let output_state = do_time_step_response.into_inner().output_state.unwrap();
+                        let output_state = do_time_step_response
+                            .into_inner()
+                            .output_state
+                            .context("no output state found")?;
 
                         // place results into Transport struct
-                        Transport {
+                        anyhow::Ok(Transport {
                             simulation_id,
                             iteration: i + 1,
                             state: output_state,
-                        }
+                        })
                     }),
             )
-            .await;
+            .await?;
 
             // make copy of previous state
             let mut new_state = prev.clone();
@@ -296,14 +354,17 @@ impl Runner {
                 iteration: i + 1,
                 state: new_state.clone(),
             };
-            self.state_sender.send(transport).unwrap();
+            self.state_sender.send(transport)?;
             let status = match i {
                 0 => "Pending",
                 i if i < iterations - 1 => "Computing",
                 i if i == iterations - 1 => "Finished",
                 _ => "Failed",
             };
-            self.db.update_status(simulation_id, status).await.unwrap();
+            self.db
+                .update_status(simulation_id, status)
+                .await
+                .context("error updating status")?;
             // set previous state to new state
             prev = new_state.clone();
         }

@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
 
-use anyhow::{anyhow, Ok, Result};
+use anyhow::{anyhow, Context, Ok, Result};
 use sqlx::pool::PoolConnection;
 use sqlx::types::chrono::NaiveDate;
 use sqlx::{query, PgConnection, PgPool, Postgres, Transaction};
@@ -82,12 +82,18 @@ impl SimulationsDB {
     /// we use a connection from the pool.
     pub async fn connection(&mut self) -> Result<&mut PgConnection> {
         if self.transaction.is_some() {
-            return Ok(self.transaction.as_deref_mut().unwrap());
+            return Ok(self
+                .transaction
+                .as_deref_mut()
+                .context("missing transaction")?);
         }
         if self.connection.is_none() {
             self.connection = Some(self.pool.acquire().await.map_err(|e| anyhow!(e))?);
         }
-        return Ok(self.connection.as_deref_mut().unwrap());
+        Ok(self
+            .connection
+            .as_deref_mut()
+            .context("missing connection")?)
     }
 
     /// Begin a database transaction. The changes won't take effect until commit() is called.
@@ -98,7 +104,7 @@ impl SimulationsDB {
 
     /// Commit all changes since the last call to begin()
     pub async fn commit(&mut self) -> Result<()> {
-        let t = self.transaction.take().unwrap();
+        let t = self.transaction.take().context("missing transaction")?;
         t.commit().await.map_err(|e| anyhow!(e))?;
         Ok(())
     }
@@ -110,8 +116,7 @@ impl SimulationsDB {
             simulation_id
         )
         .fetch_one(self.connection().await?)
-        .await
-        .unwrap()
+        .await?
         .step_size_ms;
         Ok(delta)
     }
@@ -166,7 +171,7 @@ impl SimulationsDB {
             name: result.name,
             step_size_ms: result.step_size_ms,
             max_steps: result.max_steps,
-            status: StatusEnum::to_string(result.enum_status.unwrap()),
+            status: StatusEnum::to_string(result.enum_status.context("missing: `enum_status`")?),
         };
         Ok(sim)
     }
@@ -182,7 +187,7 @@ impl SimulationsDB {
             name: result.name,
             step_size_ms: result.step_size_ms,
             max_steps: result.max_steps,
-            status: StatusEnum::to_string(result.enum_status.unwrap()),
+            status: StatusEnum::to_string(result.enum_status.context("missing: `enum_status`")?),
         };
         Ok(sim)
     }
@@ -319,7 +324,8 @@ impl SimulationsDB {
 
     /// Add an edge to the edges table.
     pub async fn add_edge(&mut self, edge: Edge, simulation_id: i32, time_step: i32) -> Result<()> {
-        let component_data = prost_to_serde_json(edge.component_data.unwrap());
+        let component_data =
+            prost_to_serde_json(edge.component_data.context("missing component data")?);
         let rows_affected = query!(
             "INSERT INTO edges (edge_id, simulation_id, time_step, from_node, to_node, component_data, component_type) VALUES ($1, $2, $3, $4, $5, $6, $7)",
             edge.id as i32, simulation_id, time_step, edge.from as i32, edge.to as i32, component_data, edge.component_type
@@ -484,10 +490,9 @@ impl SimulationsDB {
             )
             .fetch_one(self.connection().await?)
             .await
-            .map_err(|err| Status::from_error(Box::new(err)))
-            .unwrap()
+            .map_err(|err| Status::from_error(Box::new(err)))?
             .status
-            .unwrap(),
+            .context("missing status")?,
         );
 
         Ok(status)
@@ -501,8 +506,7 @@ impl SimulationsDB {
             simulation_id
         )
         .execute(self.connection().await?)
-        .await
-        .map_err(|e| anyhow!(e))?;
+        .await?;
         Ok(())
     }
 }
@@ -597,7 +601,6 @@ mod database_test {
         db.commit().await.unwrap();
 
         let edges = db.get_edges(simulation_id, 5).await.unwrap();
-        let edges2 = db.get_edges(simulation_id, 5).await.unwrap();
         assert_eq!(edges.len(), 1);
     }
 }
