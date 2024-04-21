@@ -5,7 +5,7 @@ services:
   frontend:
     container_name: frontend
     image: ${DOCKER_REPOSITORY}frontend:$IMAGE_TAG
-    command: ["/bin/frontend"]
+    command: [ "/bin/frontend" ]
     networks:
       - backend
     environment:
@@ -18,7 +18,7 @@ services:
   ui-backend:
     restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/ui-backend"]
+    command: [ "/bin/ui-backend" ]
     networks:
       - backend
       - external
@@ -43,7 +43,7 @@ services:
 
   simulation-manager:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/simulation-manager"]
+    command: [ "/bin/simulation-manager" ]
     networks:
       - backend
     environment:
@@ -62,7 +62,7 @@ services:
 
   simulator-time:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/time-simulator"]
+    command: [ "/bin/time-simulator" ]
     networks:
       - backend
     depends_on:
@@ -73,7 +73,7 @@ services:
 
   simulator-temperature:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/temperature-simulator"]
+    command: [ "/bin/temperature-simulator" ]
     networks:
       - backend
     depends_on:
@@ -110,7 +110,7 @@ services:
 
   sensor-data-ingestor:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/sensor-data-ingestor"]
+    command: [ "/bin/sensor-data-ingestor" ]
     networks:
       - backend
     environment:
@@ -127,7 +127,7 @@ services:
 
   sensor-data-transformer:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/sensor-data-transformer"]
+    command: [ "/bin/sensor-data-transformer" ]
     networks:
       - backend
     environment:
@@ -143,7 +143,7 @@ services:
 
   sensor-data-generator:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/sensor-data-generator"]
+    command: [ "/bin/sensor-data-generator" ]
     networks:
       - backend
     environment:
@@ -152,6 +152,8 @@ services:
       DATABASE_PORT: 5432
       DATABASE_USER: postgres
       ENV_IMPURE: true
+    volumes:
+      - assets:/assets
     depends_on:
       sensor-data-ingestor:
         condition: service_started
@@ -163,7 +165,7 @@ services:
 
   database-migrator:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/database-migrator"]
+    command: [ "/bin/database-migrator" ]
     networks:
       - backend
     environment:
@@ -230,7 +232,7 @@ services:
   grpcwebpoxy:
     container_name: grpcwebpoxy
     image: webis/grpcwebproxy:0.14.0
-    command: ["grpcwebproxy", "--backend_addr=ui-backend:8080", "--server_http_debug_port", "8081", "--use_websockets", "--allow_all_origins", "--run_tls_server=false"]
+    command: [ "grpcwebproxy", "--backend_addr=ui-backend:8080", "--server_http_debug_port", "8081", "--use_websockets", "--allow_all_origins", "--run_tls_server=false" ]
     networks:
       - backend
     depends_on:
@@ -242,6 +244,7 @@ volumes:
   postgres-data:
   caddy-config:
   caddy-data:
+  assets:
 
 networks:
   backend:
