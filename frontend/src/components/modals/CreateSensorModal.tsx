@@ -16,9 +16,11 @@ import { Sensor } from '@/proto/sensor/sensor-crud';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { TwinContext } from '@/store/twins';
 import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
+import { undoDeleteBuildingRequest } from '@/proto/twins/twin';
 
 interface CreateSensorModalProps {
     isModalOpen: boolean;
+    selectedBuildingId: number | null;
     handleCreateSensor: (sensor: Sensor) => Promise<void>;
     closeModal: () => void;
 }
@@ -31,6 +33,7 @@ enum ModalPage {
 
 function CreateSensorModal({
     isModalOpen,
+    selectedBuildingId,
     closeModal,
     handleCreateSensor,
 }: CreateSensorModalProps) {
@@ -134,6 +137,17 @@ function CreateSensorModal({
                     break;
                 }
                 setModalPage(0);
+                //if no building is selected, it is a global sensor and it should be set to undefined.
+                //Convert the selectedBuildingId from number | null to number | undefined.
+                //I chose to not make selectedBuildingId number | undefined because if something goes wrong it will
+                // become undefined and but won't give an error because it is a valid type.
+                let sensorSelectedBuildingId: number | undefined;
+
+                if (selectedBuildingId == null) {
+                    sensorSelectedBuildingId = undefined;
+                } else {
+                    sensorSelectedBuildingId = selectedBuildingId;
+                }
 
                 const sensor: Sensor = {
                     id: uuidv4(),
@@ -151,9 +165,9 @@ function CreateSensorModal({
                             integer: [1],
                             exponent: prefixExponents[prefixes[i]],
                         },
-
                         alias: aliases[i],
                     })),
+                    buildingId: sensorSelectedBuildingId,
                 };
 
                 await handleCreateSensor(sensor);
@@ -246,7 +260,13 @@ function CreateSensorModal({
                 size={modalPage === ModalPage.INGEST ? '4xl' : 'xl'}
                 onClose={handleModalClose}
             >
-                <Modal.Header>Create Sensor</Modal.Header>
+                <Modal.Header>
+                    Create Sensor (
+                    {selectedBuildingId === null
+                        ? `Global Sensor for twin ${twinState.current?.name}`
+                        : `Sensor for building number ${selectedBuildingId}`}
+                    )
+                </Modal.Header>
                 <Modal.Body>
                     <CreateSensorStepper page={modalPage} />
                     {modalPage === ModalPage.BASIC && (

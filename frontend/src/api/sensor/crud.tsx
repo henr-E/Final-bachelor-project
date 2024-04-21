@@ -92,6 +92,7 @@ export async function BackendGetSensors(twinId: number): Promise<Sensor[]> {
                     prefix: s.prefix || { sign: false, integer: [1], exponent: 0 },
                 })),
                 twinId: sensor.twinId,
+                buildingId: sensor.buildingId,
             });
         }
 

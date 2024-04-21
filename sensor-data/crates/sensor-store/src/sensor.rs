@@ -21,6 +21,7 @@ pub struct Sensor<'a> {
     /// Signals associated with the sensor.
     signals: Signals<'a>,
     pub twin_id: i32,
+    pub building_id: Option<i32>,
 }
 
 impl<'a> Sensor<'a> {
@@ -31,8 +32,9 @@ impl<'a> Sensor<'a> {
         description: Option<impl Into<Cow<'a, str>>>,
         location: impl Into<(f64, f64)>,
         twin_id: i32,
+        building_id: Option<i32>,
     ) -> SensorBuilder<'a> {
-        SensorBuilder::new(id, name, description, location, twin_id)
+        SensorBuilder::new(id, name, description, location, twin_id, building_id)
     }
 
     /// Returns the [`Signals`] being measured by this sensor.
@@ -102,6 +104,7 @@ pub struct SensorBuilder<'a> {
     pub location: (f64, f64),
     pub signals: Signals<'a>,
     pub twin_id: i32,
+    pub building_id: Option<i32>,
 }
 
 impl<'a> SensorBuilder<'a> {
@@ -111,6 +114,7 @@ impl<'a> SensorBuilder<'a> {
         description: Option<impl Into<Cow<'a, str>>>,
         location: impl Into<(f64, f64)>,
         twin_id: i32,
+        building_id: Option<i32>,
     ) -> Self {
         Self {
             id,
@@ -119,6 +123,7 @@ impl<'a> SensorBuilder<'a> {
             location: location.into(),
             signals: Signals::new(),
             twin_id,
+            building_id,
         }
     }
 
@@ -149,6 +154,7 @@ impl<'a> SensorBuilder<'a> {
             location: self.location,
             signals: self.signals,
             twin_id: self.twin_id,
+            building_id: self.building_id,
         }
     }
 }

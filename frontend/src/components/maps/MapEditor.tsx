@@ -1,12 +1,12 @@
 'use client';
-import { Button, Textarea } from 'flowbite-react';
+import { Badge, Button, Textarea } from 'flowbite-react';
 import { Icon } from '@mdi/react';
 import {
     mdiCursorPointer,
     mdiHomeLightningBoltOutline,
+    mdiPlus,
     mdiTransitConnectionHorizontal,
     mdiWindTurbine,
-    mdiPlus,
 } from '@mdi/js';
 import { MutableRefObject, useContext, useEffect, useRef, useState } from 'react';
 import { PredictionMapProps } from '@/components/maps/PredictionMap';
@@ -15,10 +15,14 @@ import { TwinContext } from '@/store/twins';
 import { BuildingItem, LineItem, MapItems, MapItemType, NodeItem } from '@/components/maps/MapItem';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { JsonToTable } from 'react-json-to-table';
-import { buildingObject, TwinServiceDefinition } from '@/proto/twins/twin';
+import { TwinServiceDefinition } from '@/proto/twins/twin';
 import { createChannel, createClient } from 'nice-grpc-web';
 import { uiBackendServiceUrl } from '@/api/urls';
 import { toast } from 'react-hot-toast';
+import { Sensor } from '@/proto/sensor/sensor-crud';
+import { BackendCreateSensor, BackendGetSensors } from '@/api/sensor/crud';
+import ShowSignalsModal from '@/components/modals/ShowSignalsModal';
+import CreateSensorModal from '@/components/modals/CreateSensorModal';
 
 enum CursorState {
     PLACE_BOLT,
@@ -101,7 +105,7 @@ function MapEditor({
     initialEdges,
     initialNodes,
 }: MapEditorProps) {
-    const [twinState, dispatch] = useContext(TwinContext);
+    const [twinState, dispatchTwin] = useContext(TwinContext);
     const [cursor, setCursor] = useState<CursorState>(CursorState.GRAB);
     const [nodes, setNodes] = useState<Map<number, NodeItem>>(new Map<number, NodeItem>());
     const [edges, setEdges] = useState<Array<LineItem>>([]);
@@ -112,6 +116,9 @@ function MapEditor({
     const selectedItemsRef = useRef(selectedItems); //Use a reference because needed when called from eventHandlers
     const [itemComponents, setItemComponents] = useState('{}');
     const [selectedBuilding, setSelectedBuilding] = useState<BuildingItem | undefined>(undefined);
+    const [isCreateSensorModalOpen, setIsCreateSensorModalOpen] = useState(false);
+    const [isShowSignalsModalOpen, setIsShowSignalsModalOpen] = useState(false);
+    const [selectedSensor, setSelectedSensor] = useState<Sensor>();
 
     //Overwrite eventhandlers
     useEffect(() => {
@@ -286,6 +293,26 @@ function MapEditor({
         }
     };
 
+    const handleCreateSensor = async (sensor: Sensor) => {
+        let success = await BackendCreateSensor(sensor);
+        if (!success) {
+            ToastNotification('error', 'Failed to create sensor');
+            return;
+        }
+
+        if (twinState.current) {
+            let sensors = await BackendGetSensors(twinState.current?.id);
+            dispatchTwin({ type: 'load_sensors', sensors: sensors });
+        }
+
+        ToastNotification('success', `Sensor is created`);
+    };
+
+    const handleClick = (sensor: Sensor) => {
+        setIsShowSignalsModalOpen(true);
+        setSelectedSensor(sensor);
+    };
+
     const saveBuildingComponents = async (jsonString: string) => {
         if (!nodesRef?.current) {
             return;
@@ -318,145 +345,216 @@ function MapEditor({
     };
 
     return (
-        <div className='flex h-full grid grid-cols-12'>
-            <div
-                className='h-full col-span-9'
-                style={{ cursor: `url(${iconPaths[cursor]}) 15 15, crosshair` }}
-            >
-                <div style={{ height: '90%' }}>
-                    <PredictionMapImport
-                        twin={twinState.current}
-                        nodes={nodes}
-                        edges={edges}
-                        onSelectBuilding={onSelectBuilding}
-                    />
-                </div>
-                <div className='flex justify-start gap-2'>
-                    <div className='bg-white gap-4 p-2 my-1 rounded-md flex justify-start'>
-                        <Button
-                            outline={cursor !== CursorState.GRAB}
-                            onClick={(_: any) => changeCursor(CursorState.GRAB)}
-                        >
-                            <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
-                                <Icon path={mdiCursorPointer} size={1} />
-                            </span>
-                        </Button>
-                        <Button
-                            outline={cursor !== CursorState.PLACE_BOLT}
-                            onClick={(_: any) => changeCursor(CursorState.PLACE_BOLT)}
-                        >
-                            <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
-                                <Icon path={mdiHomeLightningBoltOutline} size={1.2} />
-                            </span>
-                        </Button>
-                        <Button
-                            outline={cursor !== CursorState.PLACE_TURBINE}
-                            onClick={(_: any) => changeCursor(CursorState.PLACE_TURBINE)}
-                        >
-                            <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
-                                <Icon path={mdiWindTurbine} size={1.2} />
-                            </span>
-                        </Button>
-                        <Button
-                            outline={cursor !== CursorState.PLACE_TURBINE}
-                            onClick={(_: any) => toast('add preset (not implemented yet)')}
-                        >
-                            <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
-                                <Icon path={mdiPlus} size={1.2} />
-                            </span>
-                        </Button>
+        <>
+            <div className='flex h-full grid grid-cols-12'>
+                <div
+                    className='h-full col-span-9'
+                    style={{ cursor: `url(${iconPaths[cursor]}) 15 15, crosshair` }}
+                >
+                    <div style={{ height: '90%' }}>
+                        <PredictionMapImport
+                            twin={twinState.current}
+                            nodes={nodes}
+                            edges={edges}
+                            onSelectBuilding={onSelectBuilding}
+                        />
                     </div>
-                    <div className='bg-white grid-cols-12 gap-4 p-2 my-1 rounded-md flex'>
-                        <Button
-                            outline={cursor !== CursorState.CONNECT_ITEMS}
-                            onClick={(_: any) => changeCursor(CursorState.CONNECT_ITEMS)}
-                        >
-                            <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
-                                <Icon path={mdiTransitConnectionHorizontal} size={1.2} />
-                            </span>
-                        </Button>
+                    <div className='flex justify-start gap-2'>
+                        <div className='bg-white gap-4 p-2 my-1 rounded-md flex justify-start'>
+                            <Button
+                                outline={cursor !== CursorState.GRAB}
+                                onClick={(_: any) => changeCursor(CursorState.GRAB)}
+                            >
+                                <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
+                                    <Icon path={mdiCursorPointer} size={1} />
+                                </span>
+                            </Button>
+                            <Button
+                                outline={cursor !== CursorState.PLACE_BOLT}
+                                onClick={(_: any) => changeCursor(CursorState.PLACE_BOLT)}
+                            >
+                                <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
+                                    <Icon path={mdiHomeLightningBoltOutline} size={1.2} />
+                                </span>
+                            </Button>
+                            <Button
+                                outline={cursor !== CursorState.PLACE_TURBINE}
+                                onClick={(_: any) => changeCursor(CursorState.PLACE_TURBINE)}
+                            >
+                                <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
+                                    <Icon path={mdiWindTurbine} size={1.2} />
+                                </span>
+                            </Button>
+                            <Button
+                                outline={cursor !== CursorState.PLACE_TURBINE}
+                                onClick={(_: any) => toast('add preset (not implemented yet)')}
+                            >
+                                <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
+                                    <Icon path={mdiPlus} size={1.2} />
+                                </span>
+                            </Button>
+                        </div>
+                        <div className='bg-white grid-cols-12 gap-4 p-2 my-1 rounded-md flex'>
+                            <Button
+                                outline={cursor !== CursorState.CONNECT_ITEMS}
+                                onClick={(_: any) => changeCursor(CursorState.CONNECT_ITEMS)}
+                            >
+                                <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
+                                    <Icon path={mdiTransitConnectionHorizontal} size={1.2} />
+                                </span>
+                            </Button>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div className='col-span-3 mx-6'>
-                <div className='flex flex-col h-full'>
-                    <div className='bg-white grid-cols-12 gap-4 my-1 rounded-md flex flex-col justify-start w-full p-3'>
-                        {selectedItems.length == 1 && (
-                            <>
-                                <h1>{selectedItems[0]?.name}</h1>
-                                <JsonToTable json={selectedItems[0]?.components} />
-                                <Textarea
-                                    id='itemVar'
-                                    placeholder='{}'
-                                    required
-                                    rows={4}
-                                    value={itemComponents}
-                                    onChange={e => setItemComponents(e.target.value)}
-                                />
-                                <Button onClick={() => saveBuildingComponents(itemComponents)}>
-                                    Opslaan
-                                </Button>
-                            </>
-                        )}
-                        {!selectedBuilding ? (
-                            selectedItems.length != 1 && (
-                                <div className='text-gray-700 text-md mb-2'>
-                                    Please select a building or edge.
-                                </div>
-                            )
-                        ) : (
-                            <>
-                                <div
-                                    className={`text-lg font-semibold mb-4 ${
-                                        !selectedBuilding.visible ? 'blur-sm' : ''
-                                    }`}
-                                >
-                                    Selected Building Details:
-                                </div>
-                                <div
-                                    className={`text-gray-700 text-md ${
-                                        !selectedBuilding.visible ? 'blur-sm' : ''
-                                    }`}
-                                >
-                                    <div>
-                                        <span className='font-semibold'>Building Number:</span>{' '}
-                                        {selectedBuilding?.id}
-                                    </div>
-                                    <div>
-                                        <span className='font-semibold'>City:</span>{' '}
-                                        {selectedBuilding.city}
-                                    </div>
-                                    <div>
-                                        <span className='font-semibold'>House Number:</span>{' '}
-                                        {selectedBuilding.houseNumber}
-                                    </div>
-                                    <div>
-                                        <span className='font-semibold'>Postcode:</span>{' '}
-                                        {selectedBuilding.postcode}
-                                    </div>
-                                    <div>
-                                        <span className='font-semibold'>Street:</span>{' '}
-                                        {selectedBuilding.street}
-                                    </div>
-                                </div>
-                                {selectedBuilding.visible ? (
-                                    <Button color={'red'} onClick={() => handleDeleteBuilding()}>
-                                        Delete building
+                <div className='col-span-3 mx-6'>
+                    <div className='flex flex-col h-full'>
+                        <div className='bg-white grid-cols-12 gap-4 my-1 rounded-md flex flex-col justify-start w-full p-3'>
+                            {selectedItems.length == 1 && (
+                                <>
+                                    <h1>{selectedItems[0]?.name}</h1>
+                                    <JsonToTable json={selectedItems[0]?.components} />
+                                    <Textarea
+                                        id='itemVar'
+                                        placeholder='{}'
+                                        required
+                                        rows={4}
+                                        value={itemComponents}
+                                        onChange={e => setItemComponents(e.target.value)}
+                                    />
+                                    <Button onClick={() => saveBuildingComponents(itemComponents)}>
+                                        Opslaan
                                     </Button>
-                                ) : (
-                                    <Button
-                                        color={'red'}
-                                        onClick={() => handleUndoDeleteBuilding()}
+                                </>
+                            )}
+                            {!selectedBuilding ? (
+                                selectedItems.length != 1 && (
+                                    <div className='text-gray-700 text-md mb-2'>
+                                        Please select a building or edge.
+                                    </div>
+                                )
+                            ) : (
+                                <>
+                                    <div
+                                        className={`text-lg font-semibold mb-4 ${
+                                            !selectedBuilding.visible ? 'blur-sm' : ''
+                                        }`}
                                     >
-                                        Restore building
+                                        Selected Building Details:
+                                    </div>
+                                    <div
+                                        className={`text-gray-700 text-md ${
+                                            !selectedBuilding.visible ? 'blur-sm' : ''
+                                        }`}
+                                    >
+                                        <div>
+                                            <span className='font-semibold'>Building Number:</span>{' '}
+                                            {selectedBuilding?.id}
+                                        </div>
+                                        <div>
+                                            <span className='font-semibold'>City:</span>{' '}
+                                            {selectedBuilding.city}
+                                        </div>
+                                        <div>
+                                            <span className='font-semibold'>House Number:</span>{' '}
+                                            {selectedBuilding.houseNumber}
+                                        </div>
+                                        <div>
+                                            <span className='font-semibold'>Postcode:</span>{' '}
+                                            {selectedBuilding.postcode}
+                                        </div>
+                                        <div>
+                                            <span className='font-semibold'>Street:</span>{' '}
+                                            {selectedBuilding.street}
+                                        </div>
+                                        <div>
+                                            <span className='font-semibold'>Sensors:</span>
+                                            <div>
+                                                {(() => {
+                                                    const filteredSensors =
+                                                        twinState.current.sensors.filter(
+                                                            sensor =>
+                                                                sensor.buildingId ===
+                                                                selectedBuilding.id
+                                                        );
+                                                    return (
+                                                        <div className='mt-2'>
+                                                            <div className='flex flex-wrap gap-2'>
+                                                                {filteredSensors.map(sensor => (
+                                                                    <Badge
+                                                                        key={sensor.id}
+                                                                        color='gray'
+                                                                        style={{
+                                                                            cursor: 'pointer',
+                                                                        }}
+                                                                        onClick={() =>
+                                                                            handleClick(sensor)
+                                                                        }
+                                                                    >
+                                                                        {sensor.name}
+                                                                    </Badge>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {selectedBuilding.visible ? (
+                                        <Button
+                                            color={'red'}
+                                            onClick={() => handleDeleteBuilding()}
+                                        >
+                                            Delete building
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            color={'red'}
+                                            onClick={() => handleUndoDeleteBuilding()}
+                                        >
+                                            Restore building
+                                        </Button>
+                                    )}
+                                    <Button
+                                        color='indigo'
+                                        theme={{
+                                            color: {
+                                                indigo: 'bg-indigo-600 text-white ring-indigo-600',
+                                            },
+                                        }}
+                                        onClick={() => {
+                                            if (twinState.current) {
+                                                setIsCreateSensorModalOpen(true);
+                                            } else {
+                                                ToastNotification(
+                                                    'error',
+                                                    'Twin not selected. Try again.'
+                                                );
+                                            }
+                                        }}
+                                    >
+                                        Create Sensor
                                     </Button>
-                                )}
-                            </>
-                        )}
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+            <CreateSensorModal
+                isModalOpen={isCreateSensorModalOpen}
+                selectedBuildingId={selectedBuilding?.id || null}
+                handleCreateSensor={handleCreateSensor}
+                closeModal={() => setIsCreateSensorModalOpen(false)}
+            />
+            <ShowSignalsModal
+                isModalOpen={isShowSignalsModalOpen}
+                sensor={selectedSensor}
+                closeModal={() => {
+                    setIsShowSignalsModalOpen(false);
+                }}
+            />
+        </>
     );
 }
 

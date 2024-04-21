@@ -65,7 +65,7 @@ fn into_proto_sensor(sensor: Sensor) -> ProtoSensor {
             let prefix: ProtoBigInt = ProtoBigInt {
                 integer: integer.to_vec(),
                 sign: sign == Sign::Minus,
-                exponent,
+                exponent: -exponent,
             };
             // create expected gRPC signal type.
             ProtoSignal {
@@ -86,6 +86,7 @@ fn into_proto_sensor(sensor: Sensor) -> ProtoSensor {
         latitude: sensor.location.1,
         signals,
         twin_id: sensor.twin_id,
+        building_id: sensor.building_id,
     }
 }
 
@@ -100,6 +101,7 @@ fn into_sensor(sensor: ProtoSensor) -> Result<Sensor<'static>, SignalError> {
         description,
         (sensor.longitude, sensor.latitude),
         sensor.twin_id,
+        sensor.building_id,
     );
     // push all provided signals trough the builder.
     for signal in sensor.signals.into_iter() {
