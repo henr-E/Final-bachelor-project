@@ -79,6 +79,7 @@ function CreateSensorModal({
         (async () => {
             const quantitiesWithUnits = await BackendGetQuantityWithUnits();
             setQuantitiesWithUnits(quantitiesWithUnits);
+            setQuantity(getFirstQuantity(quantitiesWithUnits)?.quantity);
         })();
     }, []);
 
