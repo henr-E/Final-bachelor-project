@@ -14,7 +14,7 @@ use tokio::time::sleep;
 use tonic::transport::Channel;
 
 // proto
-use crate::database::SimulationsDB;
+use crate::database::{SimulationsDB, StatusEnum};
 use crate::database_buffer::Transport;
 use proto::simulation::simulator::{
     simulator_client::SimulatorClient, InitialState, IoConfigRequest,
@@ -79,7 +79,7 @@ impl Runner {
                     for name in response.output_components {
                         if !output_components.insert(name) {
                             self.db
-                                .update_status(simulation_id, "Failed")
+                                .update_status(simulation_id, StatusEnum::Failed)
                                 .await
                                 .context("could not update status")?;
                             break;
@@ -91,7 +91,7 @@ impl Runner {
                     .get_status(simulation_id)
                     .await
                     .context("could not get status")?;
-                if status != "Failed" {
+                if status != StatusEnum::Failed {
                     // Make error handling easier by putting the two functions below into one async
                     // block. This allows errors from both to be handled by the same code.
                     let do_simulation = async {
@@ -104,7 +104,7 @@ impl Runner {
                     if let Err(err) = do_simulation.await {
                         error!("Simulation `{simulation_id}` failed: {err:?}");
                         self.db
-                            .update_status(simulation_id, "Failed")
+                            .update_status(simulation_id, StatusEnum::Failed)
                             .await
                             .context("could not update status after failed simulation")?;
                     }
@@ -356,10 +356,10 @@ impl Runner {
             };
             self.state_sender.send(transport)?;
             let status = match i {
-                0 => "Pending",
-                i if i < iterations - 1 => "Computing",
-                i if i == iterations - 1 => "Finished",
-                _ => "Failed",
+                0 => StatusEnum::Pending,
+                i if i < iterations - 1 => StatusEnum::Computing,
+                i if i == iterations - 1 => StatusEnum::Finished,
+                _ => StatusEnum::Failed,
             };
             self.db
                 .update_status(simulation_id, status)
