@@ -31,7 +31,6 @@ import { uiBackendServiceUrl } from '@/api/urls';
 import MapFrame, { FrameToMapInformation } from '@/components/maps/MapFrame';
 import ToastNotification from '@/components/notification/ToastNotification';
 import CreateSimulationModal from '@/components/modals/CreateSimulationModal';
-import { router } from 'next/client';
 import { BackendGetSimulationDetails } from '@/api/simulation/crud';
 
 const PredictionMap = dynamic<PredictionMapProps>(() => import('@/components/maps/PredictionMap'), {
@@ -65,6 +64,7 @@ function SimulationPage() {
     const framesRef = useRef(frames);
     const [clickedItem, setClickedItem] = useState<number>(0);
     const [simulation, setSimulation] = useState<Simulation>();
+    const router = useRouter();
 
     const loadSimulations = useCallback(() => {
         /**
@@ -141,6 +141,8 @@ function SimulationPage() {
                 });
             } catch (error) {
                 console.error('Failed to load simulation details');
+                ToastNotification('error', 'Failed to load simulation details');
+                router.push('/dashboard/simulation/');
             }
         }
 
@@ -162,10 +164,18 @@ function SimulationPage() {
     const isMounted = useRef(false);
 
     useEffect(() => {
+        console.log('check', isMounted.current, twinState.current?.id);
+
+        //When loaded from url, this will be not set initially and thus return
+        if (!twinState.current?.id) {
+            return;
+        }
+        //When there is a twin set, set isMounted to detect if twin changes
         if (!isMounted.current) {
             isMounted.current = true;
             return;
         }
+        //Twin changed, return back to simulation overview
         router.push('/dashboard/simulation/');
         // eslint-disable-next-line
     }, [twinState.current?.id]);
