@@ -29,6 +29,7 @@
                 "force",
                 "frequency",
                 "illuminance",
+                "irradiance",
                 "length",
                 "luminance",
                 "luminousintensity",
@@ -82,6 +83,7 @@
                 "pound",
                 "volt",
                 "watt",
+                "wattspersquaremetre",
                 "utc"
               ]
             }

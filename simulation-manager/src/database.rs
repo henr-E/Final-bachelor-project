@@ -9,12 +9,12 @@ use sqlx::{query, PgConnection, PgPool, Postgres, Transaction};
 use database_config::database_url;
 use prost_types::Value;
 use prost_value::*;
-use proto::simulation::{Edge, Node};
+use proto::simulation::{simulation_manager::SimulationStatus, Edge, Node};
 use tonic::Status;
 
 type Date = NaiveDate;
 
-#[derive(Debug, sqlx::Type)]
+#[derive(Debug, sqlx::Type, PartialEq)]
 #[sqlx(type_name = "enum_status")]
 pub enum StatusEnum {
     Pending,
@@ -23,7 +23,7 @@ pub enum StatusEnum {
     Failed,
 }
 impl StatusEnum {
-    fn to_string(status: StatusEnum) -> String {
+    pub fn to_string(status: StatusEnum) -> String {
         match status {
             StatusEnum::Pending => "Pending",
             StatusEnum::Computing => "Computing",
@@ -32,12 +32,21 @@ impl StatusEnum {
         }
         .to_string()
     }
-    fn from_string(status: &str) -> StatusEnum {
+    pub fn from_string(status: &str) -> StatusEnum {
         match status {
             "Pending" => StatusEnum::Pending,
             "Computing" => StatusEnum::Computing,
             "Finished" => StatusEnum::Finished,
             _ => StatusEnum::Failed,
+        }
+    }
+
+    pub fn to_simulation_status(status: StatusEnum) -> SimulationStatus {
+        match status {
+            StatusEnum::Pending => SimulationStatus::Pending,
+            StatusEnum::Computing => SimulationStatus::Computing,
+            StatusEnum::Finished => SimulationStatus::Finished,
+            _ => SimulationStatus::Failed,
         }
     }
 }
@@ -139,11 +148,10 @@ impl SimulationsDB {
         name: &str,
         step_size_ms: i32,
         max_steps: i32,
-        status: &str,
+        status: StatusEnum,
     ) -> Result<i32> {
-        let enum_status = StatusEnum::from_string(status);
         query!("INSERT INTO simulations (name, step_size_ms, max_steps, status) VALUES($1, $2, $3, $4) RETURNING id",
-            name, step_size_ms, max_steps, enum_status as _)
+            name, step_size_ms, max_steps, status as _)
 
         .fetch_one(self.connection().await?)
             .await
@@ -482,27 +490,24 @@ impl SimulationsDB {
     }
 
     /// Get a status of the simulation.
-    pub async fn get_status(&mut self, simulation_id: i32) -> Result<String> {
-        let status = StatusEnum::to_string(
-            query!(
-                "SELECT status as \"status: StatusEnum\" FROM simulations WHERE id = $1",
-                simulation_id
-            )
-            .fetch_one(self.connection().await?)
-            .await
-            .map_err(|err| Status::from_error(Box::new(err)))?
-            .status
-            .context("missing status")?,
-        );
+    pub async fn get_status(&mut self, simulation_id: i32) -> Result<StatusEnum> {
+        let status = query!(
+            "SELECT status as \"status: StatusEnum\" FROM simulations WHERE id = $1",
+            simulation_id
+        )
+        .fetch_one(self.connection().await?)
+        .await
+        .map_err(|err| Status::from_error(Box::new(err)))?
+        .status
+        .context("missing status")?;
 
         Ok(status)
     }
     /// Update the status of the simulation.
-    pub async fn update_status(&mut self, simulation_id: i32, status: &str) -> Result<()> {
-        let status_to_enum: StatusEnum = StatusEnum::from_string(status);
+    pub async fn update_status(&mut self, simulation_id: i32, status: StatusEnum) -> Result<()> {
         query!(
             "UPDATE simulations SET status = $1 WHERE id = $2",
-            status_to_enum as _,
+            status as _,
             simulation_id
         )
         .execute(self.connection().await?)
@@ -522,11 +527,11 @@ mod database_test {
     async fn test_queue(pool: sqlx::PgPool) {
         let mut db = SimulationsDB::from_pg_pool(pool).await.unwrap();
         let id_1 = db
-            .add_simulation("sim1", 1000, 100, "Pending")
+            .add_simulation("sim1", 1000, 100, StatusEnum::Pending)
             .await
             .unwrap();
         let id_2 = db
-            .add_simulation("sim2", 2000, 200, "Pending")
+            .add_simulation("sim2", 2000, 200, StatusEnum::Pending)
             .await
             .unwrap();
         db.enqueue(id_1).await.unwrap();
@@ -543,7 +548,7 @@ mod database_test {
         let mut db = SimulationsDB::from_pg_pool(pool).await.unwrap();
         db.begin_transaction().await.unwrap();
         let simulation_id = db
-            .add_simulation("sim", 42000, 10, "Pending")
+            .add_simulation("sim", 42000, 10, StatusEnum::Pending)
             .await
             .unwrap();
         db.add_node(

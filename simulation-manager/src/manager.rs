@@ -6,12 +6,12 @@ use tokio_stream::StreamExt;
 use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 
-use crate::database::SimulationsDB;
+use crate::database::{SimulationsDB, StatusEnum};
 use proto::simulation::simulator::{simulator_client::SimulatorClient, IoConfigRequest};
 use proto::simulation::{
     simulation_manager::{
         ComponentsInfo, PushSimulationRequest, SimulationData, SimulationFrame,
-        SimulationFrameRequest, SimulationId, SimulationManager, SimulationStatus,
+        SimulationFrameRequest, SimulationId, SimulationManager,
     },
     Graph, State,
 };
@@ -126,7 +126,7 @@ impl SimulationManager for Manager {
                 simulation_id.as_str(),
                 (simulation.timestep_delta * 1000.0) as i32,
                 simulation.timesteps as i32,
-                "Pending" as &str,
+                StatusEnum::Pending,
             )
             .await
             .unwrap();
@@ -177,21 +177,13 @@ impl SimulationManager for Manager {
         let timestep = node_timestep.max(component_timestep);
 
         let sim_status = db.get_status(simulation.id).await.unwrap();
-        // current status, a simulation has only started computing
-        // iff there is a node in the database with timestep > 0
-        let simulation_status = match sim_status.as_str() {
-            "Pending" => SimulationStatus::Pending,
-            "Computing" => SimulationStatus::Computing,
-            "Finished" => SimulationStatus::Finished,
-            _ => SimulationStatus::Failed,
-        };
 
         // Create response
         let simulation_data = SimulationData {
             id: Some(SimulationId {
                 uuid: simulation_id,
             }),
-            status: simulation_status.into(),
+            status: StatusEnum::to_simulation_status(sim_status).into(),
             timestep_count: timestep as u64,
             max_timestep_count: simulation.max_steps as u64,
             timestep_delta: simulation.step_size_ms as f64 / 1000.0,
