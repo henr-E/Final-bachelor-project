@@ -23,6 +23,7 @@ import { Sensor } from '@/proto/sensor/sensor-crud';
 import { BackendCreateSensor, BackendGetSensors } from '@/api/sensor/crud';
 import ShowSignalsModal from '@/components/modals/ShowSignalsModal';
 import CreateSensorModal from '@/components/modals/CreateSensorModal';
+import CustomJsonEditor from '@/components/CustomJsonEditor';
 
 enum CursorState {
     PLACE_BOLT,
@@ -348,7 +349,7 @@ function MapEditor({
         <>
             <div className='flex h-full grid grid-cols-12'>
                 <div
-                    className='h-full col-span-9'
+                    className='h-full col-span-8'
                     style={{ cursor: `url(${iconPaths[cursor]}) 15 15, crosshair` }}
                 >
                     <div style={{ height: '90%' }}>
@@ -406,26 +407,9 @@ function MapEditor({
                         </div>
                     </div>
                 </div>
-                <div className='col-span-3 mx-6'>
+                <div className='col-span-4 mx-6 overflow-y-scroll'>
                     <div className='flex flex-col h-full'>
                         <div className='bg-white grid-cols-12 gap-4 my-1 rounded-md flex flex-col justify-start w-full p-3'>
-                            {selectedItems.length == 1 && (
-                                <>
-                                    <h1>{selectedItems[0]?.name}</h1>
-                                    <JsonToTable json={selectedItems[0]?.components} />
-                                    <Textarea
-                                        id='itemVar'
-                                        placeholder='{}'
-                                        required
-                                        rows={4}
-                                        value={itemComponents}
-                                        onChange={e => setItemComponents(e.target.value)}
-                                    />
-                                    <Button onClick={() => saveBuildingComponents(itemComponents)}>
-                                        Opslaan
-                                    </Button>
-                                </>
-                            )}
                             {!selectedBuilding ? (
                                 selectedItems.length != 1 && (
                                     <div className='text-gray-700 text-md mb-2'>
@@ -500,6 +484,21 @@ function MapEditor({
                                             </div>
                                         </div>
                                     </div>
+                                    {selectedItems.length == 1 && (
+                                        <>
+                                            <CustomJsonEditor
+                                                data={JSON.parse(itemComponents)}
+                                                onSave={updatedComponents => {
+                                                    saveBuildingComponents(
+                                                        JSON.stringify(updatedComponents)
+                                                    );
+                                                    setItemComponents(
+                                                        JSON.stringify(updatedComponents)
+                                                    );
+                                                }}
+                                            />
+                                        </>
+                                    )}
                                     {selectedBuilding.visible ? (
                                         <Button
                                             color={'red'}

@@ -1,15 +1,15 @@
 'use client';
 
 import { useContext, useRef, useState } from 'react';
-import { Button, Datepicker, Label, Modal, Select, Textarea, TextInput } from 'flowbite-react';
+import { Button, Datepicker, Label, Modal, Select, TextInput } from 'flowbite-react';
 import dynamic from 'next/dynamic';
-import { CreateSimulationParams, Simulation } from '@/proto/simulation/frontend';
+import { CreateSimulationParams } from '@/proto/simulation/frontend';
 import { TwinContext } from '@/store/twins';
-import { LineItem, MapItemType, NodeItem } from '@/components/maps/MapItem';
+import { LineItem, NodeItem } from '@/components/maps/MapItem';
 import { Edge, Graph, Node, State } from '@/proto/simulation/simulation';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { BackendCreateSimulation, BackendGetSimulations } from '@/api/simulation/crud';
-import { useRouter } from 'next/navigation';
+import CustomJsonEditor from '@/components/CustomJsonEditor';
 
 interface CreateSimulationModalProps {
     isModalOpen: boolean;
@@ -25,6 +25,17 @@ interface CreateSimulationModalProps {
     initialEdges?: Array<LineItem>;
 }
 
+interface JsonData {
+    the: string;
+    that: string;
+    on: string;
+    moon: string;
+    maybe: number;
+    i: string;
+    probably: string[];
+    am_i_right: boolean;
+}
+
 function CreateSimulationModal(propItems: CreateSimulationModalProps) {
     const [twinState, dispatchTwin] = useContext(TwinContext);
     const [name, setName] = useState<string>(propItems.title || '');
@@ -33,10 +44,11 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
     const [startTime, setStartTime] = useState<string>(propItems.startTime || '');
     const [endTime, setEndTime] = useState<string>(propItems.endTime || '');
     const [timeStepDelta, setTimeStepDelta] = useState<number>(propItems.timeStepDelta || 0);
-    const [globalComponents, setGlobalComponents] = useState(propItems.globalComponents || '{}');
     const [step, setStep] = useState<number>(0);
     const nodeItemsRef = useRef<Map<number, NodeItem>>();
     const edgeItemsRef = useRef<Array<LineItem>>();
+
+    const [globalComponents, setGlobalComponents] = useState(propItems.globalComponents || '{}');
 
     const formRef = useRef<HTMLFormElement>(null);
 
@@ -195,6 +207,9 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
         ssr: false,
     });
 
+    const onJsonChange = (key: string, value: any, parent: any, data: JsonData) => {
+        console.log(key, value, parent, data);
+    };
     return (
         <>
             <Modal
@@ -311,23 +326,34 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                             </div>
                             <div className='flex flex-row w-full space-x-3 pt-3'>
                                 <div className='w-full'>
-                                    <div className='mb-2 block'>
-                                        <Label htmlFor='gv' value='Global variables' />
-                                    </div>
-                                    <Textarea
-                                        id='gv'
-                                        placeholder='{}'
-                                        required
-                                        rows={4}
-                                        value={globalComponents}
-                                        onChange={e => setGlobalComponents(e.target.value)}
+                                    <CustomJsonEditor
+                                        // data={JSON.parse(itemComponents)}
+                                        data={JSON.parse(globalComponents)}
+                                        onSave={updatedComponents => {
+                                            // saveBuildingComponents(JSON.stringify(updatedComponents));
+                                            // setItemComponents(JSON.stringify(updatedComponents));
+                                        }}
                                     />
                                 </div>
+
+                                {/*<div className="w-full">*/}
+                                {/*    <div className="mb-2 block">*/}
+                                {/*        <Label htmlFor="gv" value="Global variables" />*/}
+                                {/*    </div>*/}
+                                {/*    <Textarea*/}
+                                {/*        id="gv"*/}
+                                {/*        placeholder="{}"*/}
+                                {/*        required*/}
+                                {/*        rows={4}*/}
+                                {/*        value={globalComponents}*/}
+                                {/*        onChange={e => setGlobalComponents(e.target.value)}*/}
+                                {/*    />*/}
+                                {/*</div>*/}
                             </div>
                         </form>
                     </Modal.Body>
                 ) : (
-                    <Modal.Body>
+                    <Modal.Body style={{ overflowY: 'hidden' }}>
                         <div className='h-screen w-full'>
                             <div style={{ height: '65%' }}>
                                 <MapEditor

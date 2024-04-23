@@ -6,8 +6,10 @@ function EditorPage() {
         ssr: false,
     });
     return (
-        <div className='flex flex-col h-full'>
-            <MapEditor></MapEditor>
+        <div className='h-screen w-full'>
+            <div style={{ height: '75%' }}>
+                <MapEditor></MapEditor>
+            </div>
         </div>
     );
 }
