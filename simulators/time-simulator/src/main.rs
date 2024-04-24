@@ -1,7 +1,6 @@
-use std::{env, net::SocketAddr, process::ExitCode};
-
 use component_library::global::TimeComponent;
 use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
+use std::{env, net::SocketAddr, process::ExitCode};
 use tracing::{error, info};
 
 #[tokio::main(flavor = "current_thread")]
@@ -62,7 +61,6 @@ impl Simulator for TimeSimulator {
             return graph;
         };
         time.0 += self.delta_time;
-
         graph
     }
 }

@@ -1,4 +1,5 @@
 pub mod global {
+    use crate::energy::ProductionOverview;
     pub use chrono;
     use chrono::{DateTime, NaiveDateTime};
     use simulator_communication::{
@@ -44,6 +45,55 @@ pub mod global {
     pub struct TemperatureComponent {
         //This is the current temperature in degrees (celsius)
         pub current_temp: f64,
+    }
+
+    #[derive(ComponentPiece, Component)]
+    #[component(name = "supply_and_demand_analytics", ty = "global")]
+    pub struct SupplyAndDemandAnalytics {
+        /// The total number of consumer nodes present in the graph
+        pub consumer_nodes_count: i32,
+        /// The total number of producer nodes present in the graph
+        pub producer_nodes_count: i32,
+        /// The total number of edges present in the graph
+        pub transmission_edges_count: i32,
+        /// The sum of all the demands of all the consumernodes present in the graph
+        pub total_demand: f64,
+        /// The sum of all the capacities of all the producernodes present in the graph
+        pub total_capacity: f64,
+        /// The percentage of power that is actually consumed
+        pub utilization: f64,
+        /// vector of power type and percentage of how much power they account for
+        pub energy_production_overview: Vec<ProductionOverview>,
+    }
+
+    #[derive(ComponentPiece, Component)]
+    #[component(name = "load_flow_analytics", ty = "global")]
+    pub struct LoadFlowAnalytics {
+        /// List containing all the different analytics for every powertype
+        pub power_type_analytics: Vec<PowerTypeAnalytics>,
+    }
+
+    #[derive(ComponentPiece, Component)]
+    #[component(name = "power_type_analytics", ty = "global")]
+    pub struct PowerTypeAnalytics {
+        /// Power type to which the analytics belong to
+        pub power_type: String,
+        /// Total generators in the system
+        pub total_generators: i32,
+        /// Total slack nodes in the system
+        pub total_slack_nodes: i32,
+        /// Total load nodes in the system
+        pub total_load_nodes: i32,
+        /// Total transmission edges in the system
+        pub total_transmission_edges: i32,
+        /// total nodes in the system
+        pub total_nodes: i32,
+        /// Total incoming power to the system
+        pub total_incoming_power: f64,
+        /// Total outgoing power from the system
+        pub total_outgoing_power: f64,
+        /// vector of power type and percentage of how much power they account for
+        pub energy_production_overview: Vec<ProductionOverview>,
     }
 }
 pub mod energy {
@@ -147,32 +197,45 @@ pub mod energy {
         /// Current flowing through the transmission line in amperes
         pub current: f64,
     }
-    #[derive(ComponentPiece, Component)]
-    #[component(name = "energy_load_flow", ty = "node")]
-    pub struct EnergyLoadFlow {
-        /// Total generators in the system
-        pub total_generators: i32,
-        /// Total slack nodes in the system
-        pub total_slack_nodes: i32,
-        /// Total load nodes in the system
-        pub total_load_nodes: i32,
-        /// Total transmission edges in the system
-        pub total_transmission_edges: i32,
-        /// total nodes in the system
-        pub total_nodes: i32,
-        /// Total incoming power to the system
-        pub total_incoming_power: f64,
-        /// Total outgoing power from the system
-        pub total_outgoing_power: f64,
-        /// vector of power type and percentage of how much power they account for
-        pub energy_production_overview: Vec<ProductionOverview>,
-    }
-    #[derive(ComponentPiece, Component)]
+
+    #[derive(ComponentPiece, Component, Clone)]
     #[component(name = "energy_prodction_overview", ty = "node")]
     pub struct ProductionOverview {
         pub power_type: PowerType,
         pub percentage: f64,
     }
+    #[derive(Clone, Debug, Copy, PartialEq)]
+    pub enum LoadFlowSolvers {
+        GaussSeidel,
+        NewtonRaphson,
+    }
+    impl ComponentPiece for LoadFlowSolvers {
+        fn get_structure() -> ComponentStructure {
+            ComponentStructure::Primitive(ComponentPrimitive::String.into())
+        }
+
+        fn from_value(value: Value) -> Option<Self> {
+            match value.kind? {
+                Kind::StringValue(s) => match s.as_str() {
+                    "GausSeidel" => Some(Self::GaussSeidel),
+                    "NewtonRaphson" => Some(Self::NewtonRaphson),
+                    _ => None,
+                },
+                _ => None,
+            }
+        }
+
+        fn to_value(&self) -> Value {
+            let s = match self {
+                LoadFlowSolvers::GaussSeidel => "GausSeidel",
+                LoadFlowSolvers::NewtonRaphson => "NewtonRaphson",
+            };
+            Value {
+                kind: Some(Kind::StringValue(s.to_owned())),
+            }
+        }
+    }
+
     #[derive(Clone, Debug, Copy, PartialEq)]
     pub enum CableType {
         ACSRConductor,
@@ -213,7 +276,7 @@ pub mod energy {
             }
         }
     }
-    #[derive(Clone, Debug, Copy, PartialEq)]
+    #[derive(Clone, Debug, Copy, PartialEq, Eq, Hash)]
     pub enum PowerType {
         Fossil,
         Renewable,
