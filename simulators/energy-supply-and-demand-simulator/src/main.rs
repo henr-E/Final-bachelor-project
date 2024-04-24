@@ -1,11 +1,13 @@
-use component_library::energy::{ConsumerNode, ProducerNode};
+use component_library::energy::{
+    Bases, ConsumerNode, PowerType, ProducerNode, ProductionOverview, TransmissionEdge,
+};
 use component_library::global::chrono::{NaiveDateTime, Timelike};
-use component_library::global::{TemperatureComponent, TimeComponent};
+use component_library::global::{SupplyAndDemandAnalytics, TemperatureComponent, TimeComponent};
 use rand::prelude::*;
 use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
+use std::collections::HashMap;
 use std::{env, net::SocketAddr, process::ExitCode, time::Duration};
-use tracing::{error, info};
-
+use tracing::{debug, error, info};
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     dotenvy::dotenv().ok();
@@ -46,10 +48,17 @@ pub struct EnergySupplyAndDemandSimulator {
 impl Simulator for EnergySupplyAndDemandSimulator {
     fn get_component_info() -> ComponentsInfo {
         ComponentsInfo::new()
+            .add_optional_component::<SupplyAndDemandAnalytics>()
+            .add_required_component::<ConsumerNode>()
+            .add_required_component::<ProducerNode>()
+            .add_required_component::<TransmissionEdge>()
+            .add_required_component::<Bases>()
             .add_optional_component::<TimeComponent>()
             .add_optional_component::<TemperatureComponent>()
             .add_output_component::<ConsumerNode>()
             .add_output_component::<ProducerNode>()
+            .add_output_component::<TransmissionEdge>()
+            .add_output_component::<SupplyAndDemandAnalytics>()
     }
 
     fn new(delta_time: std::time::Duration, _graph: Graph) -> Self {
@@ -95,6 +104,59 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                 rand::thread_rng().gen_range(-50.0..50.0) * self.delta_time.as_secs() as f64;
             component.active_power = (current_capacity + delta_capacity).clamp(1000.0, 2000.0)
         }
+        let mut num_consumer_nodes = 0;
+        let mut num_producer_nodes = 0;
+        let mut total_demand = 0.0;
+        let mut total_capacity = 0.0;
+
+        let components = graph.get_all_nodes::<ConsumerNode>().into_iter().flatten();
+        for (_, _, component) in components {
+            num_consumer_nodes += 1;
+            total_demand += component.active_power
+        }
+
+        let num_edges = graph
+            .get_all_nodes::<TransmissionEdge>()
+            .into_iter()
+            .flatten()
+            .count();
+
+        let mut vec_overview = Vec::<ProductionOverview>::new();
+        let mut power_type_percentages: HashMap<PowerType, f64> = HashMap::new();
+
+        let components = graph.get_all_nodes::<ProducerNode>().into_iter().flatten();
+        for (_, _, component) in components {
+            num_producer_nodes += 1;
+            total_capacity += component.active_power;
+            let counter = power_type_percentages
+                .entry(component.power_type)
+                .or_insert(0.0);
+            *counter += component.active_power
+        }
+
+        for (_, percentage) in power_type_percentages.iter_mut() {
+            *percentage /= total_capacity
+        }
+
+        for (power_type, percentage) in power_type_percentages {
+            vec_overview.push(ProductionOverview {
+                power_type,
+                percentage,
+            })
+        }
+
+        if let Some(analytics) = graph.get_global_component_mut::<SupplyAndDemandAnalytics>() {
+            analytics.consumer_nodes_count = num_consumer_nodes;
+            analytics.producer_nodes_count = num_producer_nodes;
+            analytics.transmission_edges_count = num_edges as i32;
+            analytics.total_demand = total_demand;
+            analytics.total_capacity = total_capacity;
+            analytics.utilization = total_demand / total_capacity;
+            analytics.energy_production_overview = vec_overview;
+        } else {
+            debug!("No analytics component found");
+        }
+
         graph
     }
 }

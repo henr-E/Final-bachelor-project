@@ -95,15 +95,25 @@ services:
 
   # simulator-energy-transmission:
   #   image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-  #   command: ["/bin/load-flow"]
+  #   command: ["/bin/energy-supply-and-demand-simulator"]
   #   networks:
   #     - backend
   #   depends_on:
   #     - simulation-manager
   #   environment:
   #     SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
-  #     ENERGY_SIMULATOR_ADDR: 0.0.0.0:8101
+  #     ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
 
+  simulator-energy-transmission:
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+    command: ["/bin/load-flow"]
+    networks:
+      - backend
+    depends_on:
+      - simulation-manager
+    environment:
+      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
+      ENERGY_SIMULATOR_ADDR: 0.0.0.0:8101
 
   # SENSOR DATA
   # ===========

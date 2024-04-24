@@ -7,14 +7,17 @@ use crate::graph::edge::Transmission;
 use crate::graph::electric_graph::Graph as sim_graph;
 use crate::graph::electric_graph::UndirectedGraph;
 use component_library::energy::{
-    Bases, CableType, EnergyLoadFlow, GeneratorNode, LoadNode, PowerType, ProductionOverview,
-    SlackNode, TransmissionEdge,
+    Bases, CableType, GeneratorNode, LoadNode, PowerType, ProductionOverview, SlackNode,
+    TransmissionEdge,
 };
+use component_library::global::LoadFlowAnalytics;
+use component_library::global::PowerTypeAnalytics;
 use diagnostics::energy_production::power_type_percentages;
 use diagnostics::total_power;
 use graph::{edge::LineType, node::BusNode, node::PowerType as BusNodeType};
 use solvers::solver::Solver;
 use std::{collections::HashMap, env, net::SocketAddr, process::ExitCode};
+use tracing::debug;
 // Add the following line to import the `tracing` crate
 use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
 use tracing::{error, info};
@@ -59,9 +62,9 @@ impl Simulator for LoadFlowSimulator {
             .add_required_component::<LoadNode>()
             .add_required_component::<SlackNode>()
             .add_required_component::<TransmissionEdge>()
+            .add_optional_component::<LoadFlowAnalytics>()
             .add_output_component::<TransmissionEdge>()
             .add_required_component::<Bases>()
-            .add_output_component::<EnergyLoadFlow>()
     }
 
     fn new(_: std::time::Duration, _graph: Graph) -> Self {
@@ -167,7 +170,7 @@ impl Simulator for LoadFlowSimulator {
             }
         }
         //add items to load flow over
-        for (_nodeid, _, comp) in graph.get_all_nodes_mut::<EnergyLoadFlow>().unwrap() {
+        if let Some(load_flow_analytics) = graph.get_global_component_mut::<LoadFlowAnalytics>() {
             let (total_in, total_out) = total_power::total_power_checker(&g);
             let mut vec_overview = Vec::<ProductionOverview>::new();
             for (power_type, percentage_overview) in power_type_percentages(&g) {
@@ -175,18 +178,24 @@ impl Simulator for LoadFlowSimulator {
                     power_type: busnode_type_to_power_type(power_type),
                     percentage: percentage_overview,
                 });
+                load_flow_analytics
+                    .power_type_analytics
+                    .push(PowerTypeAnalytics {
+                        power_type: power_type.fmt(),
+                        total_generators: g.generators(),
+                        total_slack_nodes: g.slacks(),
+                        total_load_nodes: g.loads(),
+                        total_transmission_edges: g.edges().len() as i32,
+                        total_nodes: g.nodes().len() as i32,
+                        total_incoming_power: total_in,
+                        total_outgoing_power: total_out,
+                        energy_production_overview: vec_overview.clone(),
+                    });
             }
-            *comp = EnergyLoadFlow {
-                total_generators: g.generators(),
-                total_slack_nodes: g.slacks(),
-                total_load_nodes: g.loads(),
-                total_transmission_edges: g.edges().len() as i32,
-                total_nodes: g.nodes().len() as i32,
-                total_incoming_power: total_in,
-                total_outgoing_power: total_out,
-                energy_production_overview: vec_overview,
-            };
+        } else {
+            debug!("No analytics component found");
         }
+
         graph.filter(Self::get_component_info())
     }
 }
