@@ -74,6 +74,22 @@ impl Unit {
         }
     }
 
+    pub fn to_rink(self) -> String {
+        match self {
+            Unit::MetersPerSecond => "meters/second".to_string(),
+            Unit::MillimetersPerHour => "millimeters/hour".to_string(),
+            Unit::Percentage | Unit::Okta => "percent".to_string(),
+            _ => self.to_string(),
+        }
+    }
+
+    pub fn rink_multiplier(self) -> f64 {
+        match self {
+            Unit::Okta => 12.5,
+            _ => 1.0,
+        }
+    }
+
     pub fn base_unit(self) -> Self {
         self.associated_quantity().associated_base_unit()
     }

@@ -110,10 +110,16 @@ impl TransformerJob {
             .get_f64(&signal.name)
             .unwrap();
         // multiply value by prefix
-        let scaled_value = prefix * value;
+        let scaled_value =
+            prefix * value * data_unit.rink_multiplier() / base_unit.rink_multiplier();
         // transform the value from `data_unit` to `base_unit`.
         // it might need some
-        let convert_string = format!("{} {} -> {}", scaled_value, data_unit, base_unit);
+        let convert_string = format!(
+            "{} {} -> {}",
+            scaled_value,
+            data_unit.to_rink(),
+            base_unit.to_rink()
+        );
         let normalized_value =
             one_line(&mut self.unit_conversion_context, &convert_string).unwrap();
         // extract timestamp from measurement
