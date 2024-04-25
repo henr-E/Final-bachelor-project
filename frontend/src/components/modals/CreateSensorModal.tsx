@@ -133,6 +133,12 @@ function CreateSensorModal({
                 break;
             }
             case ModalPage.INGEST: {
+                const aliasSet = new Set(aliases);
+                if (aliasSet.size !== aliases.length) {
+                    ToastNotification('error', 'Signal alias values should be unique.');
+                    break;
+                }
+
                 if (!twinState.current?.id) {
                     ToastNotification('error', 'Something went wrong when creating the sensor.');
                     break;
