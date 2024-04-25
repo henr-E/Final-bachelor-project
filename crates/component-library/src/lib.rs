@@ -48,6 +48,13 @@ pub mod global {
     }
 
     #[derive(ComponentPiece, Component)]
+    #[component(name = "global_illuminance", ty = "global")]
+    pub struct IlluminanceComponent {
+        //This is the current illuminance in lux
+        pub current_illuminance: f64,
+    }
+
+    #[derive(ComponentPiece, Component)]
     #[component(name = "supply_and_demand_analytics", ty = "global")]
     pub struct SupplyAndDemandAnalytics {
         /// The total number of consumer nodes present in the graph
