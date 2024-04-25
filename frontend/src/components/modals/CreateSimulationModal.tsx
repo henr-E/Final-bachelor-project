@@ -48,7 +48,9 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
     const nodeItemsRef = useRef<Map<number, NodeItem>>();
     const edgeItemsRef = useRef<Array<LineItem>>();
 
-    const [globalComponents, setGlobalComponents] = useState(propItems.globalComponents || '{}');
+    const [globalComponents, setGlobalComponents] = useState(
+        propItems.globalComponents || '{"global_temperature":{"current_temp":15}}'
+    );
 
     const formRef = useRef<HTMLFormElement>(null);
 
@@ -327,11 +329,13 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                             <div className='flex flex-row w-full space-x-3 pt-3'>
                                 <div className='w-full'>
                                     <CustomJsonEditor
-                                        // data={JSON.parse(itemComponents)}
                                         data={JSON.parse(globalComponents)}
                                         onSave={updatedComponents => {
-                                            // saveBuildingComponents(JSON.stringify(updatedComponents));
-                                            // setItemComponents(JSON.stringify(updatedComponents));
+                                            ToastNotification(
+                                                'success',
+                                                'global components updated'
+                                            );
+                                            setGlobalComponents(JSON.stringify(updatedComponents));
                                         }}
                                     />
                                 </div>
