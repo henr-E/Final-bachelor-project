@@ -1,3 +1,4 @@
+use anyhow::Context;
 use std::env;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -77,7 +78,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         notif_receiver,
         state_sender,
     )
-    .await;
+    .await
+    .context("Failed to set up the runner")?;
 
     // Database thread
     let task1 = tokio::spawn(async move {

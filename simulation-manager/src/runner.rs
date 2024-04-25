@@ -19,7 +19,14 @@ use crate::database_buffer::Transport;
 use proto::simulation::simulator::{
     simulator_client::SimulatorClient, InitialState, IoConfigRequest,
 };
-use proto::simulation::{Graph, State};
+use proto::simulation::{ComponentType, Graph, State};
+
+/// Enum that represents the set-up status of the simulation
+#[derive(PartialEq)]
+pub enum SetupStatus {
+    Failed,
+    Success,
+}
 
 /// The runner contains all the functionality to interface with all the different simulators.
 ///
@@ -39,13 +46,15 @@ impl Runner {
         simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
         notif_receiver: mpsc::Receiver<()>,
         state_sender: mpsc::UnboundedSender<Transport>,
-    ) -> Self {
-        Self {
-            db: SimulationsDB::from_pg_pool(pool).await.unwrap(),
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            db: SimulationsDB::from_pg_pool(pool)
+                .await
+                .context("Failed to setup a pool to the database from the simulation manager")?,
             simulators,
             notif_receiver,
             state_sender,
-        }
+        })
     }
 
     /// Start the runner.
@@ -67,6 +76,7 @@ impl Runner {
                     .begin_transaction()
                     .await
                     .context("could not begin transaction")?;
+
                 // check that the simulators do not change the same information
                 let mut output_components: HashSet<String> = HashSet::default();
                 let guard = self.simulators.lock().await;
@@ -95,10 +105,13 @@ impl Runner {
                     // Make error handling easier by putting the two functions below into one async
                     // block. This allows errors from both to be handled by the same code.
                     let do_simulation = async {
-                        self.set_up(simulation_id).await.context("in `set_up`")?;
-                        self.start_simulation(simulation_id)
-                            .await
-                            .context("in `start_simulation`")?;
+                        if self.set_up(simulation_id).await.context("in `set_up`")?
+                            == SetupStatus::Success
+                        {
+                            self.start_simulation(simulation_id)
+                                .await
+                                .context("in `start_simulation`")?;
+                        }
                         anyhow::Ok(())
                     };
                     if let Err(err) = do_simulation.await {
@@ -130,8 +143,11 @@ impl Runner {
     /// present with time_step == 0.
     /// The runner will get all these nodes, edges and components, compose a proto::simulation::Graph
     /// and then put this graph along with the step size into a state. This state is then sent to the
-    /// simulators.
-    async fn set_up(&mut self, simulation_id: i32) -> anyhow::Result<()> {
+    /// simulators and it will return true.
+    /// However, the state will only be sent to the simulators if all necessary global components are
+    /// available. If this is not the case, the simulation will directly get the status of "failed"
+    /// and the function will return false.
+    async fn set_up(&mut self, simulation_id: i32) -> anyhow::Result<SetupStatus> {
         // clone simulator vec and drop mutex
         let guard = self.simulators.lock().await;
         let simulators = guard.clone();
@@ -171,28 +187,61 @@ impl Runner {
             .await
             .context("error getting global components")?;
 
-        // create initial state
-        let initial_state = InitialState {
-            initial_state: Some(State {
-                graph: Some(graph),
-                global_components: globals,
-            }),
-            timestep_delta: delta as u64,
-        };
+        // check if the necessary components are present
+        for server in &mut simulators.clone() {
+            let request = tonic::Request::new(IoConfigRequest {});
+            let config = server.get_io_config(request).await?.into_inner();
+            let required = &config.required_input_components.clone();
+            let component_info = &config.components;
+            for component in required {
+                let type_name = component_info
+                    .get(component)
+                    .context("there is no component with this name")?
+                    .r#type;
+                let comp_type: ComponentType = type_name
+                    .try_into()
+                    .context("type of component was not recognized")?;
+                if comp_type == ComponentType::Global && !(globals.contains_key(component)) {
+                    self.db
+                        .update_status(simulation_id, StatusEnum::Failed)
+                        .await
+                        .context("status was not updated")?;
+                    break;
+                }
+            }
+        }
 
-        // // setup of simulators
-        future::try_join_all(
-            simulators
-                .clone()
-                .into_iter()
-                .map(|server| (initial_state.clone(), server))
-                .map(|(initial_state, mut server)| async move {
-                    let setup_request = tonic::Request::new(initial_state);
-                    server.setup(setup_request).await
+        // setup of the simulations if all components are present
+        let status = self
+            .db
+            .get_status(simulation_id)
+            .await
+            .context("Failed to get status of the simulation")?;
+        if status != StatusEnum::Failed {
+            // create initial state
+            let initial_state = InitialState {
+                initial_state: Some(State {
+                    graph: Some(graph),
+                    global_components: globals,
                 }),
-        )
-        .await?;
-        Ok(())
+                timestep_delta: delta as u64,
+            };
+
+            // setup of simulators
+            future::try_join_all(
+                simulators
+                    .clone()
+                    .into_iter()
+                    .map(|server| (initial_state.clone(), server))
+                    .map(|(initial_state, mut server)| async move {
+                        let setup_request = tonic::Request::new(initial_state);
+                        server.setup(setup_request).await
+                    }),
+            )
+            .await?;
+            return Ok(SetupStatus::Success);
+        }
+        Ok(SetupStatus::Failed)
     }
 
     /// Run a full simulation
@@ -262,7 +311,10 @@ impl Runner {
                     .map(|server| (prev.clone(), server))
                     .map(|(prev, mut server)| async move {
                         // get values from state
-                        let graph = prev.clone().graph.unwrap();
+                        let graph = prev
+                            .clone()
+                            .graph
+                            .context("Failed to get the graph of the previous timestep")?;
                         let grpc_global = prev.clone().global_components;
                         let nodes = graph.nodes.clone();
                         let edges = graph.edge.clone();
@@ -314,16 +366,19 @@ impl Runner {
                 // Replace previous node with the version that has been returned by the simulator.
                 // Since simulators can not edit the same nodes, this will always work.
                 // Nodes that were not returned by any simulator will also still be present
-                let result_graph = result.state.graph.unwrap();
+                let result_graph = result
+                    .state
+                    .graph
+                    .context("Failed to get the graph in the result of the simulation")?;
                 for result_node in result_graph.nodes {
                     let node = new_state
                         .graph
                         .as_mut()
-                        .unwrap()
+                        .context("Failed to get the graph of the new state")?
                         .nodes
                         .iter_mut()
                         .find(|n| n.id == result_node.id)
-                        .unwrap();
+                        .context("Failed to get the nodes in the new state")?;
                     for (name, c) in result_node.components.into_iter() {
                         node.components.insert(name, c);
                     }
@@ -334,11 +389,11 @@ impl Runner {
                     let edge = new_state
                         .graph
                         .as_mut()
-                        .unwrap()
+                        .context("Failed to get the graph of the new state")?
                         .edge
                         .iter_mut()
                         .find(|e| e.id == result_edge.id)
-                        .unwrap();
+                        .context("Failed to get the edges in the new state")?;
                     *edge = result_edge;
                 }
 
