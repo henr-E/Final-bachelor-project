@@ -57,7 +57,10 @@ const TypePresets = {
     [CursorState.PLACE_BOLT]: {
         energy_consumer_node: {
             demand: 100,
+            eq_demand: 100,
             voltage: 220,
+            max_voltage: 240,
+            min_voltage: 200,
             demand_elasticity: 1.2,
         },
     },
@@ -72,8 +75,11 @@ const TypePresets = {
     [CursorState.CONNECT_ITEMS]: {
         energy_transmission_edge: {
             operating_voltage: 220,
+            max_operating_voltage: 240,
+            min_operating_voltage: 200,
             maximum_power_capacity: 100,
             current_capacity: 20,
+            max_current_capacity: 25,
             resistance_per_meter: 5,
             reactance_per_meter: 1,
             length: 800,
@@ -177,10 +183,12 @@ function MapEditor({
      * @param index
      */
     function selectEdge(index: number) {
+        console.log('selected edge');
         setSelectedBuilding(undefined);
         let item = edgesRef.current[index];
         if (item) setSelectedItems([item]);
         if (edgesRef.current[index]?.components) {
+            console.log('test', edgesRef.current[index]?.components);
             setItemComponents(JSON.stringify(edgesRef.current[index]?.components));
             return;
         }
@@ -484,21 +492,6 @@ function MapEditor({
                                             </div>
                                         </div>
                                     </div>
-                                    {selectedItems.length == 1 && (
-                                        <>
-                                            <CustomJsonEditor
-                                                data={JSON.parse(itemComponents)}
-                                                onSave={updatedComponents => {
-                                                    saveBuildingComponents(
-                                                        JSON.stringify(updatedComponents)
-                                                    );
-                                                    setItemComponents(
-                                                        JSON.stringify(updatedComponents)
-                                                    );
-                                                }}
-                                            />
-                                        </>
-                                    )}
                                     {selectedBuilding.visible ? (
                                         <Button
                                             color={'red'}
@@ -534,6 +527,19 @@ function MapEditor({
                                     >
                                         Create Sensor
                                     </Button>
+                                </>
+                            )}
+                            {selectedItems.length == 1 && (
+                                <>
+                                    <CustomJsonEditor
+                                        data={JSON.parse(itemComponents)}
+                                        onSave={updatedComponents => {
+                                            saveBuildingComponents(
+                                                JSON.stringify(updatedComponents)
+                                            );
+                                            setItemComponents(JSON.stringify(updatedComponents));
+                                        }}
+                                    />
                                 </>
                             )}
                         </div>
