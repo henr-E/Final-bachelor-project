@@ -2,12 +2,16 @@ use component_library::energy::{
     Bases, ConsumerNode, PowerType, ProducerNode, ProductionOverview, TransmissionEdge,
 };
 use component_library::global::chrono::{NaiveDateTime, Timelike};
-use component_library::global::{SupplyAndDemandAnalytics, TemperatureComponent, TimeComponent};
+use component_library::global::{
+    IlluminanceComponent, SupplyAndDemandAnalytics, TemperatureComponent, TimeComponent,
+};
 use rand::prelude::*;
 use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
 use std::collections::HashMap;
+use std::f64::consts::PI;
 use std::{env, net::SocketAddr, process::ExitCode, time::Duration};
 use tracing::{debug, error, info};
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
     dotenvy::dotenv().ok();
@@ -74,6 +78,11 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             None => 17.5,
         };
 
+        let _current_illuminance = match graph.get_global_component_mut::<IlluminanceComponent>() {
+            Some(illuminance) => illuminance.current_illuminance,
+            None => 0.0,
+        };
+
         let mut binding = TimeComponent(NaiveDateTime::default());
         let current_time = match graph.get_global_component_mut::<TimeComponent>() {
             Some(timecomponent) => timecomponent,
@@ -98,12 +107,52 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                 (current_demand + delta_demand * direction_factor).clamp(0.0, 500.0)
         }
 
+        let current_illuminance = match graph.get_global_component::<IlluminanceComponent>() {
+            Some(item) => item.current_illuminance,
+            None => 0.0,
+        };
+
+        let mut rng = rand::thread_rng();
+        // TODO: get capacity.
+        let capacity = 1.0;
+        // TODO: get wind speed
+        // meters per second
+        let wind_speed: f64 = 1.0;
+
         for (_, _, component) in graph.get_all_nodes_mut::<ProducerNode>().unwrap() {
-            let current_capacity = component.active_power;
-            let delta_capacity =
-                rand::thread_rng().gen_range(-50.0..50.0) * self.delta_time.as_secs() as f64;
-            component.active_power = (current_capacity + delta_capacity).clamp(1000.0, 2000.0)
+            match &component.power_type {
+                PowerType::Solar => {
+                    component.active_power =
+                        capacity * current_illuminance * self.delta_time.as_secs_f64() / 3600.0
+                            * 0.2;
+                }
+                PowerType::Wind => {
+                    // https://thundersaidenergy.com/downloads/wind-power-impacts-of-larger-turbines/
+                    // c_p = efficiency percentage. Theoretical maximum * small error factor.
+                    let efficiency = rng.gen_range(0.98..=1.00);
+                    let c_p = 0.593 * efficiency;
+                    // rho = air_dencity, kg / m^3. source: wikipedia
+                    let rho = 1.204;
+                    // lenght of a single blade in meters. range of average lenghts.
+                    let blade_lenght: f64 = rng.gen_range(35.0..45.0);
+                    component.active_power =
+                        0.5 * c_p * rho * PI * blade_lenght.powi(2) * wind_speed.powi(3);
+                }
+                PowerType::Nuclear => {
+                    let efficiency = rng.gen_range(0.99..=1.00);
+                    component.active_power =
+                        capacity * efficiency * self.delta_time.as_secs_f64() / 3600.0;
+                }
+                _ => {
+                    let current_capacity = component.active_power;
+                    let delta_capacity = rand::thread_rng().gen_range(-50.0..50.0)
+                        * self.delta_time.as_secs() as f64;
+                    component.active_power =
+                        (current_capacity + delta_capacity).clamp(1000.0, 2000.0);
+                }
+            }
         }
+
         let mut num_consumer_nodes = 0;
         let mut num_producer_nodes = 0;
         let mut total_demand = 0.0;
