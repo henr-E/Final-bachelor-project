@@ -24,6 +24,8 @@ export function failureReasonToString(reason: CrudFailureReason): string {
             return 'Sensor uuid not found in database';
         case CrudFailureReason.DATABASE_INSERTION_ERROR:
             return 'Failed to insert into database';
+        case CrudFailureReason.DUPLICATE_QUANTITY_ERROR:
+            return 'Quantity must be unique';
     }
 }
 

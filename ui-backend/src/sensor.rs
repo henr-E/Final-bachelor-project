@@ -9,6 +9,7 @@ use proto::frontend::{
 };
 use sensor_store::{Quantity, Sensor, SensorStore as SensorStoreInner, Unit};
 use sqlx::types::BigDecimal;
+use std::collections::HashSet;
 use std::{pin::Pin, str::FromStr};
 use thiserror::Error;
 use tonic::{Request, Response, Status};
@@ -214,12 +215,26 @@ impl SensorCrudService for SensorStore {
         let Some(proto_sensor) = request.sensor else {
             return Err(Status::invalid_argument("sensor field must be set"));
         };
+
+        let unique_signals = proto_sensor
+            .signals
+            .iter()
+            .map(|s| &s.quantity)
+            .collect::<HashSet<_>>();
+        if proto_sensor.signals.len() != unique_signals.len() {
+            return CreateSensorResponse::failures(CrudFailure::new_single(
+                CrudFailureReason::DuplicateQuantityError,
+            ))
+            .into();
+        }
+
         let sensor = match into_sensor(proto_sensor) {
             Ok(s) => s,
             Err(e) => {
                 return CreateSensorResponse::failures(e.into()).into();
             }
         };
+
         match self.as_ref().store_sensor(sensor).await {
             Ok(uuid) => CreateSensorResponse::uuid(uuid).into(),
             Err(e) => {
