@@ -37,6 +37,8 @@ enum CrudFailureReason {
     INVALID_UNIT_ERROR = 3;
     // There was an issue inserting the data into the database.
     DATABASE_INSERTION_ERROR = 4;
+    // There was a duplicate quantity in the same sensor
+    DUPLICATE_QUANTITY_ERROR = 5;
 }
 
 message CrudFailure {
