@@ -187,6 +187,7 @@ impl SimulationManager for Manager {
             timestep_count: timestep as u64,
             max_timestep_count: simulation.max_steps as u64,
             timestep_delta: simulation.step_size_ms as f64 / 1000.0,
+            status_info: simulation.status_info,
         };
 
         // Commit transaction
@@ -519,6 +520,7 @@ mod manager_grpc_test {
                 timestep_count: Default::default(),
                 max_timestep_count: Default::default(),
                 timestep_delta: Default::default(),
+                status_info: Default::default(),
             };
             Ok(Response::new(simulation_data))
         }

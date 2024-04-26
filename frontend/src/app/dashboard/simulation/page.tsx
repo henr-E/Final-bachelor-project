@@ -1,5 +1,5 @@
 'use client';
-import { Button, Spinner } from 'flowbite-react';
+import { Button, Spinner, Tooltip } from 'flowbite-react';
 import { MdOutlineDeleteOutline } from 'react-icons/md';
 import { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -210,12 +210,16 @@ function SimulationOverviewPage() {
                                                                 className='content-center'
                                                             />
                                                         ) : (
-                                                            <Icon
-                                                                path={mdiClose}
-                                                                color='red'
-                                                                size={1}
-                                                                className='content-center'
-                                                            />
+                                                            <Tooltip
+                                                                content={simulation.statusInfo}
+                                                            >
+                                                                <Icon
+                                                                    path={mdiClose}
+                                                                    color='red'
+                                                                    size={1}
+                                                                    className='content-center'
+                                                                />
+                                                            </Tooltip>
                                                         )}
                                                     </td>
                                                     <td

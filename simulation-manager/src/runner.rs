@@ -89,7 +89,11 @@ impl Runner {
                     for name in response.output_components {
                         if !output_components.insert(name) {
                             self.db
-                                .update_status(simulation_id, StatusEnum::Failed)
+                                .update_status(
+                                    simulation_id,
+                                    StatusEnum::Failed,
+                                    Some("multiple simulators change the same components"),
+                                )
                                 .await
                                 .context("could not update status")?;
                             break;
@@ -117,7 +121,11 @@ impl Runner {
                     if let Err(err) = do_simulation.await {
                         error!("Simulation `{simulation_id}` failed: {err:?}");
                         self.db
-                            .update_status(simulation_id, StatusEnum::Failed)
+                            .update_status(
+                                simulation_id,
+                                StatusEnum::Failed,
+                                Some(format!("An internal error occurred when running the simulation: {err:#}").as_str(),),
+                            )
                             .await
                             .context("could not update status after failed simulation")?;
                     }
@@ -143,10 +151,10 @@ impl Runner {
     /// present with time_step == 0.
     /// The runner will get all these nodes, edges and components, compose a proto::simulation::Graph
     /// and then put this graph along with the step size into a state. This state is then sent to the
-    /// simulators and it will return true.
+    /// simulators, and it will return Success as an SetupStatus enum.
     /// However, the state will only be sent to the simulators if all necessary global components are
     /// available. If this is not the case, the simulation will directly get the status of "failed"
-    /// and the function will return false.
+    /// and the function will return Failed as the SetupStatus.
     async fn set_up(&mut self, simulation_id: i32) -> anyhow::Result<SetupStatus> {
         // clone simulator vec and drop mutex
         let guard = self.simulators.lock().await;
@@ -196,14 +204,27 @@ impl Runner {
             for component in required {
                 let type_name = component_info
                     .get(component)
-                    .context("there is no component with this name")?
+                    .context(format!(
+                        "There is no component with the following name: {:?}",
+                        component
+                    ))?
                     .r#type;
                 let comp_type: ComponentType = type_name
                     .try_into()
                     .context("type of component was not recognized")?;
                 if comp_type == ComponentType::Global && !(globals.contains_key(component)) {
                     self.db
-                        .update_status(simulation_id, StatusEnum::Failed)
+                        .update_status(
+                            simulation_id,
+                            StatusEnum::Failed,
+                            Some(
+                                format!(
+                                    "You're missing at least the global variable: {:?}",
+                                    component
+                                )
+                                .as_str(),
+                            ),
+                        )
                         .await
                         .context("status was not updated")?;
                     break;
@@ -416,8 +437,13 @@ impl Runner {
                 i if i == iterations - 1 => StatusEnum::Finished,
                 _ => StatusEnum::Failed,
             };
+            let temp_status = status.clone();
+            let info = match temp_status {
+                StatusEnum::Failed => "To many iterations were performed",
+                _ => "",
+            };
             self.db
-                .update_status(simulation_id, status)
+                .update_status(simulation_id, status, Some(info))
                 .await
                 .context("error updating status")?;
             // set previous state to new state
