@@ -14,7 +14,7 @@ use tonic::Status;
 
 type Date = NaiveDate;
 
-#[derive(Debug, sqlx::Type, PartialEq)]
+#[derive(Debug, sqlx::Type, PartialEq, Clone)]
 #[sqlx(type_name = "enum_status")]
 pub enum StatusEnum {
     Pending,
@@ -57,6 +57,7 @@ pub struct Simulation {
     pub step_size_ms: i32,
     pub max_steps: i32,
     pub status: String,
+    pub status_info: Option<String>,
 }
 
 /// An API abstraction over the simulations database.
@@ -152,7 +153,6 @@ impl SimulationsDB {
     ) -> Result<i32> {
         query!("INSERT INTO simulations (name, step_size_ms, max_steps, status) VALUES($1, $2, $3, $4) RETURNING id",
             name, step_size_ms, max_steps, status as _)
-
         .fetch_one(self.connection().await?)
             .await
             .map_err(|e| anyhow!(e))
@@ -170,7 +170,7 @@ impl SimulationsDB {
 
     /// Get a simulation from the simulations table using the name.
     pub async fn get_simulation_via_name(&mut self, name: &str) -> Result<Simulation> {
-        let result = query!("SELECT id, date, name, step_size_ms, max_steps, status as \"enum_status: StatusEnum \" FROM simulations WHERE name = $1", name)
+        let result = query!("SELECT id, date, name, step_size_ms, max_steps, status as \"enum_status: StatusEnum \", status_info FROM simulations WHERE name = $1", name)
             .fetch_one(self.connection().await?)
             .await?;
         let sim = Simulation {
@@ -180,13 +180,14 @@ impl SimulationsDB {
             step_size_ms: result.step_size_ms,
             max_steps: result.max_steps,
             status: StatusEnum::to_string(result.enum_status.context("missing: `enum_status`")?),
+            status_info: result.status_info,
         };
         Ok(sim)
     }
 
     /// Get a simulation from the simulations table using the id.
     pub async fn get_simulation_via_id(&mut self, id: i32) -> Result<Simulation> {
-        let result = query!("SELECT id, date, name, step_size_ms, max_steps, status as \"enum_status: StatusEnum \" FROM simulations WHERE id = $1", id)
+        let result = query!("SELECT id, date, name, step_size_ms, max_steps, status as \"enum_status: StatusEnum \", status_info FROM simulations WHERE id = $1", id)
             .fetch_one(self.connection().await?)
             .await?;
         let sim = Simulation {
@@ -196,6 +197,7 @@ impl SimulationsDB {
             step_size_ms: result.step_size_ms,
             max_steps: result.max_steps,
             status: StatusEnum::to_string(result.enum_status.context("missing: `enum_status`")?),
+            status_info: result.status_info,
         };
         Ok(sim)
     }
@@ -504,14 +506,31 @@ impl SimulationsDB {
         Ok(status)
     }
     /// Update the status of the simulation.
-    pub async fn update_status(&mut self, simulation_id: i32, status: StatusEnum) -> Result<()> {
-        query!(
-            "UPDATE simulations SET status = $1 WHERE id = $2",
-            status as _,
-            simulation_id
-        )
-        .execute(self.connection().await?)
-        .await?;
+    pub async fn update_status(
+        &mut self,
+        simulation_id: i32,
+        status: StatusEnum,
+        status_info: Option<&str>,
+    ) -> Result<()> {
+        let info = status_info.unwrap_or("");
+        if info.is_empty() {
+            query!(
+                "UPDATE simulations SET status = $1 WHERE id = $2",
+                status as _,
+                simulation_id
+            )
+            .execute(self.connection().await?)
+            .await?;
+        } else {
+            query!(
+                "UPDATE simulations SET status = $1, status_info = $2 WHERE id = $3",
+                status as _,
+                info,
+                simulation_id
+            )
+            .execute(self.connection().await?)
+            .await?;
+        }
         Ok(())
     }
 }

@@ -60,6 +60,7 @@ message SimulationData {
   uint64 max_timestep_count = 5;
   // How much time in the real world each timestep represents. (in seconds)
   double timestep_delta = 6;
+  optional string status_info = 7;
 }
 
 // Denotes the status of a simulation in the queue.

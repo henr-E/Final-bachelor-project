@@ -51,6 +51,7 @@ message Simulation {
     int32 creation_date_time = 5;//unix timestamp
     int32 frames_loaded = 6;//amount of ms it took to run the simulation
     SimulationStatus status = 7;
+    optional string status_info = 8;
 }
 
 message TwinId {

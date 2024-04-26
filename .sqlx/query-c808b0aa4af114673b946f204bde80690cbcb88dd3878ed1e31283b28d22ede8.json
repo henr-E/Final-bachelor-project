@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE simulations SET status = $1, status_info = $2 WHERE id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "enum_status",
+            "kind": {
+              "Enum": [
+                "Pending",
+                "Computing",
+                "Finished",
+                "Failed"
+              ]
+            }
+          }
+        },
+        "Varchar",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c808b0aa4af114673b946f204bde80690cbcb88dd3878ed1e31283b28d22ede8"
+}

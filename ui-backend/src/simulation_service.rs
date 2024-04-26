@@ -201,6 +201,7 @@ impl SimulationInterfaceService for SimulationService {
                 creation_date_time: item.creation_date_time,
                 frames_loaded: simulation_item.timestep_count as i32,
                 status: simulation_item.status,
+                status_info: simulation_item.status_info,
             });
         }
 
@@ -250,6 +251,7 @@ impl SimulationInterfaceService for SimulationService {
             creation_date_time: item.creation_date_time,
             frames_loaded: simulation_item.timestep_count as i32,
             status: simulation_item.status,
+            status_info: simulation_item.status_info,
         };
 
         Ok(Response::new(simulation_found))

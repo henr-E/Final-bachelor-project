@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, date, name, step_size_ms, max_steps, status as \"enum_status: StatusEnum \" FROM simulations WHERE id = $1",
+  "query": "SELECT id, date, name, step_size_ms, max_steps, status as \"enum_status: StatusEnum \", status_info FROM simulations WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -44,6 +44,11 @@
             }
           }
         }
+      },
+      {
+        "ordinal": 6,
+        "name": "status_info",
+        "type_info": "Varchar"
       }
     ],
     "parameters": {
@@ -57,8 +62,9 @@
       false,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "f4461573b0f8c81943997b1805fe99ebe0206fe0a4b9e6bd397847dc86fe6555"
+  "hash": "fbb8b1b306a3ee9a2748a76afabceaee2b2ada125e5fc4fd9d0a27cddcb70ceb"
 }
