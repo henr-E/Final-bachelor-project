@@ -15,7 +15,14 @@ export default function RootLayout({
 }>) {
     return (
         <html lang='en'>
-            <head></head>
+            <head>
+                <link rel='icon' href='/favicons/favicon.ico' />
+                <title>Digital Twin</title>
+                <meta
+                    name='description'
+                    content='Gain realtime insight into how your city uses energy.'
+                />
+            </head>
             <body>
                 <Provider>
                     <AppWrapper>{children}</AppWrapper>
