@@ -64,8 +64,11 @@ impl<'a> VirtualSensor<'a> {
                     prefix: signal.prefix.clone(),
                 };
                 // try to create a (randomized) measurement based on historic data
-                let measurement =
-                    measurements_generator.get_measurement(timestamp, 100, signal.quantity);
+                let measurement = measurements_generator.get_measurement(
+                    timestamp + self.interval,
+                    100,
+                    signal.quantity,
+                );
 
                 // apply correct unit conversion from historic units and prefix to required units and prefix
                 let converted_measurement = match measurement {

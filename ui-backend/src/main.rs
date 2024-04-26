@@ -1,7 +1,7 @@
 use crate::simulation_service::SimulationService;
 use proto::frontend::{
-    AuthenticationServiceServer, SensorCrudServiceServer, SimulationInterfaceServiceServer,
-    TwinServiceServer,
+    sensor_data_fetching::SensorDataFetchingServiceServer, AuthenticationServiceServer,
+    SensorCrudServiceServer, SimulationInterfaceServiceServer, TwinServiceServer,
 };
 use tonic::transport::Server;
 
@@ -24,7 +24,7 @@ mod twin;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
-        .with_env_filter("ui_backend=DEBUG")
+        .with_env_filter("ui_backend=DEBUG,INFO")
         .init();
 
     dotenvy::dotenv().ok();
@@ -38,10 +38,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse()
         .expect("A valid bind address");
 
+    let sensor_store = SensorStore::new().await;
+
     let twin_service = TwinServiceServer::new(twin::MyTwinService::new(pool.clone()));
     let simulation_service =
         SimulationInterfaceServiceServer::new(SimulationService::new(pool.clone()).await);
-    let sensor_crud_service = SensorCrudServiceServer::new(SensorStore::new().await);
+    let sensor_crud_service = SensorCrudServiceServer::new(sensor_store.clone());
+    let sensor_data_fetching_service = SensorDataFetchingServiceServer::new(sensor_store);
     let authentication_service =
         AuthenticationServiceServer::new(MyAuthenticationService::new(pool.clone()));
 
@@ -51,6 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_service(simulation_service)
         .add_service(twin_service)
         .add_service(sensor_crud_service)
+        .add_service(sensor_data_fetching_service)
         .add_service(authentication_service)
         .serve(addr)
         .await?;

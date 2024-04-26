@@ -1,21 +1,34 @@
+use chrono::{DateTime, TimeDelta, Utc};
 use num_bigint::{BigInt, Sign};
+use proto::frontend::sensor_data_fetching::{
+    AllSensorData, AllSensorDataEntry, AllSensorDataRequest, SensorDataFetchingService,
+    SignalToValuesMap, SignalValue as ProtoSignalValue, SignalValues as ProtoSignalValues,
+    SingleSensorDataRequest,
+};
 use proto::frontend::{
     get_quantities_and_units_response::{Quantity as ProtoQuantity, Unit as ProtoUnit},
-    BigInt as ProtoBigInt, CreateSensorRequest, CreateSensorResponse, CrudFailure,
+    BigDecimal as ProtoBigDecimal, CreateSensorRequest, CreateSensorResponse, CrudFailure,
     CrudFailureReason, DeleteSensorRequest, DeleteSensorResponse, GetQuantitiesAndUnitsResponse,
     GetSensorsRequest, GetSensorsResponse, ReadSensorRequest, ReadSensorResponse,
     Sensor as ProtoSensor, SensorCrudService, Signal as ProtoSignal, UpdateSensorRequest,
     UpdateSensorResponse,
 };
+use sensor_store::signal::SignalValues;
 use sensor_store::{Quantity, Sensor, SensorStore as SensorStoreInner, Unit};
 use sqlx::types::BigDecimal;
 use std::collections::HashSet;
-use std::{pin::Pin, str::FromStr};
+use std::time::Duration;
+use std::{collections::HashMap, pin::Pin, str::FromStr};
 use thiserror::Error;
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
-use tracing::error;
+use tracing::{debug, error};
 use uuid::Uuid;
 
+const LIVE_DATA_FETCH_INTERVAL: Duration = Duration::from_millis(5000);
+
+#[derive(Clone)]
 pub struct SensorStore(SensorStoreInner);
 
 impl SensorStore {
@@ -26,10 +39,16 @@ impl SensorStore {
                 .expect("Could not create sensor store."),
         )
     }
+
+    pub fn as_inner(&self) -> &SensorStoreInner {
+        &self.0
+    }
 }
 
-impl std::convert::AsRef<SensorStoreInner> for SensorStore {
-    fn as_ref(&self) -> &SensorStoreInner {
+impl std::ops::Deref for SensorStore {
+    type Target = SensorStoreInner;
+
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
@@ -51,6 +70,19 @@ impl From<SignalError> for CrudFailure {
     }
 }
 
+fn into_proto_big_decimal(decimal: &BigDecimal) -> ProtoBigDecimal {
+    let (big_int, exponent) = decimal.as_bigint_and_exponent();
+    let (sign, integer) = big_int.to_u32_digits();
+    ProtoBigDecimal {
+        integer: integer.to_vec(),
+        sign: sign == Sign::Minus,
+        // Scale/exponent is inverted in the `BigDecimal` type. See
+        // [documentation](https://docs.rs/bigdecimal/0.4.3/src/bigdecimal/lib.rs.html#191)
+        // for more info.
+        exponent: -exponent,
+    }
+}
+
 /// Transforms ORM sensor to expected gRPC sensor type.
 ///
 /// This operation may fail, if the prefix exceeds u64 integer part.
@@ -61,15 +93,10 @@ fn into_proto_sensor(sensor: Sensor) -> ProtoSensor {
         .iter()
         .map(|s| {
             // extract the prefix.
-            let (big_int, exponent) = s.prefix.as_bigint_and_exponent();
-            let (sign, integer) = big_int.to_u32_digits();
-            let prefix: ProtoBigInt = ProtoBigInt {
-                integer: integer.to_vec(),
-                sign: sign == Sign::Minus,
-                exponent: -exponent,
-            };
+            let prefix = into_proto_big_decimal(&s.prefix);
             // create expected gRPC signal type.
             ProtoSignal {
+                id: s.id,
                 alias: s.name.to_string(),
                 quantity: s.quantity.to_string(),
                 unit: s.unit.base_unit().to_string(),
@@ -104,12 +131,12 @@ fn into_sensor(sensor: ProtoSensor) -> Result<Sensor<'static>, SignalError> {
         sensor.twin_id,
         sensor.building_id,
     );
-    // push all provided signals trough the builder.
+    // push all provided signals through the builder.
     for signal in sensor.signals.into_iter() {
-        let prefix = signal.prefix.unwrap_or_else(ProtoBigInt::one);
+        let prefix = signal.prefix.unwrap_or_else(ProtoBigDecimal::one);
         let sign = match prefix.sign {
-            true => num_bigint::Sign::Minus,
-            false => num_bigint::Sign::Plus,
+            true => Sign::Minus,
+            false => Sign::Plus,
         };
         let bigint = BigInt::new(sign, prefix.integer);
         // Scale/exponent is inverted in the `BigDecimal` type. See
@@ -142,7 +169,7 @@ impl SensorCrudService for SensorStore {
     /// Get all supported quantities with associated units.
     async fn get_quantities_and_units(
         &self,
-        _request: tonic::Request<()>,
+        _request: Request<()>,
     ) -> Result<Response<Self::GetQuantitiesAndUnitsStream>, Status> {
         fn response_from_quantity(q: Quantity) -> GetQuantitiesAndUnitsResponse {
             GetQuantitiesAndUnitsResponse {
@@ -162,8 +189,8 @@ impl SensorCrudService for SensorStore {
             }
         }
 
-        Ok(tonic::Response::new(Box::pin(futures::stream::iter(
-            sensor_store::Quantity::all()
+        Ok(Response::new(Box::pin(futures::stream::iter(
+            Quantity::all()
                 .into_iter()
                 .map(|q| Ok(response_from_quantity(q))),
         ))))
@@ -179,12 +206,11 @@ impl SensorCrudService for SensorStore {
     ) -> Result<Response<Self::GetSensorsStream>, Status> {
         use futures::stream::StreamExt;
 
-        tracing::debug!("fetching all sensors");
+        debug!("fetching all sensors");
         let req = request.into_inner();
         // Collect all sensors into vec and return that stream. This temporary collection
         // is needed to avoid lifetime errors.
         let sensors: Vec<Result<GetSensorsResponse, Status>> = self
-            .as_ref()
             .get_all_sensors_for_twin(req.twin_id)
             .await
             .map_err(|e| Status::internal(format!("could not get all sensors: {}", e)))?
@@ -197,9 +223,7 @@ impl SensorCrudService for SensorStore {
             .collect()
             .await;
 
-        Ok(tonic::Response::new(Box::pin(futures::stream::iter(
-            sensors,
-        ))))
+        Ok(Response::new(Box::pin(futures::stream::iter(sensors))))
     }
 
     /// Create a sensor given it's [`Uuid`].
@@ -211,7 +235,7 @@ impl SensorCrudService for SensorStore {
         request: Request<CreateSensorRequest>,
     ) -> Result<Response<CreateSensorResponse>, Status> {
         let request = request.into_inner();
-        tracing::debug!("creating sensor: {:?}", request.sensor);
+        debug!("creating sensor: {:?}", request.sensor);
         let Some(proto_sensor) = request.sensor else {
             return Err(Status::invalid_argument("sensor field must be set"));
         };
@@ -234,8 +258,7 @@ impl SensorCrudService for SensorStore {
                 return CreateSensorResponse::failures(e.into()).into();
             }
         };
-
-        match self.as_ref().store_sensor(sensor).await {
+        match self.store_sensor(sensor).await {
             Ok(uuid) => CreateSensorResponse::uuid(uuid).into(),
             Err(e) => {
                 error!("Error setting sensor into the database {e}");
@@ -246,7 +269,7 @@ impl SensorCrudService for SensorStore {
 
     /// Fetch a sensor given it's [`Uuid`].
     ///
-    /// This function can fail if the uuid is formated incorrectly or
+    /// This function can fail if the uuid is formatted incorrectly or
     /// if the sensor with that uuid is not found in the database.
     async fn read_sensor(
         &self,
@@ -259,7 +282,7 @@ impl SensorCrudService for SensorStore {
         };
         // get the sensor from the database.
         // this might error if the uuid is not present in the database.
-        let Ok(sensor) = self.as_ref().get_sensor(sensor_id).await else {
+        let Ok(sensor) = self.get_sensor(sensor_id).await else {
             return ReadSensorResponse::failures(CrudFailure::new_uuid_not_found_error()).into();
         };
         // convert orm sensor into gRPC sensor.
@@ -284,7 +307,7 @@ impl SensorCrudService for SensorStore {
             return UpdateSensorResponse::failures(CrudFailure::new_uuid_format_error()).into();
         };
         // delete sensor entry for this `sensor_id`.
-        if self.as_ref().delete_sensor(sensor_id).await.is_err() {
+        if self.as_inner().delete_sensor(sensor_id).await.is_err() {
             return UpdateSensorResponse::failures(CrudFailure::new_uuid_not_found_error()).into();
         }
         // create ORM sensor.
@@ -300,14 +323,14 @@ impl SensorCrudService for SensorStore {
         // set required sensor_id.
         sensor.id = sensor_id;
         // push sensor into database.
-        let result = self.as_ref().store_sensor(sensor).await;
+        let result = self.store_sensor(sensor).await;
         UpdateSensorResponse::success(result.is_ok()).into()
     }
 
     /// Delete a sensor.
     ///
     /// This function can fail if the provided [`Uuid`]'s structure is incorrect or
-    /// if the uuid wan't found in the database.
+    /// if the uuid wasn't found in the database.
     async fn delete_sensor(
         &self,
         request: Request<DeleteSensorRequest>,
@@ -318,10 +341,394 @@ impl SensorCrudService for SensorStore {
             return DeleteSensorResponse::failures(CrudFailure::new_uuid_format_error()).into();
         };
         // delete sensor id from database.
-        match self.as_ref().delete_sensor(sensor_id).await {
+        match self.as_inner().delete_sensor(sensor_id).await {
             Ok(_) => DeleteSensorResponse::success(true),
             Err(_) => DeleteSensorResponse::failures(CrudFailure::new_uuid_not_found_error()),
         }
         .into()
+    }
+}
+
+fn into_proto_signal_values(signal_values: SignalValues) -> ProtoSignalValues {
+    ProtoSignalValues {
+        value: signal_values
+            .values
+            .into_iter()
+            .map(|sv| ProtoSignalValue {
+                timestamp: sv.timestamp.timestamp(),
+                value: Some(into_proto_big_decimal(&sv.value)),
+            })
+            .collect(),
+    }
+}
+
+async fn fetch_sensor_data_into_hashmap<'a, E>(
+    sensor_store: &SensorStoreInner,
+    sensors: impl futures::stream::Stream<Item = Result<Sensor<'a>, E>> + Send,
+    lookback: Duration,
+    internal_err_format: fn(&dyn std::fmt::Display) -> Status,
+) -> Result<HashMap<String, SignalToValuesMap>, Status>
+where
+    E: std::fmt::Display + Send,
+{
+    use futures::stream::StreamExt;
+
+    let mut sensor_signal_values_iter = sensors
+        .then(|s| async {
+            match s {
+                Ok(s) => match s
+                    .signal_values_for_interval_since_now(sensor_store, lookback)
+                    .await
+                {
+                    Ok(svs) => Ok(svs
+                        .unwrap_or(HashMap::with_capacity(0))
+                        .into_iter()
+                        .map(|(id, sv)| (id, into_proto_signal_values(sv)))
+                        .collect::<HashMap<i32, ProtoSignalValues>>()),
+                    Err(e) => Err(internal_err_format(&e)),
+                }
+                .map(|svs| (s.id, svs)),
+                Err(e) => Err(internal_err_format(&e)),
+            }
+        })
+        // Needed because of async internal workings with `Unpin`.
+        .boxed();
+
+    let mut result = HashMap::new();
+    while let Some(signal_values) = sensor_signal_values_iter.next().await {
+        let (id, signal_values) = match signal_values {
+            Ok(signal_values) => signal_values,
+            Err(e) => return Err(internal_err_format(&e)),
+        };
+
+        // Do not add sensor that have no associated data.
+        if signal_values.is_empty() {
+            continue;
+        }
+
+        let old_value = result.insert(
+            id.to_string(),
+            SignalToValuesMap {
+                signals: signal_values,
+            },
+        );
+        if old_value.is_some() {
+            return Err(internal_err_format(&format!(
+                "duplicate sensor entry (should be unreachable): duplicate `{}`",
+                id
+            )));
+        };
+    }
+
+    Ok(result)
+}
+
+#[tonic::async_trait]
+impl SensorDataFetchingService for SensorStore {
+    async fn fetch_sensor_data_all_sensors(
+        &self,
+        request: Request<AllSensorDataRequest>,
+    ) -> Result<Response<AllSensorData>, Status> {
+        fn internal_err_format(err: &dyn std::fmt::Display) -> Status {
+            Status::internal(format!("could not fetch data for all sensors: {}", err))
+        }
+
+        debug!("fetching data for all sensors");
+        let req = request.into_inner();
+
+        let lookback = Duration::from_secs(req.lookback);
+        let sensors = self
+            .get_all_sensors()
+            .await
+            .map_err(|e| internal_err_format(&e))?;
+
+        let sensor_data =
+            fetch_sensor_data_into_hashmap(self.as_inner(), sensors, lookback, internal_err_format)
+                .await?;
+
+        Ok(Response::new(AllSensorData {
+            sensors: sensor_data,
+        }))
+    }
+
+    async fn fetch_sensor_data_single_sensor(
+        &self,
+        request: Request<SingleSensorDataRequest>,
+    ) -> Result<Response<SignalToValuesMap>, Status> {
+        fn internal_err_format(err: &dyn std::fmt::Display) -> Status {
+            Status::internal(format!("could not fetch data for a single sensor: {}", err))
+        }
+
+        debug!("fetching data for a single sensor");
+        let req = request.into_inner();
+
+        let lookback = Duration::from_secs(req.lookback);
+        let Ok(sensor_id) = Uuid::from_str(&req.sensor_id) else {
+            return Err(Status::invalid_argument("sensor id is not a valid uuid"));
+        };
+
+        let sensor = match self.get_sensor(sensor_id).await {
+            Ok(sensor) => sensor,
+            Err(e) => {
+                return Err(match e {
+                    sensor_store::Error::SensorIdNotFound => {
+                        Status::invalid_argument("sensor id does not exist")
+                    }
+                    e @ sensor_store::Error::Sqlx(_) => internal_err_format(&e),
+                })
+            }
+        };
+
+        let signal_values = sensor
+            .signal_values_for_interval_since_now(self, lookback)
+            .await
+            .map_err(|e| internal_err_format(&e))?;
+        let result = signal_values
+            .unwrap_or(HashMap::with_capacity(0))
+            .into_iter()
+            .map(|(id, svs)| (id, into_proto_signal_values(svs)))
+            .collect::<HashMap<_, _>>();
+
+        Ok(Response::new(SignalToValuesMap { signals: result }))
+    }
+
+    type FetchSensorDataAllSensorsStreamStream = ReceiverStream<Result<AllSensorDataEntry, Status>>;
+    async fn fetch_sensor_data_all_sensors_stream(
+        &self,
+        request: Request<AllSensorDataRequest>,
+    ) -> Result<Response<Self::FetchSensorDataAllSensorsStreamStream>, Status> {
+        fn internal_err_format(err: &dyn std::fmt::Display) -> Status {
+            Status::internal(format!(
+                "internal error during live sensor data stream for all sensors: {}",
+                err
+            ))
+        }
+
+        async fn send_on_channel(
+            tx: &mpsc::Sender<Result<AllSensorDataEntry, Status>>,
+            data: Result<AllSensorDataEntry, Status>,
+        ) -> Result<(), Status> {
+            if let Err(err) = tx.send(data).await {
+                error!("Sending data on the sensor data stream failed: {}.", err);
+                return Err::<(), _>(internal_err_format(&err));
+            }
+            Ok(())
+        }
+
+        /// Find the largest timestamp nested deep in the data.
+        fn last_data_timestamp(data: &HashMap<String, SignalToValuesMap>) -> Option<DateTime<Utc>> {
+            // The ugliest function I have ever written. Sorry if you have to debug this :)
+            data.iter()
+                .flat_map(|(_, svm)| svm.signals.values())
+                .flat_map(|vs| vs.value.iter())
+                .map(|v| v.timestamp)
+                .max()
+                .map(|t| {
+                    DateTime::from_timestamp(t, 0).expect("failed to convert seconds to timestamp")
+                })
+        }
+
+        debug!("starting sensor data stream for all sensors");
+        let req = request.into_inner();
+
+        let lookback = Duration::from_secs(req.lookback);
+        // Avoid reference to self by cloning the inner SensorStore.
+        let sensor_store = self.as_inner().clone();
+
+        let (tx, rx) = mpsc::channel(4);
+
+        tokio::spawn(async move {
+            let mut last_timestamp = None;
+
+            loop {
+                let sensors = match sensor_store.get_all_sensors().await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        // As this is the first return of the tokio spawn body, and because an
+                        // async block does not allow you to define the return type explicitly, the
+                        // first return has to be an explicit one.
+                        //
+                        // Clippy tries to help you here by telling you this can be converted to
+                        // `?` syntax, however if you apply the suggestion, compilation will fail.
+                        // Hence the allow attribute here.
+                        #[allow(clippy::question_mark)]
+                        if let Err(err) = send_on_channel(&tx, Err(internal_err_format(&e))).await {
+                            return Err::<(), _>(err);
+                        };
+                        continue;
+                    }
+                };
+
+                // Get the new lookback based on the last timestamp present in the data last sent.
+                // NOTE: The conversion to seconds and back to duration is because postgresql does
+                // not support higher interval precision.
+                let lookback = match last_timestamp {
+                    Some(lt) => {
+                        let delta: TimeDelta = Utc::now() - lt;
+                        Duration::from_secs(
+                            u64::try_from(delta.num_seconds())
+                                .expect("cannot create duration from negative amount of seconds"),
+                        )
+                    }
+                    None => lookback,
+                };
+
+                let sensor_data = match fetch_sensor_data_into_hashmap(
+                    &sensor_store,
+                    sensors,
+                    lookback,
+                    internal_err_format,
+                )
+                .await
+                {
+                    Ok(sd) => sd,
+                    Err(e) => {
+                        send_on_channel(&tx, Err(internal_err_format(&e))).await?;
+                        continue;
+                    }
+                };
+
+                // Skip sending when no sensor data was found.
+                if sensor_data.is_empty() {
+                    continue;
+                }
+
+                // Get the last timestamp data was successfully fetched at.
+                let last_data_timestamp = last_data_timestamp(&sensor_data);
+
+                send_on_channel(
+                    &tx,
+                    Ok(AllSensorDataEntry {
+                        sensors: sensor_data,
+                    }),
+                )
+                .await?;
+
+                // Update the timestamp the data was last requested at.
+                if let Some(last_data_timestamp) = last_data_timestamp {
+                    last_timestamp = Some(last_data_timestamp);
+                }
+
+                tokio::time::sleep(LIVE_DATA_FETCH_INTERVAL).await;
+            }
+        });
+
+        Ok(Response::new(ReceiverStream::new(rx)))
+    }
+
+    type FetchSensorDataSingleSensorStreamStream =
+        ReceiverStream<Result<SignalToValuesMap, Status>>;
+    async fn fetch_sensor_data_single_sensor_stream(
+        &self,
+        request: Request<SingleSensorDataRequest>,
+    ) -> Result<Response<Self::FetchSensorDataSingleSensorStreamStream>, Status> {
+        fn internal_err_format(err: &dyn std::fmt::Display) -> Status {
+            Status::internal(format!(
+                "internal error during live sensor data stream for sensors: {}",
+                err
+            ))
+        }
+
+        async fn send_on_channel(
+            tx: &mpsc::Sender<Result<SignalToValuesMap, Status>>,
+            data: Result<SignalToValuesMap, Status>,
+        ) -> Result<(), Status> {
+            if let Err(err) = tx.send(data).await {
+                error!("Sending data on the sensor data stream failed: {}.", err);
+                return Err::<(), _>(internal_err_format(&err));
+            }
+            Ok(())
+        }
+
+        /// Find the largest timestamp nested deep in the data.
+        fn last_data_timestamp(data: &HashMap<i32, ProtoSignalValues>) -> Option<DateTime<Utc>> {
+            // The ugliest function I have ever written. Sorry if you have to debug this :)
+            data.iter()
+                .flat_map(|(_, svm)| svm.value.iter())
+                .map(|vs| vs.timestamp)
+                .max()
+                .map(|t| {
+                    DateTime::from_timestamp(t, 0).expect("failed to convert seconds to timestamp")
+                })
+        }
+
+        debug!("starting sensor data stream for a single sensor");
+        let req = request.into_inner();
+
+        let lookback = Duration::from_secs(req.lookback);
+        let Ok(sensor_id) = Uuid::from_str(&req.sensor_id) else {
+            return Err(Status::invalid_argument("sensor id is not a valid uuid"));
+        };
+        let sensor_store = self.as_inner().clone();
+
+        let (tx, rx) = mpsc::channel(4);
+
+        tokio::spawn(async move {
+            // Avoid reference to self by cloning the inner SensorStore.
+            let sensor = match sensor_store.get_sensor(sensor_id).await {
+                Ok(sensor) => sensor,
+                Err(e) => {
+                    return Err::<(), Status>(match e {
+                        sensor_store::Error::SensorIdNotFound => {
+                            Status::invalid_argument("sensor id does not exist")
+                        }
+                        e @ sensor_store::Error::Sqlx(_) => internal_err_format(&e),
+                    })
+                }
+            };
+
+            let mut last_timestamp = None;
+
+            loop {
+                // Get the new lookback based on the last timestamp present in the data last sent.
+                // NOTE: The conversion to seconds and back to duration is because postgresql does
+                // not support higher interval precision.
+                let lookback = match last_timestamp {
+                    Some(lt) => {
+                        let delta: TimeDelta = Utc::now() - lt;
+                        Duration::from_secs(
+                            u64::try_from(delta.num_seconds())
+                                .expect("cannot create duration from negative amount of seconds"),
+                        )
+                    }
+                    None => lookback,
+                };
+
+                let signal_values = match sensor
+                    .signal_values_for_interval_since_now(&sensor_store, lookback)
+                    .await
+                {
+                    Ok(s) => s,
+                    Err(e) => {
+                        send_on_channel(&tx, Err(internal_err_format(&e))).await?;
+                        continue;
+                    }
+                };
+                let result = signal_values
+                    .unwrap_or(HashMap::with_capacity(0))
+                    .into_iter()
+                    .map(|(id, svs)| (id, into_proto_signal_values(svs)))
+                    .collect::<HashMap<_, _>>();
+
+                // Skip sending when no sensor data was found.
+                if result.is_empty() {
+                    continue;
+                }
+
+                // Get the last timestamp data was successfully fetched at.
+                let last_data_timestamp = last_data_timestamp(&result);
+
+                send_on_channel(&tx, Ok(SignalToValuesMap { signals: result })).await?;
+
+                // Update the timestamp the data was last requested at.
+                if let Some(last_data_timestamp) = last_data_timestamp {
+                    last_timestamp = Some(last_data_timestamp);
+                }
+
+                tokio::time::sleep(LIVE_DATA_FETCH_INTERVAL).await;
+            }
+        });
+
+        Ok(Response::new(ReceiverStream::new(rx)))
     }
 }

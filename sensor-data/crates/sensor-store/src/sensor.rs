@@ -51,10 +51,10 @@ impl<'a> Sensor<'a> {
         &'s self,
         sensor_store: &SensorStore,
         interval: I,
-    ) -> Result<HashMap<i32, SignalValues<'_, 's>>, Error>
+    ) -> Result<Option<HashMap<i32, SignalValues<'_, 's>>>, Error>
     where
         I: TryInto<PgInterval> + Clone,
-        I::Error: std::error::Error + Send + Sync + 'static,
+        I::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
     {
         let mut result = HashMap::with_capacity(self.signals.len());
 
@@ -63,10 +63,16 @@ impl<'a> Sensor<'a> {
                 .values_for_interval_since_now(sensor_store, interval.clone())
                 .await?;
 
+            let Some(signal_values) = signal_values else {
+                continue;
+            };
             result.insert(signal.id, signal_values);
         }
 
-        Ok(result)
+        Ok(match result.is_empty() {
+            true => None,
+            false => Some(result),
+        })
     }
 
     /// For every [`Signal`] of the [`Sensor`], get the [`SignalValues`] whose timestamp is between

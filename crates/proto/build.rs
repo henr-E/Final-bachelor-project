@@ -8,6 +8,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &[
                 "../../proto/sensor/data-ingest.proto",
                 "../../proto/sensor/sensor-crud.proto",
+                "../../proto/sensor/data-fetching.proto",
+                "../../proto/sensor/bigdecimal.proto",
             ],
             // Only allow imports from the `sensor` subproject.
             &["../../proto/sensor"],

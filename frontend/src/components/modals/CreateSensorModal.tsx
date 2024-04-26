@@ -164,6 +164,7 @@ function CreateSensorModal({
                     latitude: 51,
                     longitude: 4.1,
                     signals: quantities.map((q, i) => ({
+                        id: 0,
                         quantity: q.id,
                         unit: getBaseUnit(quantitiesWithUnits[q.id]).id,
                         ingestionUnit: units[i].id,
