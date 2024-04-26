@@ -109,7 +109,14 @@ pub mod frontend {
     pub use proto_twin::twin_service_server::{TwinService, TwinServiceServer};
 
     pub use auth_proto::{authentication_service_client::*, authentication_service_server::*, *};
+    pub use bigdecimal::BigDecimal;
     pub use proto_sensor_crud::{sensor_crud_service_client::*, sensor_crud_service_server::*, *};
+
+    pub mod sensor_data_fetching {
+        pub use super::proto_sensor_data_fetching::{
+            sensor_data_fetching_service_client::*, sensor_data_fetching_service_server::*, *,
+        };
+    }
 
     mod auth_proto {
         tonic::include_proto!("authentication.auth");
@@ -121,8 +128,17 @@ pub mod frontend {
     pub mod proto_twin {
         tonic::include_proto!("twin");
     }
+
+    // This module has to have this name because it is depended on by other proto files.
+    mod bigdecimal {
+        tonic::include_proto!("sensor.bigdecimal");
+    }
     mod proto_sensor_crud {
         tonic::include_proto!("sensor.crud");
+    }
+
+    mod proto_sensor_data_fetching {
+        tonic::include_proto!("sensor.data_fetching");
     }
 
     impl CrudFailure {
@@ -151,7 +167,7 @@ pub mod frontend {
         }
     }
 
-    impl BigInt {
+    impl BigDecimal {
         pub fn one() -> Self {
             Self {
                 sign: false,
@@ -178,7 +194,7 @@ pub mod frontend {
     }
 
     impl ReadSensorResponse {
-        pub fn sensor(sensor: self::Sensor) -> Self {
+        pub fn sensor(sensor: Sensor) -> Self {
             use self::read_sensor_response::Result;
             Self {
                 result: Some(Result::Sensor(sensor)),

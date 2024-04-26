@@ -29,7 +29,7 @@ pub struct SensorStore {
 impl SensorStore {
     /// Create a new [`SensorStore`] using environment variables from the `.env` file.
     ///
-    /// See [`database_config::database_url`] for more info.
+    /// See [`database_url`] for more info.
     pub async fn new() -> Result<Self, Error> {
         let db_url = database_url("sensor_archive");
         let db_pool = PgPool::connect(&db_url).await?;
@@ -44,13 +44,19 @@ impl SensorStore {
     }
 
     /// Get a single [`Sensor`] from the database given its [`Uuid`].
-    pub async fn get_sensor(&self, sensor_id: uuid::Uuid) -> Result<Sensor<'_>, Error> {
-        let sensor = sqlx::query!(
+    pub async fn get_sensor(&self, sensor_id: Uuid) -> Result<Sensor<'_>, Error> {
+        let sensor = match sqlx::query!(
             "SELECT name, description, location[0]::float as lon, location[1]::float as lat, twin_id, building_id FROM sensors WHERE id = $1::uuid",
             sensor_id
         )
         .fetch_one(&self.db_pool)
-        .await?;
+        .await {
+                Ok(s) => s,
+                Err(e) => return Err(match e{
+                    SqlxError::RowNotFound => Error::SensorIdNotFound,
+                    e => e.into(),
+                })
+            };
 
         let sensor = Sensor::builder(
             sensor_id,
@@ -244,7 +250,7 @@ mod unit_quantity_tests {
     use super::{Quantity, Unit};
     use enumset::EnumSet;
 
-    /// Ensure that every unit belongs to a quantity and vica versa. This is done to find unused
+    /// Ensure that every unit belongs to a quantity and vice versa. This is done to find unused
     /// quantities and wrongly associated units.
     #[test]
     fn complete_set() {
@@ -268,7 +274,7 @@ mod unit_quantity_tests {
         );
     }
 
-    /// Ensure that every quantities base unit is also an associated unit.
+    /// Ensure that every quantity's base unit is also an associated unit.
     #[test]
     fn base_unit_in_associated_units() {
         let all_quantities = EnumSet::<Quantity>::all();
@@ -311,7 +317,7 @@ mod unit_quantity_tests {
             .collect::<Result<EnumSet<_>, _>>()
             .unwrap();
 
-        assert!(quantities_round_trip == all_quantities);
+        assert_eq!(quantities_round_trip, all_quantities);
     }
 
     #[test]
@@ -327,6 +333,6 @@ mod unit_quantity_tests {
 
         let units_round_trip = units_round_trip.collect::<Result<EnumSet<_>, _>>().unwrap();
 
-        assert!(units_round_trip == all_units);
+        assert_eq!(units_round_trip, all_units);
     }
 }

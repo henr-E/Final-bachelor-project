@@ -6,7 +6,7 @@ use std::{borrow::Cow, collections::HashSet};
 pub type Signals<'a> = HashSet<Signal<'a>>;
 
 /// Represents a signal field when ingesting sensor data.
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Signal<'a> {
     /// Id of the signal as present in the database.
     pub id: i32,
@@ -21,12 +21,14 @@ pub struct Signal<'a> {
 }
 
 /// List of values belonging to a [`Signal`].
+#[derive(Debug)]
 pub struct SignalValues<'a, 's> {
     pub signal: &'s Signal<'a>,
     pub values: Vec<SignalValue>,
 }
 
 /// Value belonging to a [`Signal`] long with a timestamp for the value.
+#[derive(Debug)]
 pub struct SignalValue {
     /// Value of the signal.
     pub value: BigDecimal,
@@ -43,10 +45,10 @@ impl Signal<'_> {
         &'s self,
         sensor_store: &SensorStore,
         interval: I,
-    ) -> Result<SignalValues<'_, 's>, Error>
+    ) -> Result<Option<SignalValues<'_, 's>>, Error>
     where
         I: TryInto<PgInterval>,
-        I::Error: std::error::Error + Send + Sync + 'static,
+        I::Error: Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
     {
         let interval = interval
             .try_into()
@@ -77,9 +79,12 @@ impl Signal<'_> {
             })
             .collect::<Vec<_>>();
 
-        Ok(SignalValues {
-            signal: self,
-            values: signal_values,
+        Ok(match signal_values.is_empty() {
+            true => None,
+            false => Some(SignalValues {
+                signal: self,
+                values: signal_values,
+            }),
         })
     }
 

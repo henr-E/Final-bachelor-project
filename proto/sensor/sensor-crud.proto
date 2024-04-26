@@ -3,7 +3,7 @@ syntax = "proto3";
 package sensor.crud;
 
 import "google/protobuf/empty.proto";
-import "google/protobuf/wrappers.proto";
+import "bigdecimal.proto";
 
 service SensorCRUDService {
     // Get a list of supported quantities and units.
@@ -45,26 +45,20 @@ message CrudFailure {
     repeated CrudFailureReason reasons = 1;
 }
 
-message BigInt {
-    // Sign of the digit.
-    bool sign = 1;
-    // List of integers with the least significant integer first.
-    repeated uint32 integer = 2;
-    // Exponent of `10` (number = sign [integer_list] * 10^exponent)
-    int64 exponent = 3;
-}
 
 message Signal {
+    // ID of the signal.
+    int32 id = 1;
     // Alias of the signal as registered by the user.
-    string alias = 1;
+    string alias = 2;
     // Quantity of the sensor
-    string quantity = 2;
+    string quantity = 3;
     // Default unit the quantity is measured in.
-    string unit = 3;
+    string unit = 4;
     // Unit the sensor ingests data in.
-    string ingestion_unit= 4;
+    string ingestion_unit= 5;
     // Prefix of the values ingested by the sensor.
-    BigInt prefix = 5;
+    bigdecimal.BigDecimal prefix = 6;
 }
 
 message Sensor {

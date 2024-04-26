@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package sensor.data_fetching;
+
+import "bigdecimal.proto";
+
+// Service for fetching sensor data from the processed data.
+service SensorDataFetchingService {
+    // Fetch sensor data from all sensors.
+    rpc FetchSensorDataAllSensors(AllSensorDataRequest) returns (AllSensorData);
+
+    // Fetch sensor data from a single sensor.
+    rpc FetchSensorDataSingleSensor(SingleSensorDataRequest) returns (SignalToValuesMap);
+
+    // Fetch sensor data from all sensors in a stream. As new data comes in,
+    // new data will be sent.
+    rpc FetchSensorDataAllSensorsStream(AllSensorDataRequest) returns (stream AllSensorDataEntry);
+
+    // Fetch sensor data from a single sensor in a stream. As new data comes
+    // in, new data will be sent.
+    rpc FetchSensorDataSingleSensorStream(SingleSensorDataRequest) returns (stream SignalToValuesMap);
+}
+
+// Maps the sensor signal id to signal values.
+message SignalToValuesMap {
+    map<int32, SignalValues> signals = 1;
+}
+
+// Maps the sensor signal id to single signal value.
+message SignalToValueMap {
+    map<int32, SignalValue> signals = 1;
+}
+
+// List of signal values guaranteed to be ordered from old to new based on
+// timestamp.
+message SignalValues {
+    repeated SignalValue value = 1;
+}
+
+// Single measurement made by a sensor.
+message SignalValue {
+    // Timestamp the value was ingested on.
+    sfixed64 timestamp = 1;
+    // Measurement made by the sensor.
+    bigdecimal.BigDecimal value = 2;
+}
+
+// Contains all data for all sensors.
+//
+// WARNING: It is not guaranteed that all sensors that exist in the system will
+// be returned in this map.
+message AllSensorData {
+    // Map from sensor uuid to a map of signal id to values.
+    map<string, SignalToValuesMap> sensors = 1;
+}
+
+// Contains a single timestamp entry of data for all sensors.
+//
+// NOTE: If a sensor has no data for this entry, it will not be included in the
+// map.
+message AllSensorDataEntry {
+    // Map from sensor uuid to a map of signal id to values.
+    map<string, SignalToValuesMap> sensors = 1;
+}
+
+// Request for signal data from all sensors.
+message AllSensorDataRequest {
+    // Amount of seconds to look back in time and fetch values from.
+    uint64 lookback = 1;
+}
+
+// Request for signal data from a single sensor.
+message SingleSensorDataRequest {
+    // Uuid of the sensor to fetch signal values for.
+    string sensor_id = 1;
+    // Amount of seconds to look back in time and fetch values from.
+    uint64 lookback = 2;
+}

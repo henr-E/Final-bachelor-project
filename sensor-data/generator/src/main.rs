@@ -23,9 +23,11 @@ struct GeneratorJob {
 #[async_trait]
 impl Job for GeneratorJob {
     fn schedule(&self) -> Option<Schedule> {
-        Some("0 0 * * * *".parse().unwrap())
+        Some("*/10 * * * * *".parse().unwrap())
     }
     async fn handle(&mut self) {
+        debug!("running sensor data generator");
+
         let mut sensor_data_generator = SensorDataGenerator::new();
         // retrieve registered sensors from the database
         sensor_data_generator
@@ -79,6 +81,8 @@ async fn run() {
 /// Generate fake sensor data and send it to the ingest service.
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt().init();
+    tracing_subscriber::fmt()
+        .with_env_filter("sensor_data_generator=DEBUG,INFO")
+        .init();
     run().await;
 }

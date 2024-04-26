@@ -20,3 +20,6 @@ result
 
 localhost.crt
 localhost.key
+
+# Sensor communication
+/uploads

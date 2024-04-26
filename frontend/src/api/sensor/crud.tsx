@@ -19,7 +19,7 @@ export function failureReasonToString(reason: CrudFailureReason): string {
         case CrudFailureReason.INVALID_UNIT_ERROR:
             return 'Unit is invalid (mismatch with backend?)';
         case CrudFailureReason.INVALID_QUANTITY_ERROR:
-            return 'Quantity invalid (mismach with backend?)';
+            return 'Quantity invalid (mismatch with backend?)';
         case CrudFailureReason.UUID_NOT_PRESENT_ERROR:
             return 'Sensor uuid not found in database';
         case CrudFailureReason.DATABASE_INSERTION_ERROR:
@@ -87,6 +87,7 @@ export async function BackendGetSensors(twinId: number): Promise<Sensor[]> {
                 latitude: sensor.latitude,
                 longitude: sensor.longitude,
                 signals: sensor.signals.map(s => ({
+                    id: s.id,
                     quantity: s.quantity,
                     unit: s.unit,
                     ingestionUnit: s.ingestionUnit,

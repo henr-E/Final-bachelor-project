@@ -2,7 +2,8 @@
 import React from 'react';
 import 'leaflet/dist/leaflet.css';
 import { Button, Modal } from 'flowbite-react';
-import { BigInt, Sensor } from '@/proto/sensor/sensor-crud';
+import { Sensor } from '@/proto/sensor/sensor-crud';
+import { BigDecimal } from '@/proto/sensor/bigdecimal';
 
 interface ShowSignalsModalProps {
     isModalOpen: boolean;
@@ -26,7 +27,7 @@ const prefixMap = new Map<number, string>([
     [0, 'ONE'],
     [-1, 'DECI'],
     [-2, 'CENTI'],
-    [-3, 'MILI'],
+    [-3, 'MILLI'],
     [-6, 'MICRO'],
     [-9, 'NANO'],
     [-12, 'PICO'],
@@ -38,14 +39,14 @@ const prefixMap = new Map<number, string>([
     [-30, 'QUECTO'],
 ]);
 
-function formatBigInt(bigInt: BigInt | null | undefined): string {
-    if (bigInt === null || bigInt === undefined) return 'None';
+function formatBigInt(bigDecimal: BigDecimal | null | undefined): string {
+    if (bigDecimal === null || bigDecimal === undefined) return 'None';
 
     //convert integer to 1 number
     //example 1000
-    const number = parseInt(bigInt.integer.reverse().join(''));
+    const number = parseInt(bigDecimal.integer.reverse().join(''));
 
-    //count the amount of zeors
+    //count the amount of zeros
     //example 1000 => 3 zeros
     const str = number.toString(); // Convert the number to a string
     let zeroCount = 0; // Initialize zero counter
@@ -56,7 +57,7 @@ function formatBigInt(bigInt: BigInt | null | undefined): string {
         }
     }
 
-    let amountOfZeros = bigInt.exponent + zeroCount;
+    let amountOfZeros = bigDecimal.exponent + zeroCount;
     let prefix = prefixMap.get(amountOfZeros);
 
     if (prefix === undefined) {
