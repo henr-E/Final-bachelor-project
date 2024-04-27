@@ -12,18 +12,33 @@ use tonic::{Request, Response, Status};
 
 use proto::frontend::proto_twin::{
     BuildingObject, CreateTwinRequest, CreateTwinResponse, DeleteBuildingRequest,
-    DeleteBuildingResponse, GetAllTwinsRequest, GetAllTwinsResponse, GetBuildingsRequest,
-    GetBuildingsResponse, TwinObject, UndoDeleteBuildingRequest, UndoDeleteBuildingResponse,
+    DeleteTwinRequest, GetAllTwinsRequest, GetAllTwinsResponse, GetBuildingsRequest,
+    GetBuildingsResponse, TwinObject, UndoDeleteBuildingRequest,
 };
-use proto::frontend::TwinService;
+use proto::frontend::{DeleteSensorRequest, GetSensorsRequest, TwinId, TwinService};
+
+use proto::frontend::DeleteSimulationRequest as DeleteSimulationRequestFrontend;
+
+use crate::sensor::SensorStore;
+use crate::simulation_service::SimulationService;
 
 pub struct MyTwinService {
     pool: PgPool,
+    simulation_service: SimulationService,
+    sensor_service: SensorStore,
 }
 
 impl MyTwinService {
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(
+        pool: PgPool,
+        simulation_service: SimulationService,
+        sensor_service: SensorStore,
+    ) -> Self {
+        Self {
+            pool,
+            simulation_service,
+            sensor_service,
+        }
     }
 }
 
@@ -404,7 +419,7 @@ impl TwinService for MyTwinService {
     async fn delete_building(
         &self,
         request: Request<DeleteBuildingRequest>,
-    ) -> Result<Response<DeleteBuildingResponse>, Status> {
+    ) -> Result<Response<()>, Status> {
         let building_id = request.into_inner().id;
         let mut transaction = self
             .pool
@@ -425,13 +440,12 @@ impl TwinService for MyTwinService {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        Ok(Response::new(DeleteBuildingResponse { deleted: true }))
+        Ok(Response::new(()))
     }
-
     async fn undo_delete_building(
         &self,
         request: Request<UndoDeleteBuildingRequest>,
-    ) -> Result<Response<UndoDeleteBuildingResponse>, Status> {
+    ) -> Result<Response<()>, Status> {
         let building_id = request.into_inner().id;
         let mut transaction = self
             .pool
@@ -452,6 +466,63 @@ impl TwinService for MyTwinService {
             .await
             .map_err(|e| Status::internal(e.to_string()))?;
 
-        Ok(Response::new(UndoDeleteBuildingResponse { undone: true }))
+        Ok(Response::new(()))
+    }
+
+    async fn delete_twin(
+        &self,
+        request: Request<DeleteTwinRequest>,
+    ) -> Result<Response<()>, Status> {
+        use proto::frontend::SensorCrudService;
+        use proto::frontend::SimulationInterfaceService;
+        let twin_id = request.into_inner().id;
+
+        let mut transaction = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        //delete simulation
+        let simulations = self
+            .simulation_service
+            .get_all_simulations(Request::new(TwinId {
+                twin_id: twin_id.to_string(),
+            }))
+            .await?;
+        for simulation in simulations.into_inner().item {
+            self.simulation_service
+                .delete_simulation(Request::new(DeleteSimulationRequestFrontend {
+                    id: simulation.id,
+                }))
+                .await?;
+        }
+
+        // Delete all sensors associated with the twin
+        let mut sensors = self
+            .sensor_service
+            .get_sensors(Request::new(GetSensorsRequest { twin_id }))
+            .await?
+            .into_inner();
+        while let Some(sensor) = sensors.next().await {
+            let get_sensor_request = sensor?;
+            let id: String = get_sensor_request.sensor.unwrap().id;
+            self.sensor_service
+                .delete_sensor(Request::new(DeleteSensorRequest { uuid: id }))
+                .await?;
+        }
+
+        // Delete the twin
+        sqlx::query!("DELETE FROM twins WHERE id = $1", twin_id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        transaction
+            .commit()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        Ok(Response::new(()))
     }
 }

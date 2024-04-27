@@ -1,23 +1,27 @@
+use std::env;
+use std::ffi::c_double;
+use std::str::FromStr;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use futures::StreamExt;
+use sqlx::PgPool;
+use tonic::transport::Channel;
+use tonic::{Request, Response, Status, Streaming};
+
 use proto::frontend::{
     CreateSimulationParams, CreateSimulationResponse, Simulation, SimulationInterfaceService,
     Simulations, TwinId,
 };
-
+use proto::simulation::simulation_manager::DeleteSimulationRequest as DeleteSimulationRequestManager;
 use proto::simulation::simulation_manager::{
     ComponentsInfo, PushSimulationRequest, SimulationData, SimulationFrame, SimulationFrameRequest,
     SimulationManagerClient, SimulatorSelection, Simulators,
 };
+
+use proto::frontend::DeleteSimulationRequest as DeleteSimulationRequestFrontend;
+use proto::frontend::DeleteSimulationResponse as DeleteSimulationResponseFrontend;
+
 use proto::simulation::{simulation_manager, State};
-use sqlx::PgPool;
-use std::env;
-use std::ffi::c_double;
-
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use std::str::FromStr;
-use tonic::transport::Channel;
-use tonic::{Request, Response, Status, Streaming};
 
 #[derive(Debug)]
 pub struct SimulationDB {
@@ -27,6 +31,8 @@ pub struct SimulationDB {
     end_date_time: i32,
     creation_date_time: i32,
 }
+
+#[derive(Clone)]
 pub struct SimulationService {
     //TODO set in db
     pool: PgPool,
@@ -286,6 +292,41 @@ impl SimulationInterfaceService for SimulationService {
             ._get_components_manager()
             .await
             .unwrap_or(Response::new(ComponentsInfo::default())));
+    }
+
+    async fn delete_simulation(
+        &self,
+        request: Request<DeleteSimulationRequestFrontend>,
+    ) -> Result<Response<DeleteSimulationResponseFrontend>, Status> {
+        let req = request.into_inner();
+        self.client
+            .clone()
+            .delete_simulation(DeleteSimulationRequestManager {
+                id: Option::from(simulation_manager::SimulationId {
+                    uuid: req.id.to_string(),
+                }),
+            })
+            .await?;
+
+        let mut transaction = self
+            .pool
+            .begin()
+            .await
+            .map_err(|err| Status::from_error(Box::new(err)))?;
+
+        sqlx::query!("DELETE FROM simulations WHERE id = $1", req.id)
+            .execute(&mut *transaction)
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        transaction
+            .commit()
+            .await
+            .map_err(|err| Status::from_error(Box::new(err)))?;
+
+        let response = DeleteSimulationResponseFrontend { deleted: true };
+
+        Ok(Response::new(response))
     }
 
     async fn get_simulators(&self, _request: Request<()>) -> Result<Response<Simulators>, Status> {

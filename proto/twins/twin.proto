@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 import "google/protobuf/struct.proto";
-
+import "google/protobuf/empty.proto";
 package twin;
 
 // The service definition.
@@ -9,8 +9,9 @@ service TwinService {
     rpc createTwin (createTwinRequest) returns (createTwinResponse);
     rpc getAllTwins (getAllTwinsRequest) returns (getAllTwinsResponse);
     rpc getBuildings (getBuildingsRequest) returns (getBuildingsResponse);
-    rpc deleteBuilding (deleteBuildingRequest) returns (deleteBuildingResponse);
-    rpc undoDeleteBuilding (undoDeleteBuildingRequest) returns (undoDeleteBuildingResponse);
+    rpc deleteBuilding (deleteBuildingRequest) returns (google.protobuf.Empty);
+    rpc deleteTwin (deleteTwinRequest) returns (google.protobuf.Empty);
+    rpc undoDeleteBuilding (undoDeleteBuildingRequest) returns (google.protobuf.Empty);
 }
 
 //creating twin
@@ -59,7 +60,7 @@ message buildingObject {
 
 message getBuildingsRequest {
     //the ID is defined by the database (SERIAL type)
-    int64 id = 1;
+    int32 id = 1;
 }
 message getBuildingsResponse {
     repeated buildingObject buildings = 1;
@@ -70,16 +71,15 @@ message deleteBuildingRequest {
     //the ID is defined by the database (SERIAL type)
     int64 id = 1;
 }
-message deleteBuildingResponse {
-    bool deleted = 1;
-}
 
+//delete a twin
+message deleteTwinRequest {
+    //the ID is defined by the database (SERIAL type)
+    int32 id = 1;
+}
 
 //restore a deleted building
 message undoDeleteBuildingRequest {
     //the ID is defined by the database (SERIAL type)
     int64 id = 1;
-}
-message undoDeleteBuildingResponse {
-    bool undone = 1;
 }

@@ -43,6 +43,21 @@ interface CreateTwin {
     twin: TwinFromProvider;
 }
 
+interface DeleteTwin {
+    type: 'delete_twin';
+    twinId: number;
+}
+
+interface DeleteSensorAction {
+    type: 'delete_sensor';
+    sensorId: string;
+}
+
+interface DeleteSimulationAction {
+    type: 'delete_simulation';
+    simulationName: string;
+}
+
 interface LoadSimulationsAction {
     type: 'load_simulations';
     simulations: Simulation[];
@@ -57,8 +72,11 @@ type TwinAction =
     | SwitchTwinAction
     | LoadTwinsAction
     | CreateTwin
+    | DeleteTwin
     | LoadSimulationsAction
-    | LoadSensorsAction;
+    | LoadSensorsAction
+    | DeleteSensorAction
+    | DeleteSimulationAction;
 
 function reducer(state: TwinState, action: TwinAction): TwinState {
     switch (action.type) {
@@ -82,6 +100,46 @@ function reducer(state: TwinState, action: TwinAction): TwinState {
                 twins: updatedTwins,
             };
         }
+        case 'delete_twin': {
+            const remainingTwins = state.twins.filter(twin => twin.id !== action.twinId);
+            const isCurrentTwinDeleted = state.current?.id === action.twinId;
+            return {
+                ...state,
+                twins: remainingTwins,
+                current: isCurrentTwinDeleted ? remainingTwins[0] || null : state.current,
+            };
+        }
+        case 'delete_sensor': {
+            if (state.current) {
+                const updatedSensors = state.current.sensors.filter(
+                    sensor => sensor.id !== action.sensorId
+                );
+                return {
+                    ...state,
+                    current: {
+                        ...state.current,
+                        sensors: updatedSensors,
+                    },
+                };
+            }
+            return state;
+        }
+        case 'delete_simulation': {
+            if (state.current) {
+                const updatedSimulations = state.current.simulations.filter(
+                    simulation => simulation.name !== action.simulationName
+                );
+                return {
+                    ...state,
+                    current: {
+                        ...state.current,
+                        simulations: updatedSimulations,
+                    },
+                };
+            }
+            return state;
+        }
+
         case 'load_simulations': {
             if (!state.current) {
                 console.error('Cannot load simulations: current twin is undefined.');

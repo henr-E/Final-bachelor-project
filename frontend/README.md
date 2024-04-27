@@ -31,6 +31,14 @@ cargo run --bin ui-backend
 
 ```
 
+#### if you want to run the sensors:
+
+```
+cargo run --bin sensor-data-generator
+cargo run --bin sensor-data-ingestor
+cargo run --bin sensor-data-transformer
+```
+
 #### in the frontend directory run:
 
 ```

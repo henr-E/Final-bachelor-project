@@ -14,6 +14,7 @@ service SimulationInterfaceService {
     rpc GetSimulationFrames(stream simulation_manager.SimulationFrameRequest) returns (stream simulation_manager.SimulationFrame);
     rpc GetComponents(google.protobuf.Empty) returns (simulation_manager.ComponentsInfo);
     rpc GetSimulators(google.protobuf.Empty) returns (simulation_manager.Simulators);
+    rpc DeleteSimulation (DeleteSimulationRequest) returns (DeleteSimulationResponse);
 }
 
 enum SimulationStatus {
@@ -59,4 +60,12 @@ message Simulation {
 
 message TwinId {
     string twin_id = 1;
+}
+
+//delete a simulation
+message DeleteSimulationRequest {
+    int32 id = 1;
+}
+message DeleteSimulationResponse {
+    bool deleted = 1;
 }

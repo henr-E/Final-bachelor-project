@@ -38,8 +38,18 @@ export async function BackendCreateSimulation(
     }
 }
 
-export async function BackendDeleteSimulation(simulation_id: string): Promise<boolean> {
-    return true;
+export async function BackendDeleteSimulation(simulationId: number): Promise<boolean> {
+    try {
+        const channel = createChannel(uiBackendServiceUrl);
+        const client = createClient(SimulationInterfaceServiceDefinition, channel);
+        const request = { id: simulationId };
+        const response = await client.deleteSimulation(request);
+        return response.deleted;
+    } catch (error) {
+        ToastNotification('error', 'Failed to delete twin.');
+        console.error('Failed to delete twin:', error);
+        return false;
+    }
 }
 
 export async function BackendGetSimulationDetails(simulationId: string): Promise<Simulation> {
