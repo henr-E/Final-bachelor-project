@@ -143,6 +143,22 @@ impl SimulationsDB {
         Ok(iterations)
     }
 
+    /// Get list of selected simulator names for given simulation.
+    pub async fn get_selected_simulators(
+        &mut self,
+        simulation_id: i32,
+    ) -> Result<Option<Vec<String>>> {
+        let selection = sqlx::query!(
+            "SELECT simulators FROM simulations WHERE id=$1",
+            simulation_id
+        )
+        .fetch_one(self.connection().await?)
+        .await?
+        .simulators;
+
+        Ok(selection)
+    }
+
     /// Add a simulation to the simlations table.
     pub async fn add_simulation(
         &mut self,
@@ -150,9 +166,11 @@ impl SimulationsDB {
         step_size_ms: i32,
         max_steps: i32,
         status: StatusEnum,
+        selected_simulators: Vec<String>,
     ) -> Result<i32> {
-        query!("INSERT INTO simulations (name, step_size_ms, max_steps, status) VALUES($1, $2, $3, $4) RETURNING id",
-            name, step_size_ms, max_steps, status as _)
+        query!("INSERT INTO simulations (name, step_size_ms, max_steps, status, simulators) VALUES($1, $2, $3, $4, $5) RETURNING id",
+            name, step_size_ms, max_steps, status as _, &selected_simulators)
+
         .fetch_one(self.connection().await?)
             .await
             .map_err(|e| anyhow!(e))

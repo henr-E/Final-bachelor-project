@@ -73,7 +73,7 @@ async fn main() -> ExitCode {
     // Start the server using `start`. This may return an error if something goes wrong during the execution of the program,
     // so we need to handle this error appropriately. Here we print the error and exit.
     println!("Starting example simulator server on {listen_addr}");
-    if let Err(err) = server.start(listen_addr, connector_addr).await {
+    if let Err(err) = server.start(listen_addr, connector_addr, "name").await {
         eprintln!("Server return an error: {err}");
         return ExitCode::FAILURE;
     }

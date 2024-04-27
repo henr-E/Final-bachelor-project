@@ -26,7 +26,10 @@ async fn main() -> ExitCode {
     let server = Server::<TimeSimulator>::new();
 
     info!("Starting time simulator server on `{listen_addr}`.");
-    if let Err(err) = server.start(listen_addr, connector_addr).await {
+    if let Err(err) = server
+        .start(listen_addr, connector_addr, "time simulator")
+        .await
+    {
         error!("Server return an error: {err}.");
         return ExitCode::FAILURE;
     }

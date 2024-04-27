@@ -1,14 +1,36 @@
 'use client';
 
-import { useContext, useRef, useState } from 'react';
-import { Button, Datepicker, Label, Modal, Select, TextInput } from 'flowbite-react';
+import { useContext, useState, useRef, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+import {
+    Button,
+    Modal,
+    Label,
+    TextInput,
+    Select,
+    Datepicker,
+    Toast,
+    Textarea,
+    Table,
+    Checkbox,
+} from 'flowbite-react';
 import dynamic from 'next/dynamic';
-import { CreateSimulationParams } from '@/proto/simulation/frontend';
+import {
+    CreateSimulationResponse,
+    SimulationInterfaceServiceDefinition,
+    Simulations,
+    CreateSimulationParams,
+} from '@/proto/simulation/frontend';
+import { SimulatorInfo } from '@/proto/simulation/simulation-manager';
 import { TwinContext } from '@/store/twins';
-import { LineItem, NodeItem } from '@/components/maps/MapItem';
+import { LineItem, MapItemType, NodeItem } from '@/components/maps/MapItem';
 import { Edge, Graph, Node, State } from '@/proto/simulation/simulation';
 import ToastNotification from '@/components/notification/ToastNotification';
-import { BackendCreateSimulation, BackendGetSimulations } from '@/api/simulation/crud';
+import {
+    BackendCreateSimulation,
+    BackendGetSimulations,
+    BackendGetSimulators,
+} from '@/api/simulation/crud';
 import CustomJsonEditor from '@/components/CustomJsonEditor';
 
 interface CreateSimulationModalProps {
@@ -23,6 +45,13 @@ interface CreateSimulationModalProps {
     globalComponents?: string;
     initialNodes?: Map<number, NodeItem>;
     initialEdges?: Array<LineItem>;
+    simulators?: string[];
+}
+
+enum ModalPage {
+    SIMULATION,
+    SIMULATORS,
+    GLOBAL,
 }
 
 interface JsonData {
@@ -38,22 +67,28 @@ interface JsonData {
 
 function CreateSimulationModal(propItems: CreateSimulationModalProps) {
     const [twinState, dispatchTwin] = useContext(TwinContext);
+    const [modalPage, setModalPage] = useState<ModalPage>(ModalPage.SIMULATION);
     const [name, setName] = useState<string>(propItems.title || '');
     const [startDate, setStartDate] = useState<Date>(propItems.startDate || new Date(Date.now()));
     const [endDate, setEndDate] = useState<Date>(propItems.endDate || new Date(Date.now()));
     const [startTime, setStartTime] = useState<string>(propItems.startTime || '');
     const [endTime, setEndTime] = useState<string>(propItems.endTime || '');
     const [timeStepDelta, setTimeStepDelta] = useState<number>(propItems.timeStepDelta || 0);
-    const [step, setStep] = useState<number>(0);
-    const nodeItemsRef = useRef<Map<number, NodeItem>>();
-    const edgeItemsRef = useRef<Array<LineItem>>();
-
     const [globalComponents, setGlobalComponents] = useState(
         propItems.globalComponents || '{"global_temperature":{"current_temp":15}}'
     );
-
+    const [simulatorsSelected, setSimulatorsSelected] = useState<string[]>([]);
+    const [simulators, setSimulators] = useState<SimulatorInfo[]>();
+    const nodeItemsRef = useRef<Map<number, NodeItem>>();
+    const edgeItemsRef = useRef<Array<LineItem>>();
     const formRef = useRef<HTMLFormElement>(null);
 
+    useEffect(() => {
+        async function fetchSimulators() {
+            setSimulators((await BackendGetSimulators()).simulator);
+        }
+        fetchSimulators();
+    }, []);
     const GenerateSimulation = async () => {
         const startTimeSplit = startTime.split(':');
         let startDateTime = startDate;
@@ -131,6 +166,9 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                 globalComponents: globalComponentsObject,
             }),
             timeStepDelta: timeStepDelta,
+            simulators: {
+                name: simulatorsSelected,
+            },
         };
 
         const response = await BackendCreateSimulation(twin);
@@ -143,9 +181,78 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
             propItems.closeModal();
         }
     };
-
+    const handleNextButtonClick = async () => {
+        switch (modalPage) {
+            case ModalPage.SIMULATION: {
+                if (!formRef.current?.reportValidity()) return;
+                if (startDate > endDate) {
+                    ToastNotification('warning', 'Start date must be before/equal end date.');
+                    return;
+                }
+                if (startDate.getTime() === endDate.getTime() && startTime >= endTime) {
+                    ToastNotification(
+                        'warning',
+                        'Start time must be before end time when dates are the same.'
+                    );
+                    return;
+                }
+                if (twinState.current) {
+                    for (let i = 0; i < twinState.current.simulations.length; i++) {
+                        if (twinState.current.simulations[i].name == name) {
+                            ToastNotification(
+                                'warning',
+                                'A simulation with this name already exists.'
+                            );
+                            return;
+                        }
+                    }
+                }
+                if (!formRef.current?.checkValidity()) {
+                    formRef.current?.reportValidity();
+                    return;
+                }
+                try {
+                    JSON.parse(globalComponents);
+                } catch (e) {
+                    ToastNotification('error', 'Not a valid json format for global vars');
+                    return;
+                }
+                setModalPage(ModalPage.SIMULATORS);
+                return;
+            }
+            case ModalPage.SIMULATORS: {
+                if (simulatorsSelected.length == 0) {
+                    ToastNotification('warning', 'Must select at least one simulator!');
+                    return;
+                }
+                setModalPage(ModalPage.GLOBAL);
+                return;
+            }
+            case ModalPage.GLOBAL: {
+                closeModelAndReset();
+                GenerateSimulation().then();
+                return;
+            }
+        }
+    };
+    const handlePreviousButtonClick = () => {
+        switch (modalPage) {
+            case ModalPage.SIMULATION: {
+                closeModelAndReset();
+                break;
+            }
+            case ModalPage.SIMULATORS: {
+                setModalPage(ModalPage.SIMULATION);
+                return;
+            }
+            case ModalPage.GLOBAL: {
+                setModalPage(ModalPage.SIMULATION);
+                return;
+            }
+        }
+    };
     const closeModelAndReset = () => {
-        setStep(0);
+        setModalPage(ModalPage.SIMULATION);
         setName(propItems.title || '');
         setStartDate(propItems.startDate || new Date());
         setEndDate(propItems.endDate || new Date());
@@ -153,56 +260,8 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
         setEndTime(propItems.endTime || '00:00:00');
         setTimeStepDelta(propItems.timeStepDelta || 1);
         setGlobalComponents(propItems.globalComponents || '{}');
+        setSimulatorsSelected([]);
         propItems.closeModal();
-    };
-
-    const handleCancelButtonClick = () => {
-        if (step > 0) {
-            setStep(step - 1);
-            return;
-        }
-        closeModelAndReset();
-    };
-
-    const NextStepButtonClick = () => {
-        if (startDate > endDate) {
-            ToastNotification('warning', 'Start date must be before/equal end date.');
-            return;
-        }
-        if (startDate.getTime() === endDate.getTime() && startTime >= endTime) {
-            ToastNotification(
-                'warning',
-                'Start time must be before end time when dates are the same.'
-            );
-            return;
-        }
-        if (twinState.current) {
-            for (let i = 0; i < twinState.current.simulations.length; i++) {
-                if (twinState.current.simulations[i].name == name) {
-                    ToastNotification('warning', 'A simulation with this name already exists.');
-                    return;
-                }
-            }
-        }
-
-        if (step == 1) {
-            closeModelAndReset();
-            GenerateSimulation().then();
-            return;
-        }
-        if (!formRef.current?.checkValidity()) {
-            formRef.current?.reportValidity();
-            return;
-        }
-
-        try {
-            JSON.parse(globalComponents);
-        } catch (e) {
-            ToastNotification('error', 'Not a valid json format for global vars');
-            return;
-        }
-
-        setStep(step + 1);
     };
 
     const MapEditor = dynamic(() => import('@/components/maps/MapEditor'), {
@@ -212,17 +271,85 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
     const onJsonChange = (key: string, value: any, parent: any, data: JsonData) => {
         console.log(key, value, parent, data);
     };
+    const CreateSimulationStepper = () => {
+        const activeStyles = 'text-indigo-600';
+        return (
+            <ol className='flex items-center w-full text-sm font-medium text-center text-gray-500 sm:text-base mb-8'>
+                <li
+                    className={`flex md:w-full items-center ${activeStyles}  after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
+                >
+                    <span className="flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-gray-200">
+                        <svg
+                            className='w-3.5 h-3.5 sm:w-4 sm:h-4 me-2.5'
+                            aria-hidden='true'
+                            xmlns='http://www.w3.org/2000/svg'
+                            fill='currentColor'
+                            viewBox='0 0 20 20'
+                        >
+                            <path d='M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z' />
+                        </svg>
+                        <span className={modalPage === ModalPage.SIMULATION ? '' : ''}>
+                            Simulation
+                        </span>
+                    </span>
+                </li>
+                <li
+                    className={`flex md:w-full items-center ${
+                        modalPage === ModalPage.SIMULATORS || modalPage === ModalPage.GLOBAL
+                            ? activeStyles
+                            : ''
+                    } after:content-[''] after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
+                >
+                    <span
+                        className={`flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-gray-200`}
+                    >
+                        <svg
+                            className='w-3.5 h-3.5 sm:w-4 sm:h-4 me-2.5'
+                            aria-hidden='true'
+                            xmlns='http://www.w3.org/2000/svg'
+                            fill='currentColor'
+                            viewBox='0 0 20 20'
+                        >
+                            <path d='M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z' />
+                        </svg>
+                        Simulators
+                    </span>
+                </li>
+                <li
+                    className={`flex items-center ${
+                        modalPage === ModalPage.GLOBAL ? activeStyles : ''
+                    } after:content-[''] after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
+                >
+                    <span
+                        className={`flex items-center after:content-['/'] sm:after:hidden after:mx-2 after:text-gray-200`}
+                    >
+                        <svg
+                            className='w-3.5 h-3.5 sm:w-4 sm:h-4 me-2.5'
+                            aria-hidden='true'
+                            xmlns='http://www.w3.org/2000/svg'
+                            fill='currentColor'
+                            viewBox='0 0 20 20'
+                        >
+                            <path d='M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 0 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z' />
+                        </svg>
+                        Global
+                    </span>
+                </li>
+            </ol>
+        );
+    };
+
     return (
         <>
             <Modal
                 show={propItems.isModalOpen}
                 onClose={closeModelAndReset}
-                size={step === 0 ? 'xl' : ''}
-                className='flex flex-row'
+                size={modalPage !== ModalPage.GLOBAL ? '4xl' : ''}
             >
                 <Modal.Header>Create simulation</Modal.Header>
-                {step == 0 ? (
+                {modalPage === ModalPage.SIMULATION && (
                     <Modal.Body>
+                        <CreateSimulationStepper />
                         <form ref={formRef}>
                             <div className='flex flex-row w-full space-x-3 pt-3'>
                                 <div className='basis-1/2'>
@@ -242,11 +369,20 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                                 </div>
                                 <div className='basis-1/2'>
                                     <div className='mb-2 block'>
-                                        <Label htmlFor='simualtion' value='Simualtion type' />
+                                        <Label
+                                            htmlFor='timestepdelta'
+                                            value='Timestep delta (seconds)'
+                                        />
                                     </div>
-                                    <Select id='simualtion' required>
-                                        <option>Time simulator</option>
-                                    </Select>
+                                    <TextInput
+                                        id='timesteps'
+                                        value={timeStepDelta}
+                                        placeholder={'0'}
+                                        maxLength={200}
+                                        required
+                                        type='number'
+                                        onChange={e => setTimeStepDelta(+e.target.value)}
+                                    />
                                 </div>
                             </div>
                             <div className='flex flex-row w-full space-x-3 pt-3'>
@@ -308,25 +444,6 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                                 </div>
                             </div>
                             <div className='flex flex-row w-full space-x-3 pt-3'>
-                                <div className='basis-1/2'>
-                                    <div className='mb-2 block'>
-                                        <Label
-                                            htmlFor='timestepdelta'
-                                            value='Timestep delta (seconds)'
-                                        />
-                                    </div>
-                                    <TextInput
-                                        id='timesteps'
-                                        value={timeStepDelta}
-                                        placeholder={'0'}
-                                        maxLength={200}
-                                        required
-                                        type='number'
-                                        onChange={e => setTimeStepDelta(+e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                            <div className='flex flex-row w-full space-x-3 pt-3'>
                                 <div className='w-full'>
                                     <CustomJsonEditor
                                         data={JSON.parse(globalComponents)}
@@ -356,10 +473,86 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                             </div>
                         </form>
                     </Modal.Body>
-                ) : (
+                )}
+                {modalPage === ModalPage.SIMULATORS && (
+                    <Modal.Body>
+                        <div className='overflow-x-auto'>
+                            <Table hoverable>
+                                <Table.Head>
+                                    <Table.HeadCell className='p-4'>
+                                        <Checkbox
+                                            id='checkbox-all-search'
+                                            checked={
+                                                simulatorsSelected.length === simulators?.length
+                                            }
+                                            onChange={e => {
+                                                if (simulators && simulators?.length > 0) {
+                                                    if (
+                                                        simulatorsSelected.length ===
+                                                        simulators.length
+                                                    ) {
+                                                        setSimulatorsSelected([]);
+                                                    } else {
+                                                        setSimulatorsSelected(
+                                                            simulators.map(sim => sim.name)
+                                                        );
+                                                    }
+                                                }
+                                            }}
+                                            className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 dark:bg-gray-700'
+                                        />
+                                    </Table.HeadCell>
+                                    <Table.HeadCell>SIMULATOR NAME</Table.HeadCell>
+                                    <Table.HeadCell>OUTPUT COMPONENTS</Table.HeadCell>
+                                </Table.Head>
+                                <Table.Body className='divide-y'>
+                                    {simulators &&
+                                        simulators.map(simulator => (
+                                            <Table.Row key={simulator.name}>
+                                                <Table.Cell>
+                                                    <Checkbox
+                                                        id='checkbox'
+                                                        checked={simulatorsSelected.includes(
+                                                            simulator.name
+                                                        )}
+                                                        onChange={e => {
+                                                            if (
+                                                                simulatorsSelected.includes(
+                                                                    simulator.name
+                                                                )
+                                                            ) {
+                                                                setSimulatorsSelected(
+                                                                    simulatorsSelected.filter(
+                                                                        s => s !== simulator.name
+                                                                    )
+                                                                );
+                                                            } else {
+                                                                setSimulatorsSelected(
+                                                                    simulatorsSelected.concat([
+                                                                        simulator.name,
+                                                                    ])
+                                                                );
+                                                            }
+                                                        }}
+                                                        className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 dark:bg-gray-700'
+                                                    />
+                                                </Table.Cell>
+                                                <Table.Cell>{simulator.name}</Table.Cell>
+                                                <Table.Cell>
+                                                    {simulator.outputComponents.join(', ')}{' '}
+                                                    {/*Assuming simulator.outputComponents is an array*/}
+                                                </Table.Cell>
+                                            </Table.Row>
+                                        ))}
+                                </Table.Body>
+                            </Table>
+                        </div>
+                    </Modal.Body>
+                )}
+                {modalPage == ModalPage.GLOBAL && (
                     <Modal.Body style={{ overflowY: 'hidden' }}>
                         <div className='h-screen w-full'>
-                            <div style={{ height: '65%' }}>
+                            <div style={{ height: '60%' }}>
                                 <MapEditor
                                     nodeItemRef={nodeItemsRef}
                                     edgeItemRef={edgeItemsRef}
@@ -370,7 +563,7 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                         </div>
                     </Modal.Body>
                 )}
-                <Modal.Footer className='flex flex-row w-100'>
+                <Modal.Footer className='flex flex-row w-100 '>
                     <Button
                         outline
                         color='indigo'
@@ -379,9 +572,9 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                                 indigo: 'bg-indigo-600 text-white ring-indigo-600',
                             },
                         }}
-                        onClick={handleCancelButtonClick}
+                        onClick={handlePreviousButtonClick}
                     >
-                        {step == 0 ? 'Cancel' : 'Previous'}
+                        {modalPage == ModalPage.SIMULATION ? 'Cancel' : 'Previous'}
                     </Button>
                     <div className='grow'></div>
                     <Button
@@ -391,9 +584,9 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                                 indigo: 'bg-indigo-600 text-white ring-indigo-600',
                             },
                         }}
-                        onClick={NextStepButtonClick}
+                        onClick={handleNextButtonClick}
                     >
-                        {step == 1 ? 'Create' : 'Next'}
+                        {modalPage == ModalPage.GLOBAL ? 'Create' : 'Next'}
                     </Button>
                 </Modal.Footer>
             </Modal>

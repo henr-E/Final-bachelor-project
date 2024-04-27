@@ -4,16 +4,16 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 // imports
+use crate::connector::SimulatorsInfo;
 use connector::SimulatorConnector;
 use database_buffer::{DatabaseBuffer, Transport};
 use proto::simulation::{
-    simulation_manager::SimulationManagerServer, simulator::simulator_client::SimulatorClient,
-    simulator_connection::SimulatorConnectionServer,
+    simulation_manager::SimulationManagerServer, simulator_connection::SimulatorConnectionServer,
 };
 use runner::Runner;
 use sqlx::postgres::PgPool;
 use tokio::sync::{mpsc, Mutex};
-use tonic::transport::{Channel, Server};
+use tonic::transport::Server;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
@@ -45,16 +45,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize vector with simulator connections
     // Simulators are automatically connected when calling start and providing the connector address (in env)
-    let server_connections: Arc<Mutex<Vec<SimulatorClient<Channel>>>> =
-        Arc::new(Mutex::new(Vec::default()));
-    let server_connections_clone = server_connections.clone();
+    let simulators: Arc<Mutex<Vec<SimulatorsInfo>>> = Arc::new(Mutex::new(Vec::default()));
+    let simulators_clone = simulators.clone();
 
     // Set up GRPC server for simulators to connect to, listening on provided address or default localhost:8099
     let connector_listen_addr = env::var("SIMULATOR_CONNECTOR_ADDR")
         .unwrap_or("127.0.0.1:8099".to_string())
         .parse::<SocketAddr>()?;
 
-    let connector = SimulatorConnector::new(server_connections.clone());
+    let connector = SimulatorConnector::new(simulators.clone());
     let connector_server = SimulatorConnectionServer::new(connector);
 
     // mpsc channel
@@ -67,19 +66,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse::<SocketAddr>()?;
     info!("Listening on {listen_addr}");
 
-    let manager =
-        manager::Manager::new(pool.clone(), server_connections.clone(), notif_sender).await;
+    let manager = manager::Manager::new(pool.clone(), simulators.clone(), notif_sender).await;
     let server = SimulationManagerServer::new(manager);
 
     // Set up simulation runner
-    let mut runner = Runner::new(
-        pool_clone1,
-        server_connections_clone,
-        notif_receiver,
-        state_sender,
-    )
-    .await
-    .context("Failed to set up the runner")?;
+    let mut runner = Runner::new(pool_clone1, simulators_clone, notif_receiver, state_sender)
+        .await
+        .context("Failed to set up the runner")?;
 
     // Database thread
     let task1 = tokio::spawn(async move {

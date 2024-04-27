@@ -6,7 +6,7 @@ use proto::frontend::{
 
 use proto::simulation::simulation_manager::{
     ComponentsInfo, PushSimulationRequest, SimulationData, SimulationFrame, SimulationFrameRequest,
-    SimulationManagerClient,
+    SimulationManagerClient, SimulatorSelection, Simulators,
 };
 use proto::simulation::{simulation_manager, State};
 use sqlx::PgPool;
@@ -56,6 +56,7 @@ impl SimulationService {
         initial_state: Option<State>,
         timesteps: u64,
         timestep_delta: c_double,
+        simulator_selection: SimulatorSelection,
     ) -> Result<(), Box<dyn std::error::Error>> {
         self.client
             .clone()
@@ -66,6 +67,7 @@ impl SimulationService {
                 initial_state,
                 timesteps,
                 timestep_delta,
+                selection: Some(simulator_selection),
             })
             .await?;
 
@@ -93,6 +95,10 @@ impl SimulationService {
     ) -> Result<Response<ComponentsInfo>, Box<dyn std::error::Error>> {
         // sending request and waiting for response
         let response = self.client.clone().get_components(()).await?;
+        Ok(response)
+    }
+    pub async fn get_simulators_manager(&self) -> anyhow::Result<Response<Simulators>> {
+        let response = self.client.clone().get_simulators(()).await?;
         Ok(response)
     }
 }
@@ -137,7 +143,7 @@ impl SimulationInterfaceService for SimulationService {
             new_simulation.name,
             new_simulation.start_date_time,
             new_simulation.end_date_time,
-            new_simulation.creation_date_time
+            new_simulation.creation_date_time,
         )
             .fetch_one(&self.pool)
             .await
@@ -155,6 +161,9 @@ impl SimulationInterfaceService for SimulationService {
                 req.start_state,
                 time_steps,
                 req.time_step_delta,
+                req.simulators.ok_or(Status::invalid_argument(
+                    "CreateSimulationParams does not contain selected simulators names",
+                ))?,
             )
             .await
             .is_ok();
@@ -277,5 +286,16 @@ impl SimulationInterfaceService for SimulationService {
             ._get_components_manager()
             .await
             .unwrap_or(Response::new(ComponentsInfo::default())));
+    }
+
+    async fn get_simulators(&self, _request: Request<()>) -> Result<Response<Simulators>, Status> {
+        let result = match self.get_simulators_manager().await {
+            Ok(response) => response,
+            Err(err) => {
+                let status = Status::internal(format!("Failed to fetch the simulators: {}", err));
+                return Err(status);
+            }
+        };
+        Ok(result)
     }
 }
