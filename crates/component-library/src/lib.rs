@@ -47,6 +47,15 @@ pub mod global {
         pub current_temp: f64,
     }
 
+    /// `Limits` defines the global operational thresholds for key parameters within a power system to ensure stability, safety, and efficiency.
+    #[derive(ComponentPiece, Component)]
+    #[component(name = "global_energy_limits", ty = "global")]
+    pub struct EnergyLimits {
+        /// Maximum allowable phase angle difference in degrees.
+        /// Typically, this limit is around pi/6 (30 degrees), but it may vary depending on system stability studies.
+        pub max_angle_difference: f64,
+    }
+
     #[derive(ComponentPiece, Component)]
     #[component(name = "global_illuminance", ty = "global")]
     pub struct IlluminanceComponent {
@@ -94,6 +103,7 @@ pub mod global {
         pub energy_production_overview: Vec<ProductionOverview>,
     }
 }
+
 pub mod energy {
     use simulator_communication::component::ComponentPiece;
     use simulator_communication::component_structure::ComponentStructure;
@@ -152,6 +162,11 @@ pub mod energy {
         pub active_power: f64,
         /// Type of power produced
         pub power_type: PowerType,
+
+        /// Max reactive power in MVAR, set by manufacturer
+        pub max_reactive_power: f64,
+        /// Minimum reactive power in MVAR, set by manufacturer
+        pub min_reactive_power: f64,
     }
 
     #[derive(ComponentPiece, Component)]
@@ -194,6 +209,12 @@ pub mod energy {
         pub line_type: CableType,
         /// Current flowing through the transmission line in amperes
         pub current: f64,
+        /// Minimum required voltage in per unit (pu)
+        pub min_voltage_magnitude: f64,
+        /// Maximum voltage in per unit (pu)
+        pub max_voltage_magnitude: f64,
+        /// Maximum allowable current on transmission lines in amperes.
+        pub thermal_limit: f64,
     }
 
     #[derive(ComponentPiece, Component, Clone)]

@@ -37,15 +37,16 @@ The module contains the following energy-related nodes:
 
 - **TimeComponent**: Represents the current time of a frame in the simulation, accurate up to the millisecond.
 - **TemperatureComponent**: Represents the current temperature in degrees Celsius.
+- **energy::Limits**: defines the global operational thresholds for key parameters within a power system to ensure stability, safety, and efficiency.
 
 ### General Energy Components
 
-- **TransmissionEdge**: Represents an edge in the energy system with properties like resistance per meter, reactance per meter, length, and cable type.
+- **TransmissionEdge**: Represents an edge in the energy system with properties like resistance per meter, reactance per meter, length, and cable type. The component also holds the minimum and maximum allowable voltage magnitude (in p.u.) and the thermal limit (in amperes), which should be set to a default value based on the cable type.
 
 #### Load Flow Analysis Specific Components
 
 - **LoadNode**: Represents a node in the energy system with properties like voltage amplitude, voltage angle, active power, and reactive power.
-- **GeneratorNode**: Represents a generator node in the energy system with properties like voltage amplitude, voltage angle, active power, reactive power, and power type.
+- **GeneratorNode**: Represents a generator node in the energy system with properties like voltage amplitude, voltage angle, active power, reactive power, and power type. A generator has a minimum and maximum allowable reactive power, as determined by the factory.
 - **SlackNode**: Is a mathematical node used for the load-flow simulator. This node serves as a reference point with known voltage magnitude and angle, facilitating power flow analysis and ensuring the balance of power generation and consumption within the system.
 - **EnergyLoadFlow**: This node is used to return some analytics data on the graph the user has created (such as total generators/total load/..)
 - **ProductionOverview**: this node is an element for the 'energy_production_overview' of the EnergyLoadFlow. The EnergyType produced in the graph with the percentage of the amount of energy it accounts for in the system is added as a element in this structure and saved in energy_production_overview.

@@ -140,6 +140,7 @@ impl Simulator for LoadFlowSimulator {
                     voltage_amplitude: og_node.voltage().amplitude,
                     voltage_angle: og_node.voltage().angle,
                     power_type: busnode_type_to_power_type(og_node.energy_type()),
+                    ..*comp
                 };
             }
         }
@@ -162,6 +163,7 @@ impl Simulator for LoadFlowSimulator {
                                     .magnitude
                                     * g.z_base(),
                                 line_type: line_type_to_cable_type(line.line_type()),
+                                ..*comp
                             };
                         }
                     }
