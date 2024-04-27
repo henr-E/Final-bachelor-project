@@ -1,21 +1,22 @@
 'use client';
 
 import { Alert, Button, Modal } from 'flowbite-react';
-import { Sensor } from '@/proto/sensor/sensor-crud';
+import { twinObject } from '@/proto/twins/twin';
+import { TwinFromProvider } from '@/store/twins';
 
-interface DeleteMultipleSensorsModalProps {
+interface DeleteMultipleSimulationsModalProps {
     isModalOpen: boolean;
-    sensors: Sensor[];
+    twins: TwinFromProvider[];
     confirm: () => void;
     closeModal: () => void;
 }
 
-function DeleteMultipleSensorsModal({
+function DeleteMultipleTwinsModal({
     isModalOpen,
-    sensors,
+    twins,
     closeModal,
     confirm,
-}: DeleteMultipleSensorsModalProps) {
+}: DeleteMultipleSimulationsModalProps) {
     const handleConfirmButtonClick = () => {
         confirm();
         closeModal();
@@ -23,15 +24,15 @@ function DeleteMultipleSensorsModal({
 
     return (
         <Modal show={isModalOpen} onClose={closeModal}>
-            <Modal.Header>Delete Sensors ({sensors?.length})</Modal.Header>
+            <Modal.Header>Delete Simulations ({twins.length})</Modal.Header>
             <Modal.Body>
                 <div className='mb-2 flex flex-col space-y-2'>
-                    <span>You are about to delete the following sensors:</span>
+                    <span>You are about to delete the following twins:</span>
                     <div>
                         <ul className='max-w-md space-y-1 text-gray-600 list-disc list-inside'>
-                            {sensors?.map((sensor, index) => (
+                            {twins.map((twin, index) => (
                                 <li key={index} className='text-sm'>
-                                    {sensor.name}
+                                    {twin.name}
                                 </li>
                             ))}
                         </ul>
@@ -60,4 +61,4 @@ function DeleteMultipleSensorsModal({
     );
 }
 
-export default DeleteMultipleSensorsModal;
+export default DeleteMultipleTwinsModal;

@@ -7,6 +7,7 @@ use tonic::{Request, Response, Status};
 
 use crate::connector::SimulatorsInfo;
 use crate::database::{SimulationsDB, StatusEnum};
+use proto::simulation::simulation_manager::DeleteSimulationRequest as DeleteSimulationRequestManager;
 use proto::simulation::simulator::IoConfigRequest;
 use proto::simulation::{
     simulation_manager::{
@@ -15,6 +16,7 @@ use proto::simulation::{
     },
     Graph, State,
 };
+
 /// The Manager handles incoming requests from the frontend. It can return all known component types
 /// at a certain time, queue new simulations, return info about a simulation and return the state of
 /// a simulation at a requested timestep.
@@ -74,9 +76,10 @@ impl SimulationManager for Manager {
     /// records that are coupled to this simulation.
     async fn delete_simulation(
         &self,
-        request: Request<SimulationId>,
+        request: Request<DeleteSimulationRequestManager>,
     ) -> Result<Response<()>, Status> {
-        let simulation_id = request.into_inner().uuid;
+        let req = request.into_inner();
+        let simulation_id = req.id.unwrap().uuid;
 
         // Start transaction
         let mut db = self.db.lock().await;
@@ -522,9 +525,9 @@ mod manager_grpc_test {
 
         async fn delete_simulation(
             &self,
-            _request: Request<SimulationId>,
+            _request: Request<DeleteSimulationRequestManager>,
         ) -> Result<Response<()>, Status> {
-            Ok(Response::new(()))
+            unreachable!()
         }
 
         // requests an ID and returns the same ID

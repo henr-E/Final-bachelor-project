@@ -5,7 +5,6 @@ import { useContext, useState } from 'react';
 import { MdOutlineDeleteOutline } from 'react-icons/md';
 import CreateSensorModal from '@/components/modals/CreateSensorModal';
 import ShowSignalsModal from '@/components/modals/ShowSignalsModal';
-import DeleteSensorModal from '@/components/modals/DeleteSensorModal';
 import DeleteMultipleSensorsModal from '@/components/modals/DeleteMultipleSensorsModal';
 import { BackendCreateSensor, BackendDeleteSensor, BackendGetSensors } from '@/api/sensor/crud';
 import { TwinContext } from '@/store/twins';
@@ -14,13 +13,12 @@ import { Sensor } from '@/proto/sensor/sensor-crud';
 
 function SensorPage() {
     const [twinState, dispatchTwin] = useContext(TwinContext);
-    const [selectedSensors, setSelectedSensors] = useState<Sensor[]>([]);
     const [isCreateSensorModalOpen, setIsCreateSensorModalOpen] = useState(false);
-    const [isDeleteSensorModalOpen, setIsDeleteSensorModalOpen] = useState(false);
     const [isDeleteMultipleSensorsModalOpen, setIsDeleteMultipleSensorsModalOpen] = useState(false);
-    const [sensorToDelete, setSensorToDelete] = useState<Sensor>();
+    const [sensorsToDelete, setSensorsToDelete] = useState<Sensor[]>([]);
     const [isShowSignalsModalOpen, setIsShowSignalsModalOpen] = useState(false);
     const [selectedSensor, setSelectedSensor] = useState<Sensor>();
+
     const handleClick = (sensor: Sensor) => {
         setIsShowSignalsModalOpen(true);
         setSelectedSensor(sensor);
@@ -41,33 +39,31 @@ function SensorPage() {
         ToastNotification('success', `Sensor is created`);
     };
 
-    const handleConfirmSensorDelete = async () => {
-        if (!sensorToDelete) {
-            return;
-        }
-
-        let success = await BackendDeleteSensor(sensorToDelete.id);
-
-        if (!success) {
-            ToastNotification('error', 'Failed to delete sensor');
-            return;
-        }
-
-        if (twinState.current) {
-            let sensors = await BackendGetSensors(twinState.current?.id);
-            dispatchTwin({ type: 'load_sensors', sensors: sensors });
-        }
-
-        setSensorToDelete(undefined);
-        ToastNotification('success', `Sensor is deleted`);
-    };
-
     const handleDeleteSelectedSensors = async () => {
-        //todo
+        if (!sensorsToDelete) {
+            return;
+        }
+        try {
+            await Promise.all(
+                sensorsToDelete.map(async sensor => {
+                    await BackendDeleteSensor(sensor.id);
+                })
+            );
+
+            sensorsToDelete.map(sensor => {
+                dispatchTwin({ type: 'delete_sensor', sensorId: sensor.id });
+            });
+
+            setSensorsToDelete([]);
+            ToastNotification('success', `Sensors are deleted`);
+        } catch {
+            ToastNotification('error', `Something went wrong while deleting sensors.`);
+        }
     };
 
     const handleCancelSelectedSensorsDelete = () => {
-        //todo
+        setSensorsToDelete([]);
+        setIsDeleteMultipleSensorsModalOpen(false);
     };
 
     return (
@@ -94,6 +90,32 @@ function SensorPage() {
                             >
                                 Create Sensor
                             </Button>
+                            {twinState.current.sensors.length != 0 && (
+                                <Button
+                                    color='indigo'
+                                    theme={{
+                                        color: {
+                                            indigo: 'bg-indigo-600 text-white ring-indigo-600',
+                                        },
+                                    }}
+                                    onClick={() => {
+                                        if (twinState.current) {
+                                            if (sensorsToDelete?.length == 0) {
+                                                ToastNotification('info', 'No sensors selected.');
+                                            } else {
+                                                setIsDeleteMultipleSensorsModalOpen(true);
+                                            }
+                                        } else {
+                                            ToastNotification(
+                                                'error',
+                                                'Twin not selected. Try again.'
+                                            );
+                                        }
+                                    }}
+                                >
+                                    Delete selected sensors
+                                </Button>
+                            )}
                         </div>
 
                         {twinState.current && twinState.current.sensors?.length == 0 && (
@@ -126,9 +148,6 @@ function SensorPage() {
                                             <th scope='col' className='p-3 px-3'>
                                                 Building Number
                                             </th>
-                                            <th scope='col' className='p-3 px-3 text-center w-20'>
-                                                Delete
-                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -142,21 +161,21 @@ function SensorPage() {
                                                     <div className='flex items-center'>
                                                         <input
                                                             id='checkbox-all-search'
-                                                            checked={selectedSensors.includes(
+                                                            checked={sensorsToDelete.includes(
                                                                 sensor
                                                             )}
                                                             onChange={e => {
                                                                 if (
-                                                                    selectedSensors.includes(sensor)
+                                                                    sensorsToDelete.includes(sensor)
                                                                 ) {
-                                                                    setSelectedSensors(
-                                                                        selectedSensors.filter(
+                                                                    setSensorsToDelete(
+                                                                        sensorsToDelete.filter(
                                                                             s => s !== sensor
                                                                         )
                                                                     );
                                                                 } else {
-                                                                    setSelectedSensors(
-                                                                        selectedSensors.concat([
+                                                                    setSensorsToDelete(
+                                                                        sensorsToDelete.concat([
                                                                             sensor,
                                                                         ])
                                                                     );
@@ -211,19 +230,6 @@ function SensorPage() {
                                                 >
                                                     {sensor.buildingId || 'Global Sensor'}
                                                 </td>
-                                                <td
-                                                    className='p-3 px-3'
-                                                    onClick={() => {
-                                                        setSensorToDelete(sensor);
-                                                        setIsDeleteSensorModalOpen(true);
-                                                    }}
-                                                >
-                                                    <div className='flex flex-row space-x-3'>
-                                                        <button>
-                                                            <MdOutlineDeleteOutline size={24} />
-                                                        </button>
-                                                    </div>
-                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -245,23 +251,9 @@ function SensorPage() {
                             setIsShowSignalsModalOpen(false);
                         }}
                     />
-                    <DeleteSensorModal
-                        isModalOpen={isDeleteSensorModalOpen}
-                        sensor={sensorToDelete}
-                        confirm={() => {
-                            handleConfirmSensorDelete();
-                            setSensorToDelete(undefined);
-                            setIsDeleteSensorModalOpen(false);
-                        }}
-                        cancel={() => {
-                            setSensorToDelete(undefined);
-                            setIsDeleteSensorModalOpen(false);
-                        }}
-                    />
-                    {/*todo delete MultipleSensorModal can only be used when it is linked to the backend */}
                     <DeleteMultipleSensorsModal
                         isModalOpen={isDeleteMultipleSensorsModalOpen}
-                        sensors={selectedSensors}
+                        sensors={sensorsToDelete}
                         confirm={handleDeleteSelectedSensors}
                         closeModal={handleCancelSelectedSensorsDelete}
                     />

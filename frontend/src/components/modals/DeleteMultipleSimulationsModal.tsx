@@ -37,12 +37,6 @@ function DeleteMultipleSimulationsModal({
                         </ul>
                     </div>
                 </div>
-                <Alert color='warning' rounded>
-                    <span>
-                        Warning: all data associated with these simulations will be permanently
-                        lost.
-                    </span>
-                </Alert>
             </Modal.Body>
             <Modal.Footer>
                 <Button

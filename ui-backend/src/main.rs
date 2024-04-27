@@ -38,22 +38,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .parse()
         .expect("A valid bind address");
 
-    let sensor_store = SensorStore::new().await;
+    let simulation_service = SimulationService::new(pool.clone()).await;
+    let simulation_service_server =
+        SimulationInterfaceServiceServer::new(simulation_service.clone());
 
-    let twin_service = TwinServiceServer::new(twin::MyTwinService::new(pool.clone()));
-    let simulation_service =
-        SimulationInterfaceServiceServer::new(SimulationService::new(pool.clone()).await);
-    let sensor_crud_service = SensorCrudServiceServer::new(sensor_store.clone());
-    let sensor_data_fetching_service = SensorDataFetchingServiceServer::new(sensor_store);
+    let sensor_crud_service = SensorStore::new().await;
+    let sensor_crud_service_server = SensorCrudServiceServer::new(sensor_crud_service.clone());
+
+    let sensor_data_fetching_service =
+        SensorDataFetchingServiceServer::new(sensor_crud_service.clone());
+
+    let twin_service = TwinServiceServer::new(twin::MyTwinService::new(
+        pool.clone(),
+        simulation_service,
+        sensor_crud_service,
+    ));
     let authentication_service =
         AuthenticationServiceServer::new(MyAuthenticationService::new(pool.clone()));
 
     info!("Listening on {addr}");
 
     Server::builder()
-        .add_service(simulation_service)
+        .add_service(simulation_service_server)
         .add_service(twin_service)
-        .add_service(sensor_crud_service)
+        .add_service(sensor_crud_service_server)
         .add_service(sensor_data_fetching_service)
         .add_service(authentication_service)
         .serve(addr)

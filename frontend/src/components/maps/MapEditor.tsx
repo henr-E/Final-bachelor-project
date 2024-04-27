@@ -24,6 +24,7 @@ import { BackendCreateSensor, BackendGetSensors } from '@/api/sensor/crud';
 import ShowSignalsModal from '@/components/modals/ShowSignalsModal';
 import CreateSensorModal from '@/components/modals/CreateSensorModal';
 import CustomJsonEditor from '@/components/CustomJsonEditor';
+import { BackendDeleteBuilding, BackendUndoDeleteBuilding } from '@/api/twins/crud';
 
 enum CursorState {
     PLACE_BOLT,
@@ -277,28 +278,24 @@ function MapEditor({
     };
 
     const handleDeleteBuilding = async () => {
-        const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(TwinServiceDefinition, channel);
-        const request = { id: selectedBuilding?.id };
-
-        const response = await client.deleteBuilding(request);
-        if (response.deleted && selectedBuilding) {
-            selectedBuilding.visible = false;
-            ToastNotification('info', 'Building succesfully deleted.');
-            setSelectedBuilding(undefined);
+        if (selectedBuilding) {
+            let response = await BackendDeleteBuilding(selectedBuilding?.id);
+            if (response) {
+                selectedBuilding.visible = false;
+                ToastNotification('info', 'Building succesfully deleted.');
+                setSelectedBuilding(undefined);
+            }
         }
     };
 
     const handleUndoDeleteBuilding = async () => {
-        const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(TwinServiceDefinition, channel);
-        const request = { id: selectedBuilding?.id };
-
-        const response = await client.undoDeleteBuilding(request);
-        if (response.undone && selectedBuilding) {
-            selectedBuilding.visible = true;
-            ToastNotification('info', 'Building succesfully restored.');
-            setSelectedBuilding(undefined);
+        if (selectedBuilding) {
+            let response = await BackendUndoDeleteBuilding(selectedBuilding?.id);
+            if (response) {
+                selectedBuilding.visible = true;
+                ToastNotification('info', 'Building succesfully restored.');
+                setSelectedBuilding(undefined);
+            }
         }
     };
 

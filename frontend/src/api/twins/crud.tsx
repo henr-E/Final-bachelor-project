@@ -4,6 +4,9 @@ import { buildingObject, TwinServiceDefinition } from '@/proto/twins/twin';
 import { createChannel, createClient } from 'nice-grpc-web';
 import { uiBackendServiceUrl } from '@/api/urls';
 import '@/store/twins/Provider';
+import { SensorCRUDServiceClient, SensorCRUDServiceDefinition } from '@/proto/sensor/sensor-crud';
+import { failureReasonToString } from '@/api/sensor/crud';
+import { SimulationInterfaceServiceDefinition } from '@/proto/simulation/frontend';
 
 export async function BackendCreateTwin(
     name: string,
@@ -37,6 +40,20 @@ export async function BackendGetTwins() {
     }
 }
 
+export async function BackendDeleteTwin(twinId: number): Promise<boolean> {
+    try {
+        const channel = createChannel(uiBackendServiceUrl);
+        const client = createClient(TwinServiceDefinition, channel);
+        const request = { id: twinId };
+        await client.deleteTwin(request);
+        return true;
+    } catch (error) {
+        ToastNotification('error', 'Failed to delete twin.');
+        console.error('Failed to delete twin:', error);
+        return false;
+    }
+}
+
 export async function BackendGetBuildings(twinId: number) {
     try {
         ToastNotification('success', 'Your twin is being loaded.');
@@ -57,8 +74,8 @@ export async function BackendDeleteBuilding(buildingId: number): Promise<boolean
         const channel = createChannel(uiBackendServiceUrl);
         const client = createClient(TwinServiceDefinition, channel);
         const request = { id: buildingId };
-        const response = await client.deleteBuilding(request);
-        return response.deleted;
+        await client.deleteBuilding(request);
+        return true;
     } catch (error) {
         ToastNotification('error', 'Failed to delete building.');
         console.error('Failed to delete building:', error);
@@ -71,8 +88,8 @@ export async function BackendUndoDeleteBuilding(buildingId: number): Promise<boo
         const channel = createChannel(uiBackendServiceUrl);
         const client = createClient(TwinServiceDefinition, channel);
         const request = { id: buildingId };
-        const response = await client.undoDeleteBuilding(request);
-        return response.undone;
+        await client.undoDeleteBuilding(request);
+        return true;
     } catch (error) {
         ToastNotification('error', 'Failed to restore building.');
         console.error('Failed to restore building:', error);

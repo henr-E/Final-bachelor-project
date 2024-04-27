@@ -147,7 +147,7 @@ function SimulationPage() {
         }
 
         let _ = loadSimulations();
-    }, [params.id]);
+    }, [params.id, router]);
 
     useEffect(() => {
         loadSimulations();

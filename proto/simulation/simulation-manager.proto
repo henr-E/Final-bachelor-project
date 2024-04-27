@@ -12,7 +12,7 @@ service SimulationManager {
   // Specifies all known components. Used to verify whether the manager and frontend are
   // compatible.
   rpc GetComponents(google.protobuf.Empty) returns (ComponentsInfo);
-  
+
   // Add a new simulation to the queue. It will be run some time in the future.
   rpc PushSimulation(PushSimulationRequest) returns (google.protobuf.Empty);
 
@@ -24,7 +24,7 @@ service SimulationManager {
   rpc GetSimulationFrames(stream SimulationFrameRequest) returns (stream SimulationFrame);
 
   // Delete a simulation from the database by removing all connected records by using the simulation name
-  rpc DeleteSimulation(simulation_manager.SimulationId) returns (google.protobuf.Empty);
+  rpc DeleteSimulation (DeleteSimulationRequest) returns (google.protobuf.Empty);
 
   // Get index and components of the simulators
   rpc GetSimulators(google.protobuf.Empty) returns (Simulators);
@@ -93,6 +93,11 @@ message SimulationFrame {
   SimulationFrameRequest request = 1;
   // The state of the frame.
   simulation.State state = 2;
+}
+
+//delete a simulation
+message DeleteSimulationRequest {
+    SimulationId id = 1;
 }
 
 //List of all the simulators
