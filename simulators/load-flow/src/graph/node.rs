@@ -26,22 +26,6 @@ pub enum PowerType {
     Load,
 }
 
-impl PowerType {
-    pub fn fmt(self) -> String {
-        match self {
-            PowerType::Fossil => "Fossil".to_string(),
-            PowerType::Renewable => "Renewable".to_string(),
-            PowerType::Nuclear => "Nuclear".to_string(),
-            PowerType::Hydro => "Hydro".to_string(),
-            PowerType::Solar => "Solar".to_string(),
-            PowerType::Wind => "Wind".to_string(),
-            PowerType::Battery => "Battery".to_string(),
-            PowerType::Storage => "Storage".to_string(),
-            PowerType::Load => "Load".to_string(),
-        }
-    }
-}
-
 #[derive(Clone, Debug, Copy)]
 pub struct BusNode {
     id: usize,

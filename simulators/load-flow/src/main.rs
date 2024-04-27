@@ -11,7 +11,6 @@ use component_library::energy::{
     TransmissionEdge,
 };
 use component_library::global::LoadFlowAnalytics;
-use component_library::global::PowerTypeAnalytics;
 use diagnostics::energy_production::power_type_percentages;
 use diagnostics::total_power;
 use graph::{edge::LineType, node::BusNode, node::PowerType as BusNodeType};
@@ -177,21 +176,16 @@ impl Simulator for LoadFlowSimulator {
                 vec_overview.push(ProductionOverview {
                     power_type: busnode_type_to_power_type(power_type),
                     percentage: percentage_overview,
-                });
-                load_flow_analytics
-                    .power_type_analytics
-                    .push(PowerTypeAnalytics {
-                        power_type: power_type.fmt(),
-                        total_generators: g.generators(),
-                        total_slack_nodes: g.slacks(),
-                        total_load_nodes: g.loads(),
-                        total_transmission_edges: g.edges().len() as i32,
-                        total_nodes: g.nodes().len() as i32,
-                        total_incoming_power: total_in,
-                        total_outgoing_power: total_out,
-                        energy_production_overview: vec_overview.clone(),
-                    });
+                })
             }
+            load_flow_analytics.total_generators = g.generators();
+            load_flow_analytics.total_slack_nodes = g.slacks();
+            load_flow_analytics.total_load_nodes = g.loads();
+            load_flow_analytics.total_transmission_edges = g.edges().len() as i32;
+            load_flow_analytics.total_nodes = g.nodes().len() as i32;
+            load_flow_analytics.total_incoming_power = total_in;
+            load_flow_analytics.total_outgoing_power = total_out;
+            load_flow_analytics.energy_production_overview = vec_overview.clone();
         } else {
             debug!("No analytics component found");
         }

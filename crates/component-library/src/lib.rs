@@ -76,15 +76,6 @@ pub mod global {
     #[derive(ComponentPiece, Component)]
     #[component(name = "load_flow_analytics", ty = "global")]
     pub struct LoadFlowAnalytics {
-        /// List containing all the different analytics for every powertype
-        pub power_type_analytics: Vec<PowerTypeAnalytics>,
-    }
-
-    #[derive(ComponentPiece, Component)]
-    #[component(name = "power_type_analytics", ty = "global")]
-    pub struct PowerTypeAnalytics {
-        /// Power type to which the analytics belong to
-        pub power_type: String,
         /// Total generators in the system
         pub total_generators: i32,
         /// Total slack nodes in the system
