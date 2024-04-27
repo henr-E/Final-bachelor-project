@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO simulations (name, step_size_ms, max_steps, status) VALUES($1, $2, $3, $4) RETURNING id",
+  "query": "INSERT INTO simulations (name, step_size_ms, max_steps, status, simulators) VALUES($1, $2, $3, $4, $5) RETURNING id",
   "describe": {
     "columns": [
       {
@@ -26,12 +26,13 @@
               ]
             }
           }
-        }
+        },
+        "VarcharArray"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "30fd9f33d97069a9fb5ac367b74020ceb29a1bf187f3b07e01fd8dae0783c89c"
+  "hash": "893f95e8c91425c34313cf87eacfb5b16d91797962f0a13e4d5542833d9118c4"
 }

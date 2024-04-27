@@ -2,6 +2,7 @@ syntax = "proto3";
 
 import "google/protobuf/empty.proto";
 import "simulation.proto";
+import "simulator.proto";
 
 package simulation.simulation_manager;
 
@@ -23,7 +24,10 @@ service SimulationManager {
   rpc GetSimulationFrames(stream SimulationFrameRequest) returns (stream SimulationFrame);
 
   // Delete a simulation from the database by removing all connected records by using the simulation name
-  rpc DeleteSimulation (simulation_manager.SimulationId) returns (google.protobuf.Empty);
+  rpc DeleteSimulation(simulation_manager.SimulationId) returns (google.protobuf.Empty);
+
+  // Get index and components of the simulators
+  rpc GetSimulators(google.protobuf.Empty) returns (Simulators);
 };
 
 // Information for all known components.
@@ -47,6 +51,8 @@ message PushSimulationRequest {
   uint64 timesteps = 4;
   // How much time elapses after each timestep. (in seconds)
   double timestep_delta = 5;
+  // Which simulators to use in the simulation
+  SimulatorSelection selection = 6;
 };
 
 // General information about a simulation.
@@ -87,4 +93,21 @@ message SimulationFrame {
   SimulationFrameRequest request = 1;
   // The state of the frame.
   simulation.State state = 2;
+}
+
+//List of all the simulators
+message Simulators {
+    repeated SimulatorInfo simulator = 1;
+}
+
+//Information about each simulator
+message SimulatorInfo{
+    //components a simulator changes
+    repeated string output_components = 1;
+    string name = 2;
+}
+
+//List of simulators selected for a specific simumation
+message SimulatorSelection {
+    repeated string name = 1;
 }

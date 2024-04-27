@@ -14,6 +14,7 @@ use tokio::time::sleep;
 use tonic::transport::Channel;
 
 // proto
+use crate::connector::SimulatorsInfo;
 use crate::database::{SimulationsDB, StatusEnum};
 use crate::database_buffer::Transport;
 use proto::simulation::simulator::{
@@ -34,7 +35,7 @@ pub enum SetupStatus {
 /// asynchronous channel created in main.rs
 pub struct Runner {
     db: SimulationsDB,
-    simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
+    simulators: Arc<Mutex<Vec<SimulatorsInfo>>>,
     notif_receiver: mpsc::Receiver<()>,
     state_sender: mpsc::UnboundedSender<Transport>,
 }
@@ -43,7 +44,7 @@ impl Runner {
     /// Create a new Runner
     pub async fn new(
         pool: PgPool,
-        simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
+        simulators: Arc<Mutex<Vec<SimulatorsInfo>>>,
         notif_receiver: mpsc::Receiver<()>,
         state_sender: mpsc::UnboundedSender<Transport>,
     ) -> anyhow::Result<Self> {
@@ -56,7 +57,30 @@ impl Runner {
             state_sender,
         })
     }
+    ///Get the selected simulators
+    ///
+    /// Get all the SimulatorClients for a simulation by looking at each entry in self.simulators and
+    /// for each one where the name is in the list of selected simulators add it to the selected list.
+    pub async fn get_selected_simulators(
+        &mut self,
+        simulation_id: i32,
+    ) -> anyhow::Result<Vec<SimulatorClient<Channel>>> {
+        let simulators = self.simulators.lock().await;
 
+        // get only selected simulators
+        let selection = self
+            .db
+            .get_selected_simulators(simulation_id)
+            .await?
+            .unwrap_or(Vec::new());
+        let selected = simulators
+            .iter()
+            .filter(|sim| selection.contains(&sim.name))
+            .map(|sim| sim.simulator.clone())
+            .collect::<Vec<_>>();
+        drop(simulators);
+        Ok(selected)
+    }
     /// Start the runner.
     ///
     /// The runner is currently implemented to use busy waiting to poll the database for new simulations.
@@ -79,11 +103,9 @@ impl Runner {
 
                 // check that the simulators do not change the same information
                 let mut output_components: HashSet<String> = HashSet::default();
-                let guard = self.simulators.lock().await;
-                let simulators = guard.clone();
-                drop(guard);
-
-                for server in &mut simulators.clone() {
+                // get only selected simulators
+                let mut selected = self.get_selected_simulators(simulation_id).await?;
+                for server in &mut selected {
                     let request = tonic::Request::new(IoConfigRequest {});
                     let response = server.get_io_config(request).await?.into_inner();
                     for name in response.output_components {
@@ -156,10 +178,7 @@ impl Runner {
     /// available. If this is not the case, the simulation will directly get the status of "failed"
     /// and the function will return Failed as the SetupStatus.
     async fn set_up(&mut self, simulation_id: i32) -> anyhow::Result<SetupStatus> {
-        // clone simulator vec and drop mutex
-        let guard = self.simulators.lock().await;
-        let simulators = guard.clone();
-        drop(guard);
+        let mut selected = self.get_selected_simulators(simulation_id).await?;
 
         // get tick delta
         let delta = self
@@ -196,7 +215,7 @@ impl Runner {
             .context("error getting global components")?;
 
         // check if the necessary components are present
-        for server in &mut simulators.clone() {
+        for server in &mut selected {
             let request = tonic::Request::new(IoConfigRequest {});
             let config = server.get_io_config(request).await?.into_inner();
             let required = &config.required_input_components.clone();
@@ -249,8 +268,8 @@ impl Runner {
             };
 
             // setup of simulators
-            future::try_join_all(
-                simulators
+            future::join_all(
+                selected
                     .clone()
                     .into_iter()
                     .map(|server| (initial_state.clone(), server))
@@ -259,7 +278,7 @@ impl Runner {
                         server.setup(setup_request).await
                     }),
             )
-            .await?;
+            .await;
             return Ok(SetupStatus::Success);
         }
         Ok(SetupStatus::Failed)
@@ -319,14 +338,12 @@ impl Runner {
             global_components: globals,
         };
 
-        // clone simulator vec and drop mutex
-        let guard = self.simulators.lock().await;
-        let simulators = guard.clone();
-        drop(guard);
+        let selected = self.get_selected_simulators(simulation_id).await?;
+
         for i in 0..iterations {
             // parallel execution of the simulators in the simulation for the current time step
             let results = future::try_join_all(
-                simulators
+                selected
                     .clone()
                     .into_iter()
                     .map(|server| (prev.clone(), server))

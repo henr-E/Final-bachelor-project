@@ -3,15 +3,15 @@ use std::sync::Arc;
 use sqlx::PgPool;
 use tokio::sync::{mpsc, Mutex};
 use tokio_stream::StreamExt;
-use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 
+use crate::connector::SimulatorsInfo;
 use crate::database::{SimulationsDB, StatusEnum};
-use proto::simulation::simulator::{simulator_client::SimulatorClient, IoConfigRequest};
+use proto::simulation::simulator::IoConfigRequest;
 use proto::simulation::{
     simulation_manager::{
         ComponentsInfo, PushSimulationRequest, SimulationData, SimulationFrame,
-        SimulationFrameRequest, SimulationId, SimulationManager,
+        SimulationFrameRequest, SimulationId, SimulationManager, SimulatorInfo, Simulators,
     },
     Graph, State,
 };
@@ -23,7 +23,7 @@ use proto::simulation::{
 /// asynchronous channel created in main.rs. The sender is used to notify the runner that a new
 /// simulation has been queued.
 pub struct Manager {
-    simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
+    simulators: Arc<Mutex<Vec<SimulatorsInfo>>>,
     db: Arc<Mutex<SimulationsDB>>,
     notif_sender: mpsc::Sender<()>,
 }
@@ -32,7 +32,7 @@ impl Manager {
     /// Create a new manager
     pub async fn new(
         pool: PgPool,
-        simulators: Arc<Mutex<Vec<SimulatorClient<Channel>>>>,
+        simulators: Arc<Mutex<Vec<SimulatorsInfo>>>,
         notif_sender: mpsc::Sender<()>,
     ) -> Self {
         let db: SimulationsDB = SimulationsDB::from_pg_pool(pool).await.unwrap();
@@ -54,18 +54,17 @@ impl SimulationManager for Manager {
         let mut components: ComponentsInfo = ComponentsInfo::default();
 
         // clone simulator vec and drop mutex
-        let guard = self.simulators.lock().await;
-        let mut simulators = guard.clone();
-        drop(guard);
+        let mut simulators = self.simulators.lock().await;
 
-        for server in &mut simulators {
+        for server in simulators.iter_mut() {
             let request = tonic::Request::new(IoConfigRequest {});
-            let response = server.get_io_config(request).await?.into_inner();
+            let response = server.simulator.get_io_config(request).await?.into_inner();
             let response_components = response.components;
             for (key, value) in response_components {
                 components.components.insert(key, value);
             }
         }
+        drop(simulators);
         Ok(Response::new(components))
     }
 
@@ -115,7 +114,10 @@ impl SimulationManager for Manager {
         let nodes = graph.nodes;
         let edges = graph.edge;
         let global = initial_state.global_components;
-
+        let selection = simulation.selection.ok_or(Status::invalid_argument(
+            "Invalid grpc, no selection present",
+        ))?;
+        let simulators = selection.name;
         // Start transaction
         let mut db = self.db.lock().await;
         db.begin_transaction().await.unwrap();
@@ -127,6 +129,7 @@ impl SimulationManager for Manager {
                 (simulation.timestep_delta * 1000.0) as i32,
                 simulation.timesteps as i32,
                 StatusEnum::Pending,
+                simulators,
             )
             .await
             .unwrap();
@@ -270,6 +273,32 @@ impl SimulationManager for Manager {
         };
         Ok(Response::new(Box::pin(output)))
     }
+
+    /// Get information about the simulators
+    ///
+    /// Gives the name and the output components of each simulator
+    async fn get_simulators(&self, _request: Request<()>) -> Result<Response<Simulators>, Status> {
+        let mut components: Simulators = Default::default();
+        // clone simulator vec and drop mutex
+        let mut simulators = self.simulators.lock().await;
+
+        for simulator in &mut simulators.iter_mut() {
+            let request = tonic::Request::new(IoConfigRequest {});
+            let response = simulator
+                .simulator
+                .clone()
+                .get_io_config(request)
+                .await?
+                .into_inner();
+            let info: SimulatorInfo = SimulatorInfo {
+                output_components: response.output_components,
+                name: simulator.name.to_string(),
+            };
+            components.simulator.push(info);
+        }
+        drop(simulators);
+        Ok(Response::new(components))
+    }
 }
 
 // Uses ports 8005-8008 in localhost
@@ -304,11 +333,9 @@ mod manager_grpc_test {
     #[sqlx::test(migrations = "../migrations/simulator/")]
     async fn test_push_simulation(pool: PgPool) {
         //set up
-        let simulations: Arc<Mutex<Vec<SimulatorClient<Channel>>>> =
-            Arc::new(Mutex::new(Vec::default()));
-
+        let simulators: Arc<Mutex<Vec<SimulatorsInfo>>> = Arc::new(Mutex::new(Vec::default()));
         let (send, _recv) = mpsc::channel(1);
-        let mut manager = Manager::new(pool, simulations, send);
+        let mut manager = Manager::new(pool, simulators, send);
         let request1 = PushSimulationRequest {
             id: Some(SimulationId {
                 uuid: "sim1".to_string(),
@@ -551,6 +578,13 @@ mod manager_grpc_test {
                 }
             };
             Ok(Response::new(Box::pin(output)))
+        }
+
+        async fn get_simulators(
+            &self,
+            _request: Request<()>,
+        ) -> Result<Response<Simulators>, Status> {
+            Ok(Response::new(Default::default()))
         }
     }
 

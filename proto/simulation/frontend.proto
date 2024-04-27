@@ -2,6 +2,7 @@ syntax = "proto3";
 import "google/protobuf/empty.proto";
 import "simulation.proto";
 import "simulation-manager.proto";
+import "simulator.proto";
 
 package simulation.frontend;
 
@@ -12,6 +13,7 @@ service SimulationInterfaceService {
     rpc GetSimulation (simulation_manager.SimulationId) returns (Simulation);
     rpc GetSimulationFrames(stream simulation_manager.SimulationFrameRequest) returns (stream simulation_manager.SimulationFrame);
     rpc GetComponents(google.protobuf.Empty) returns (simulation_manager.ComponentsInfo);
+    rpc GetSimulators(google.protobuf.Empty) returns (simulation_manager.Simulators);
 }
 
 enum SimulationStatus {
@@ -37,6 +39,7 @@ message CreateSimulationParams {
     int32 end_date_time = 4;//unix timestamp in sec
     double time_step_delta = 5;
     simulation.State startState = 6;
+    simulation_manager.SimulatorSelection simulators = 7;
 }
 
 message Simulations {

@@ -35,7 +35,14 @@ async fn main() -> ExitCode {
     let server = Server::<EnergySupplyAndDemandSimulator>::new();
 
     info!("Starting supply and demand simulator server on `{listen_addr}`.");
-    if let Err(err) = server.start(listen_addr, connector_addr).await {
+    if let Err(err) = server
+        .start(
+            listen_addr,
+            connector_addr,
+            "energy supply and demand simulator",
+        )
+        .await
+    {
         error!("Server return an error: {err}.");
         return ExitCode::FAILURE;
     }

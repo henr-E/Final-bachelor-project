@@ -20,7 +20,7 @@ use proto::{
         simulator_server::SimulatorServer, InitialState, IoConfigRequest, SetupResponse,
         SimulatorIoConfig, TimestepResult,
     },
-    simulator_connection::{SimulatorConnectionClient, SimulatorPort},
+    simulator_connection::{SimulatorConnectionClient, SimulatorInfo},
     State,
 };
 
@@ -165,7 +165,7 @@ impl<S: Simulator> proto::simulator::simulator_server::Simulator for Server<S> {
 /// // Start the server using `listen_on`. This may return an error if
 /// // something goes wrong during the execution of the program,
 /// // so we need to handle this error appropriately. Here we print the error and exit.
-/// if let Err(err) = server.start(simulator_addr, connector_addr).await {
+/// if let Err(err) = server.start(simulator_addr, connector_addr, "name").await {
 ///     eprintln!("Server return an error: {err}");
 ///     return ExitCode::FAILURE;
 /// }
@@ -239,6 +239,7 @@ impl<S: Simulator> Server<S> {
         self,
         simulator_addr: impl Into<SocketAddr>,
         manager_addr: String,
+        name: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let addr = simulator_addr.into();
         let port = addr.port() as u32;
@@ -256,7 +257,7 @@ impl<S: Simulator> Server<S> {
                 err??
             },
             connection = SimulatorConnectionClient::connect(manager_addr) => {
-                connection?.connect_simulator(SimulatorPort { port }).await?;
+                connection?.connect_simulator(SimulatorInfo { port, name: name.to_string() }).await?;
 
                 // Keep simulator running
                 task.await??

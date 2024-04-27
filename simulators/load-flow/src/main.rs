@@ -43,7 +43,7 @@ async fn main() -> ExitCode {
     let server = Server::<LoadFlowSimulator>::new();
 
     info!("Starting energy simulator server on `{listen_addr}`.");
-    if let Err(err) = server.start(listen_addr, connector_addr).await {
+    if let Err(err) = server.start(listen_addr, connector_addr, "load flow").await {
         error!("Server return an error: {err}.");
         return ExitCode::FAILURE;
     }

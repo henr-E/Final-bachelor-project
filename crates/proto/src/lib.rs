@@ -100,7 +100,6 @@ pub mod simulation {
 pub mod frontend {
     use crate::simulation;
     use crate::simulation::simulation_manager;
-
     pub use proto_frontend_simulation::{
         simulation_interface_service_client::*, simulation_interface_service_server::*, *,
     };
