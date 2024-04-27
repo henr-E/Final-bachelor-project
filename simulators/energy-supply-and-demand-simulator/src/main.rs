@@ -177,7 +177,6 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             .flatten()
             .count();
 
-        let mut vec_overview = Vec::<ProductionOverview>::new();
         let mut power_type_percentages: HashMap<PowerType, f64> = HashMap::new();
 
         let components = graph.get_all_nodes::<ProducerNode>().into_iter().flatten();
@@ -187,28 +186,28 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             let counter = power_type_percentages
                 .entry(component.power_type)
                 .or_insert(0.0);
-            *counter += component.active_power
+            *counter += component.active_power;
         }
 
         for (_, percentage) in power_type_percentages.iter_mut() {
             *percentage /= total_capacity
         }
 
-        for (power_type, percentage) in power_type_percentages {
-            vec_overview.push(ProductionOverview {
-                power_type,
-                percentage,
-            })
-        }
-
         if let Some(analytics) = graph.get_global_component_mut::<SupplyAndDemandAnalytics>() {
+            let mut vec_overview = Vec::<ProductionOverview>::new();
+            for (power_type, percentage) in power_type_percentages {
+                vec_overview.push(ProductionOverview {
+                    power_type,
+                    percentage,
+                })
+            }
+            analytics.energy_production_overview = vec_overview;
             analytics.consumer_nodes_count = num_consumer_nodes;
             analytics.producer_nodes_count = num_producer_nodes;
             analytics.transmission_edges_count = num_edges as i32;
             analytics.total_demand = total_demand;
             analytics.total_capacity = total_capacity;
             analytics.utilization = total_demand / total_capacity;
-            analytics.energy_production_overview = vec_overview;
         } else {
             debug!("No analytics component found");
         }
