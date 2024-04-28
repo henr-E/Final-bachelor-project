@@ -7,10 +7,9 @@ use crate::graph::edge::Transmission;
 use crate::graph::electric_graph::Graph as sim_graph;
 use crate::graph::electric_graph::UndirectedGraph;
 use component_library::energy::{
-    Bases, CableType, GeneratorNode, LoadNode, PowerType, ProductionOverview, SensorGeneratorNode,
-    SensorLoadNode, SlackNode, TransmissionEdge,
+    Bases, CableType, GeneratorNode, LoadFlowAnalytics, LoadNode, PowerType, ProductionOverview,
+    SensorGeneratorNode, SensorLoadNode, SlackNode, TransmissionEdge,
 };
-use component_library::global::LoadFlowAnalytics;
 use diagnostics::energy_production::power_type_percentages;
 use diagnostics::total_power;
 use graph::{edge::LineType, node::BusNode, node::PowerType as BusNodeType};
@@ -106,7 +105,7 @@ impl LoadFlowSimulator {
 impl Simulator for LoadFlowSimulator {
     fn get_component_info() -> ComponentsInfo {
         ComponentsInfo::new()
-            .add_required_component::<Bases>()
+            .add_optional_component::<Bases>()
             .add_required_component::<TransmissionEdge>()
             .add_required_component::<SensorLoadNode>()
             .add_required_component::<SensorGeneratorNode>()
@@ -125,9 +124,17 @@ impl Simulator for LoadFlowSimulator {
     }
 
     fn do_timestep(&mut self, mut graph: Graph) -> Graph {
-        let s_base = 0.0;
-        let v_base = 0.0;
-        let p_base = 0.0;
+        let mut s_base = 100.0;
+        let mut v_base = 100.0;
+        let mut p_base = 100.0;
+        let mut base_given = false;
+
+        if let Some(bases) = graph.get_global_component::<Bases>() {
+            s_base = bases.s_base;
+            v_base = bases.v_base;
+            p_base = bases.p_base;
+            base_given = true;
+        }
 
         // Sbase, Vbase: example: 1.0, 10.0
         let mut g = UndirectedGraph::new(s_base, v_base, p_base);
@@ -172,10 +179,21 @@ impl Simulator for LoadFlowSimulator {
         }
 
         let (_total_in, _total_out) = total_power::total_power_checker(&g);
+        // if no base givin: iterate over all nodes and edges to find the max values
+        // and set all values to p.u
+
+        if !base_given {
+            let (v_base, p_base, s_base) = g.calculate_optimal_bases();
+            g.set_bases(v_base, s_base, p_base);
+        }
         //call gauss seidel
         let solver = solvers::gauss_seidel::GaussSeidel::new();
-        let _result = solver.solve(&mut g, 200, 0.001);
-        //update the grap of communication library
+        let result = solver.solve(&mut g, 200, 0.001);
+        // if no base given, reset all values to original values
+        if !base_given {
+            g.reset_bases();
+        }
+        // update the grap of communication library
         // Place updated data back into the graph
         for (nodeid, _, comp) in graph.get_all_nodes_mut::<LoadNode>().unwrap() {
             if let Some(vertex) = nodes.get(&nodeid) {
@@ -247,6 +265,7 @@ impl Simulator for LoadFlowSimulator {
             load_flow_analytics.total_incoming_power = total_in;
             load_flow_analytics.total_outgoing_power = total_out;
             load_flow_analytics.energy_production_overview = vec_overview.clone();
+            load_flow_analytics.solver_converged = result == Ok(());
         } else {
             debug!("No analytics component found");
         }

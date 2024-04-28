@@ -67,7 +67,6 @@ impl Solver for GaussSeidel {
                     let voltage_change = (v_new - v_old).norm();
 
                     let mut node_update = *node;
-
                     match node.bus_type() {
                         BusType::Generator => {
                             node_update.set_voltage(Voltage::new(
@@ -81,6 +80,7 @@ impl Solver for GaussSeidel {
                         _ => {}
                     }
 
+                    node_update.set_voltage(Voltage::from_complex(v_new));
                     graph.add_node(id, node_update);
                     if voltage_change > max_voltage_change {
                         max_voltage_change = voltage_change;
@@ -103,16 +103,16 @@ impl Solver for GaussSeidel {
 mod tests {
     use super::*;
     use crate::graph::edge::{LineType, Transmission};
-    use crate::graph::node::BusNode;
+    use crate::graph::node::{BusNode, PowerType};
     #[test]
     fn test_gauss_seidel() {
         let mut graph = UndirectedGraph::new(1.0, 10.0, 1.0);
         let slack = BusNode::slack();
-        let pq1 = BusNode::load(-0.25, -0.1);
-        let pq2 = BusNode::load(-0.2, -0.1);
-        let pq3 = BusNode::load(-0.2, -0.1);
-        let pq4 = BusNode::load(-0.01, -0.1);
-        let pq5 = BusNode::load(-0.1, -0.0);
+        let pq1 = BusNode::load(0.25, 0.1);
+        let pq2 = BusNode::generator(0.2, 0.1, PowerType::Battery);
+        let pq3 = BusNode::generator(0.2, 0.1, PowerType::Battery);
+        let pq4 = BusNode::load(0.1, -0.1);
+        let pq5 = BusNode::load(0.1, -0.0);
 
         let l1 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l2 = Transmission::new(LineType::ACSRConductor, 100.0);
@@ -138,7 +138,7 @@ mod tests {
         graph.add_edge(pq5.id(), slack.id(), l7);
 
         let solver = GaussSeidel::new();
-        let result = solver.solve(&mut graph, 300, 0.0001);
+        let result = solver.solve(&mut graph, 300, 0.000001);
         assert_eq!(result, Ok(()));
     }
 }

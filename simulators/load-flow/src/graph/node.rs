@@ -67,6 +67,21 @@ impl BusNode {
             energy_type: PowerType::Load,
         }
     }
+    pub fn set_pu(&mut self, v_base: f64, s_base: f64) {
+        if self.bus_type() == BusType::Slack {
+            return;
+        }
+        self.power = Power::new(self.power().active / s_base, self.power().reactive / s_base);
+        self.voltage = Voltage::new(self.voltage().amplitude / v_base, self.voltage().angle);
+    }
+    pub fn reset_pu(&mut self, v_base: f64, s_base: f64) {
+        if self.bus_type() == BusType::Slack {
+            return;
+        }
+        self.power = Power::new(self.power().active * s_base, self.power().reactive * s_base);
+        self.voltage = Voltage::new(self.voltage().amplitude * v_base, self.voltage().angle);
+    }
+
     pub fn energy_type(&self) -> PowerType {
         self.energy_type
     }

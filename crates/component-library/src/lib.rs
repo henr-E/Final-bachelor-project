@@ -46,16 +46,6 @@ pub mod global {
         //This is the current temperature in degrees (celsius)
         pub current_temp: f64,
     }
-
-    /// `Limits` defines the global operational thresholds for key parameters within a power system to ensure stability, safety, and efficiency.
-    #[derive(ComponentPiece, Component)]
-    #[component(name = "global_energy_limits", ty = "global")]
-    pub struct EnergyLimits {
-        /// Maximum allowable phase angle difference in degrees.
-        /// Typically, this limit is around pi/6 (30 degrees), but it may vary depending on system stability studies.
-        pub max_angle_difference: f64,
-    }
-
     #[derive(ComponentPiece, Component)]
     #[component(name = "global_illuminance", ty = "global")]
     pub struct IlluminanceComponent {
@@ -81,7 +71,15 @@ pub mod global {
         /// vector of power type and percentage of how much power they account for
         pub energy_production_overview: Vec<ProductionOverview>,
     }
+}
 
+pub mod energy {
+    use simulator_communication::component::ComponentPiece;
+    use simulator_communication::component_structure::ComponentStructure;
+    use simulator_communication::prost_types::{value::Kind, Value};
+    use simulator_communication::proto::ComponentPrimitive;
+    use simulator_communication_macros::Component;
+    use simulator_communication_macros::ComponentPiece;
     #[derive(ComponentPiece, Component)]
     #[component(name = "load_flow_analytics", ty = "global")]
     pub struct LoadFlowAnalytics {
@@ -101,17 +99,11 @@ pub mod global {
         pub total_outgoing_power: f64,
         /// vector of power type and percentage of how much power they account for
         pub energy_production_overview: Vec<ProductionOverview>,
+        /// option for what solver to use
+        pub solver: LoadFlowSolvers,
+        /// returns true if solver converged successfully
+        pub solver_converged: bool,
     }
-}
-
-pub mod energy {
-    use simulator_communication::component::ComponentPiece;
-    use simulator_communication::component_structure::ComponentStructure;
-    use simulator_communication::prost_types::{value::Kind, Value};
-    use simulator_communication::proto::ComponentPrimitive;
-    use simulator_communication_macros::Component;
-    use simulator_communication_macros::ComponentPiece;
-
     /// Component storing the knowns for a generator node (Active power P and voltage magnitude V)
     #[derive(ComponentPiece, Component)]
     #[component(name = "sensor_generator_node", ty = "node")]
@@ -131,7 +123,7 @@ pub mod energy {
 
     /// Per unit values are expressed relative to a chosen base value for each quantity.
     #[derive(ComponentPiece, Component)]
-    #[component(name = "energy_bases_node", ty = "node")]
+    #[component(name = "energy_bases", ty = "global")]
     pub struct Bases {
         /// Base apparent power. Often expressed in volt-amperes (VA) or megavolt-amperes (MVA)
         pub s_base: f64,
@@ -179,7 +171,6 @@ pub mod energy {
         pub active_power: f64,
         /// Type of power produced
         pub power_type: PowerType,
-
         /// Max reactive power in MVAR, set by manufacturer
         pub max_reactive_power: f64,
         /// Minimum reactive power in MVAR, set by manufacturer
