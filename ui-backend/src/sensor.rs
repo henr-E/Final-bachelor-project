@@ -27,6 +27,7 @@ use tracing::{debug, error};
 use uuid::Uuid;
 
 const LIVE_DATA_FETCH_INTERVAL: Duration = Duration::from_millis(5000);
+const MAX_THREAD_LIFETIME: u64 = 300;
 
 #[derive(Clone)]
 pub struct SensorStore(SensorStoreInner);
@@ -508,6 +509,10 @@ impl SensorDataFetchingService for SensorStore {
             tx: &mpsc::Sender<Result<AllSensorDataEntry, Status>>,
             data: Result<AllSensorDataEntry, Status>,
         ) -> Result<(), Status> {
+            if tx.is_closed() {
+                return Err(Status::unavailable("The channel has been closed."));
+            }
+
             if let Err(err) = tx.send(data).await {
                 error!("Sending data on the sensor data stream failed: {}.", err);
                 return Err::<(), _>(internal_err_format(&err));
@@ -633,6 +638,9 @@ impl SensorDataFetchingService for SensorStore {
             tx: &mpsc::Sender<Result<SignalToValuesMap, Status>>,
             data: Result<SignalToValuesMap, Status>,
         ) -> Result<(), Status> {
+            if tx.is_closed() {
+                return Err(Status::internal("e"));
+            }
             if let Err(err) = tx.send(data).await {
                 error!("Sending data on the sensor data stream failed: {}.", err);
                 return Err::<(), _>(internal_err_format(&err));
@@ -662,6 +670,7 @@ impl SensorDataFetchingService for SensorStore {
         let sensor_store = self.as_inner().clone();
 
         let (tx, rx) = mpsc::channel(4);
+        let start_time = std::time::SystemTime::now();
 
         tokio::spawn(async move {
             // Avoid reference to self by cloning the inner SensorStore.
@@ -683,6 +692,15 @@ impl SensorDataFetchingService for SensorStore {
                 // Get the new lookback based on the last timestamp present in the data last sent.
                 // NOTE: The conversion to seconds and back to duration is because postgresql does
                 // not support higher interval precision.
+                if std::time::SystemTime::now()
+                    .duration_since(start_time)
+                    .unwrap()
+                    .as_secs()
+                    > MAX_THREAD_LIFETIME
+                {
+                    drop(tx);
+                    return Err(Status::internal("E"));
+                }
                 let lookback = match last_timestamp {
                     Some(lt) => {
                         let delta: TimeDelta = Utc::now() - lt;
@@ -712,6 +730,8 @@ impl SensorDataFetchingService for SensorStore {
 
                 // Skip sending when no sensor data was found.
                 if result.is_empty() {
+                    // if there is no new sensor data, sleep for a bit.
+                    tokio::time::sleep(LIVE_DATA_FETCH_INTERVAL).await;
                     continue;
                 }
 

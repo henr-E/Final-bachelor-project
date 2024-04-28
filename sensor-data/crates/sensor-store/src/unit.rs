@@ -79,6 +79,7 @@ impl Unit {
             Unit::MetersPerSecond => "meters/second".to_string(),
             Unit::MillimetersPerHour => "millimeters/hour".to_string(),
             Unit::Percentage | Unit::Okta => "percent".to_string(),
+            Unit::WattsPerSquareMetre => "W/m^2".to_string(),
             _ => self.to_string(),
         }
     }
