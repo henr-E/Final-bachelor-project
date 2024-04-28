@@ -7,8 +7,8 @@ use crate::graph::edge::Transmission;
 use crate::graph::electric_graph::Graph as sim_graph;
 use crate::graph::electric_graph::UndirectedGraph;
 use component_library::energy::{
-    Bases, CableType, GeneratorNode, LoadNode, PowerType, ProductionOverview, SlackNode,
-    TransmissionEdge,
+    Bases, CableType, GeneratorNode, LoadNode, PowerType, ProductionOverview, SensorGeneratorNode,
+    SensorLoadNode, SlackNode, TransmissionEdge,
 };
 use component_library::global::LoadFlowAnalytics;
 use diagnostics::energy_production::power_type_percentages;
@@ -18,6 +18,7 @@ use solvers::solver::Solver;
 use std::{collections::HashMap, env, net::SocketAddr, process::ExitCode};
 use tracing::debug;
 // Add the following line to import the `tracing` crate
+use simulator_communication::graph::{Node, NodeId};
 use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
 use tracing::{error, info};
 #[tokio::main(flavor = "current_thread")]
@@ -54,16 +55,69 @@ async fn main() -> ExitCode {
 #[allow(dead_code)]
 pub struct LoadFlowSimulator {}
 
+impl LoadFlowSimulator {
+    /// Collects nodes of a specific type from the graph.
+    fn collect_nodes<C: simulator_communication::component::Component>(
+        graph: &Graph,
+    ) -> Vec<(NodeId, &Node)> {
+        graph
+            .get_all_nodes::<C>()
+            .unwrap()
+            .map(|(id, node, _)| (id, node))
+            .collect()
+    }
+
+    /// Creates a translation map from sensor nodes to real nodes.
+    fn create_translation<
+        C1: simulator_communication::component::Component,
+        C2: simulator_communication::component::Component,
+    >(
+        graph: &Graph,
+    ) -> HashMap<NodeId, NodeId> {
+        let sensor_nodes = Self::collect_nodes::<C1>(graph);
+        let real_nodes = Self::collect_nodes::<C2>(graph);
+
+        assert_eq!(
+            sensor_nodes.len(),
+            real_nodes.len(),
+            "The count of sensor and real nodes must be equal."
+        );
+
+        sensor_nodes
+            .iter()
+            .zip(real_nodes.iter())
+            .map(|((sensor_id, _), (real_id, _))| (*sensor_id, *real_id))
+            .collect()
+    }
+
+    /// Main function to create node translation map for the graph.
+    fn create_node_translation_map(graph: &Graph) -> HashMap<NodeId, NodeId> {
+        let load_translations = Self::create_translation::<SensorLoadNode, LoadNode>(graph);
+        let generator_translations =
+            Self::create_translation::<SensorGeneratorNode, GeneratorNode>(graph);
+
+        let mut node_translations = load_translations;
+        node_translations.extend(generator_translations);
+
+        node_translations
+    }
+}
+
 impl Simulator for LoadFlowSimulator {
     fn get_component_info() -> ComponentsInfo {
         ComponentsInfo::new()
-            .add_required_component::<GeneratorNode>()
-            .add_required_component::<LoadNode>()
-            .add_required_component::<SlackNode>()
-            .add_required_component::<TransmissionEdge>()
-            .add_optional_component::<LoadFlowAnalytics>()
-            .add_output_component::<TransmissionEdge>()
             .add_required_component::<Bases>()
+            .add_required_component::<TransmissionEdge>()
+            .add_required_component::<SensorLoadNode>()
+            .add_required_component::<SensorGeneratorNode>()
+            .add_required_component::<LoadNode>()
+            .add_required_component::<GeneratorNode>()
+            .add_required_component::<SlackNode>()
+            .add_optional_component::<LoadFlowAnalytics>()
+            .add_output_component::<GeneratorNode>()
+            .add_output_component::<LoadNode>()
+            .add_output_component::<SlackNode>()
+            .add_output_component::<TransmissionEdge>()
     }
 
     fn new(_: std::time::Duration, _graph: Graph) -> Self {
@@ -71,47 +125,52 @@ impl Simulator for LoadFlowSimulator {
     }
 
     fn do_timestep(&mut self, mut graph: Graph) -> Graph {
-        let mut s_base = 0.0;
-        let mut v_base = 0.0;
-        let mut p_base = 0.0;
-        for (_nodeid, _, comp) in graph.get_all_nodes::<Bases>().unwrap() {
-            s_base = comp.s_base;
-            v_base = comp.v_base;
-            p_base = comp.p_base;
-        }
+        let s_base = 0.0;
+        let v_base = 0.0;
+        let p_base = 0.0;
+
         // Sbase, Vbase: example: 1.0, 10.0
         let mut g = UndirectedGraph::new(s_base, v_base, p_base);
-        let mut nodes = HashMap::new();
+        let mut nodes: HashMap<NodeId, usize> = HashMap::new();
         let mut edges = HashMap::new();
-        for (nodeid, _, comp) in graph.get_all_nodes::<LoadNode>().unwrap() {
+
+        // Translate base node id to corresponding load flow analysis node
+        let node_translations = Self::create_node_translation_map(&graph);
+
+        for (nodeid, _, comp) in graph.get_all_nodes::<SensorLoadNode>().unwrap() {
             let load = BusNode::load(comp.active_power, comp.reactive_power);
             g.add_node(load.id(), load);
-            nodes.insert(nodeid, load.id());
+            let mapped_id = node_translations.get(&nodeid).unwrap();
+            nodes.insert(*mapped_id, load.id());
         }
-        for (nodeid, _, comp) in graph.get_all_nodes::<GeneratorNode>().unwrap() {
+
+        for (nodeid, _, comp) in graph.get_all_nodes::<SensorGeneratorNode>().unwrap() {
             let generator = BusNode::generator(
                 comp.active_power,
-                comp.voltage_amplitude,
+                comp.voltage_magnitude,
                 power_type_to_busnode_type(comp.power_type),
             );
             g.add_node(generator.id(), generator);
-            nodes.insert(nodeid, generator.id());
+            let mapped_id = node_translations.get(&nodeid).unwrap();
+            nodes.insert(*mapped_id, generator.id());
         }
+
         for (nodeid, _, _comp) in graph.get_all_nodes::<SlackNode>().unwrap() {
             let slack = BusNode::slack();
             g.add_node(slack.id(), slack);
             nodes.insert(nodeid, slack.id());
         }
+
         for (edgeid, edge, comp) in graph.get_all_edges::<TransmissionEdge>().unwrap() {
             //roulet for which line type to use
             let line = Transmission::new(cable_type_to_line_type(comp.line_type), comp.length);
             //need to find id of node corresponding to the nodeid
-
             if let (Some(nid1), Some(nid2)) = (nodes.get(&edge.from), nodes.get(&edge.to)) {
                 g.add_edge(*nid1, *nid2, line);
                 edges.insert(edgeid, (*nid1, *nid2));
             }
         }
+
         let (_total_in, _total_out) = total_power::total_power_checker(&g);
         //call gauss seidel
         let solver = solvers::gauss_seidel::GaussSeidel::new();

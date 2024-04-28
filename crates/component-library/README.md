@@ -8,13 +8,13 @@ This module contains a series of components, that are made to simulate the diffe
 ### Common units for AC circuits:
 #### Power
 - **Active power**: This is the portion of electrical power that is actually consumed by a device and converted into useful work, such as producing heat, light, or mechanical motion. It is measured in watts (W) and represents the rate at which energy is transferred or used by a circuit.
-- **Reactive power**: This is the power that flows back and forth between the source and the load to support the operation of inductive loads and maintain voltage levels. Reactive power is measured in volt-amperes reactive (VAR).
+- **Reactive power**: This is the power that flows back and forth between the source and the load to support the operation of inductive loads and maintain voltage levels. Since reactive power transfers no net energy to the load, it is sometimes called "wattless" power. Reactive power is measured in volt-amperes reactive (VAR).
 
 Both active and reactive power are important considerations in electrical systems to ensure efficient and reliable operation.
 
 #### Voltage
 Voltage amplitude and angle are two important parameters used to describe an alternating current (AC) voltage waveform.
-- **Voltage Amplitude**: This refers to the maximum magnitude of the voltage waveform. In an AC circuit, the voltage continuously oscillates between positive and negative values. The voltage amplitude represents the maximum positive or negative value reached by the voltage waveform during each cycle. It is typically measured in volts (V).
+- **Voltage Amplitude**: Voltage magnitude may be used interchangeably. This refers to the maximum magnitude of the voltage waveform. In an AC circuit, the voltage continuously oscillates between positive and negative values. The voltage amplitude represents the maximum positive or negative value reached by the voltage waveform during each cycle. It is typically measured in volts (V).
 - **Voltage Angle**: This is a measure of the displacement of an AC voltage waveform relative to a reference waveform. It represents the angular position of the voltage waveform at a specific point in time. Voltage angle is often expressed in degrees (°) or radians (rad). In a sinusoidal waveform, the voltage angle determines the position of the waveform relative to its peak or zero crossing.
 
 Together they provide a complete description of the AC voltage waveform and are essential for analyzing and understanding AC circuits. 
@@ -42,6 +42,11 @@ The module contains the following energy-related nodes:
 ### General Energy Components
 
 - **TransmissionEdge**: Represents an edge in the energy system with properties like resistance per meter, reactance per meter, length, and cable type. The component also holds the minimum and maximum allowable voltage magnitude (in p.u.) and the thermal limit (in amperes), which should be set to a default value based on the cable type.
+
+#### Sensor Energy Components
+These are the knowns the sensor data will have to provide to perform load-flow analysis. Be sure to look at the common units to get a good understanding for each unit.
+- **SensorGeneratorNode**: Stores the knowns for a generator node, used in load flow analysis. Active power (P) and voltage magnitude/amplitude (V).
+- **SensorLoadNode**: Stores the knowns for a load node, used in load flow analysis. Active power (P) and reactive power (Q).
 
 #### Load Flow Analysis Specific Components
 

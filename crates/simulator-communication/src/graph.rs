@@ -299,7 +299,7 @@ impl Graph {
     ///         // < SNIP >
     /// #       todo!()
     ///     }
-    ///         
+    ///
     ///     fn new(
     ///         _delta_time: std::time::Duration,
     ///         _graph: simulator_communication::graph::Graph,
@@ -307,7 +307,7 @@ impl Graph {
     ///         // < SNIP >
     /// #       todo!()
     ///     }
-    ///         
+    ///
     ///     fn do_timestep(&mut self, mut graph: Graph) -> Graph {
     ///         do_timestep(&mut graph);
     ///         graph.filter(Self::get_component_info())

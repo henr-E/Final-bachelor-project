@@ -112,6 +112,23 @@ pub mod energy {
     use simulator_communication_macros::Component;
     use simulator_communication_macros::ComponentPiece;
 
+    /// Component storing the knowns for a generator node (Active power P and voltage magnitude V)
+    #[derive(ComponentPiece, Component)]
+    #[component(name = "sensor_generator_node", ty = "node")]
+    pub struct SensorGeneratorNode {
+        pub active_power: f64,
+        pub voltage_magnitude: f64,
+        pub power_type: PowerType,
+    }
+
+    /// Component storing the knowns for a load node (Active power P and reactive power Q)
+    #[derive(ComponentPiece, Component)]
+    #[component(name = "sensor_load_node", ty = "node")]
+    pub struct SensorLoadNode {
+        pub active_power: f64,
+        pub reactive_power: f64,
+    }
+
     /// Per unit values are expressed relative to a chosen base value for each quantity.
     #[derive(ComponentPiece, Component)]
     #[component(name = "energy_bases_node", ty = "node")]
