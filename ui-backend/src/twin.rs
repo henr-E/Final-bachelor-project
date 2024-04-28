@@ -11,9 +11,10 @@ use sqlx::PgPool;
 use tonic::{Request, Response, Status};
 
 use proto::frontend::proto_twin::{
-    BuildingObject, CreateTwinRequest, CreateTwinResponse, DeleteBuildingRequest,
-    DeleteTwinRequest, GetAllTwinsRequest, GetAllTwinsResponse, GetBuildingsRequest,
-    GetBuildingsResponse, TwinObject, UndoDeleteBuildingRequest,
+    BuildingObject, CreatePresetRequest, CreatePresetResponse, CreateTwinRequest,
+    CreateTwinResponse, DeleteBuildingRequest, DeleteTwinRequest, GetAllPresetResponse,
+    GetAllTwinsRequest, GetAllTwinsResponse, GetBuildingsRequest, GetBuildingsResponse,
+    PresetObject, TwinObject, UndoDeleteBuildingRequest,
 };
 use proto::frontend::{DeleteSensorRequest, GetSensorsRequest, TwinId, TwinService};
 
@@ -524,5 +525,96 @@ impl TwinService for MyTwinService {
             .map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(Response::new(()))
+    }
+
+    /// insert a preset created by the user in the database
+    ///
+    /// # Arguments
+    ///
+    /// * CreatePresetRequest {name, info}
+    /// name: name of the preset
+    /// info: info in json format about the preset
+    ///
+    /// # Returns
+    ///
+    /// Returns a preset_id chosen by the database
+    ///
+    /// # Errors
+    ///
+    /// 'Database error'
+
+    async fn create_preset(
+        &self,
+        request: Request<CreatePresetRequest>,
+    ) -> Result<Response<CreatePresetResponse>, Status> {
+        let inner = request.into_inner();
+        let name: String = inner.name;
+        let info: String = inner.info;
+        let transaction = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let preset_id = sqlx::query!(
+            "INSERT INTO preset (name, info) VALUES ($1,$2) RETURNING id",
+            name,
+            info,
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|err| Status::from_error(Box::new(err)))?
+        .id;
+
+        transaction
+            .commit()
+            .await
+            .map_err(|err| Status::from_error(Box::new(err)))?;
+
+        Ok(Response::new(CreatePresetResponse { id: preset_id }))
+    }
+
+    /// get all preset from the database
+    ///
+    /// # Arguments
+    ///
+    ///
+    /// # Returns
+    ///
+    /// Returns a presetObject = {name, info}
+    ///
+    /// # Errors
+    ///
+    /// 'Database error'
+
+    async fn get_all_preset(
+        &self,
+        _request: Request<()>,
+    ) -> Result<Response<GetAllPresetResponse>, Status> {
+        let transaction = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Status::internal(e.to_string()))?;
+
+        let items_database = sqlx::query!("SELECT * FROM preset")
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| Status::internal(format!("Failed to fetch preset: {}", e)))?;
+
+        let mut presets: Vec<PresetObject> = Vec::new();
+        for item in items_database {
+            presets.push(PresetObject {
+                name: item.name,
+                info: item.info,
+            });
+        }
+
+        transaction
+            .commit()
+            .await
+            .map_err(|err| Status::from_error(Box::new(err)))?;
+
+        Ok(Response::new(GetAllPresetResponse { preset: presets }))
     }
 }

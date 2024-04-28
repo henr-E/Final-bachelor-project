@@ -8,6 +8,7 @@ import {
 } from '@/proto/simulation/frontend';
 import { Simulators } from '@/proto/simulation/simulation-manager';
 import { uiBackendServiceUrl } from '@/api/urls';
+import { ComponentsInfo } from '@/proto/simulation/simulation-manager';
 import { SensorCRUDServiceClient, SensorCRUDServiceDefinition } from '@/proto/sensor/sensor-crud';
 import ToastNotification from '@/components/notification/ToastNotification';
 
@@ -62,4 +63,10 @@ export async function BackendGetSimulators(): Promise<Simulators> {
     const channel = createChannel(uiBackendServiceUrl);
     const client = createClient(SimulationInterfaceServiceDefinition, channel);
     return await client.getSimulators(Request);
+}
+
+export async function BackendGetComponent(): Promise<ComponentsInfo> {
+    const channel = createChannel(uiBackendServiceUrl);
+    const client = createClient(SimulationInterfaceServiceDefinition, channel);
+    return await client.getComponents({});
 }

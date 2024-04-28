@@ -12,6 +12,8 @@ service TwinService {
     rpc deleteBuilding (deleteBuildingRequest) returns (google.protobuf.Empty);
     rpc deleteTwin (deleteTwinRequest) returns (google.protobuf.Empty);
     rpc undoDeleteBuilding (undoDeleteBuildingRequest) returns (google.protobuf.Empty);
+    rpc createPreset (createPresetRequest) returns (createPresetResponse);
+    rpc getAllPreset (google.protobuf.Empty) returns (getAllPresetResponse);
 }
 
 //creating twin
@@ -82,4 +84,24 @@ message deleteTwinRequest {
 message undoDeleteBuildingRequest {
     //the ID is defined by the database (SERIAL type)
     int64 id = 1;
+}
+
+message getAllPresetRequest {}
+
+message getAllPresetResponse {
+    repeated presetObject preset = 1;
+}
+
+message presetObject {
+    string name = 1;
+    string info = 2;
+}
+
+message createPresetRequest {
+    string name = 1;
+    string info = 2;
+}
+
+message createPresetResponse {
+    int32 id = 1;
 }

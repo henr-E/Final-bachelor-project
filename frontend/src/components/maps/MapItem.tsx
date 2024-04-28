@@ -21,7 +21,7 @@ export interface MapItemType {
     name: string;
     id: number;
     eventHandler?: LeafletEventHandlerFnMap;
-    type: MapItems;
+    type: number;
     inactive?: boolean;
     components?: { [id: string]: any };
 }

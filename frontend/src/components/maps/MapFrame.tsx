@@ -73,7 +73,7 @@ export function FrameToMapInformation(
     return [nodeItems, lineItemArray];
 }
 
-function MapEditor({ frame, frameNr }: MapFrameProps) {
+function MapFrame({ frame, frameNr }: MapFrameProps) {
     const [twinState, dispatch] = useContext(TwinContext);
     const [nodes, setNodes] = useState<Map<number, NodeItem>>(new Map());
     const [edges, setEdges] = useState<LineItem[]>([]);
@@ -187,4 +187,4 @@ function MapEditor({ frame, frameNr }: MapFrameProps) {
     );
 }
 
-export default MapEditor;
+export default MapFrame;
