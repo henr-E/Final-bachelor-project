@@ -2,7 +2,6 @@
 
 import { Button } from 'flowbite-react';
 import { useContext, useState } from 'react';
-import { MdOutlineDeleteOutline } from 'react-icons/md';
 import CreateSensorModal from '@/components/modals/CreateSensorModal';
 import ShowSignalsModal from '@/components/modals/ShowSignalsModal';
 import DeleteMultipleSensorsModal from '@/components/modals/DeleteMultipleSensorsModal';
@@ -10,6 +9,77 @@ import { BackendCreateSensor, BackendDeleteSensor, BackendGetSensors } from '@/a
 import { TwinContext } from '@/store/twins';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { Sensor } from '@/proto/sensor/sensor-crud';
+
+interface renderSensorTableProps {
+    sensors: Sensor[];
+    handleClick: (sensor: Sensor) => void;
+    sensorsToDelete: Sensor[];
+    setSensorsToDelete: (sensors: Sensor[]) => void;
+    global: boolean;
+}
+
+function renderSensorTable({
+    sensors,
+    handleClick,
+    sensorsToDelete,
+    setSensorsToDelete,
+    global,
+}: renderSensorTableProps) {
+    return (
+        <tbody>
+            {sensors.map(sensor => (
+                <tr
+                    key={sensor.id}
+                    className={global ? 'bg-indigo-300 ring-indigo-300 my-6' : 'my-6'}
+                    style={{ cursor: 'pointer' }}
+                >
+                    <th scope='row' className='px-3 py-3 w-8'>
+                        <div className='flex items-center'>
+                            <input
+                                id='checkbox-all-search'
+                                checked={sensorsToDelete.includes(sensor)}
+                                onChange={e => {
+                                    if (sensorsToDelete.includes(sensor)) {
+                                        setSensorsToDelete(
+                                            sensorsToDelete.filter(s => s !== sensor)
+                                        );
+                                    } else {
+                                        setSensorsToDelete(sensorsToDelete.concat([sensor]));
+                                    }
+                                }}
+                                type='checkbox'
+                                className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 dark:bg-gray-700'
+                            />
+                        </div>
+                    </th>
+                    <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
+                        {sensor.name}
+                    </td>
+                    <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
+                        {sensor.description}
+                    </td>
+                    <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
+                        {sensor.signals.length}
+                    </td>
+                    <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
+                        <span>{new Date().toLocaleDateString()}</span>
+                    </td>
+                    <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
+                        0
+                    </td>
+                    <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
+                        <a href='#'>
+                            {sensor.latitude},{sensor.longitude}
+                        </a>
+                    </td>
+                    <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
+                        {sensor.buildingId || 'Global Sensor'}
+                    </td>
+                </tr>
+            ))}
+        </tbody>
+    );
+}
 
 function SensorPage() {
     const [twinState, dispatchTwin] = useContext(TwinContext);
@@ -82,7 +152,17 @@ function SensorPage() {
                                 }}
                                 onClick={() => {
                                     if (twinState.current) {
-                                        setIsCreateSensorModalOpen(true);
+                                        let global_sensors = twinState.current.sensors.filter(
+                                            sensor => !sensor.buildingId
+                                        );
+                                        if (global_sensors.length != 0) {
+                                            ToastNotification(
+                                                'warning',
+                                                'There can be only one global sensor.'
+                                            );
+                                        } else {
+                                            setIsCreateSensorModalOpen(true);
+                                        }
                                     } else {
                                         ToastNotification('error', 'Twin not selected. Try again.');
                                     }
@@ -150,89 +230,28 @@ function SensorPage() {
                                             </th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        {twinState.current?.sensors.map(sensor => (
-                                            <tr
-                                                key={sensor.id}
-                                                className='my-6'
-                                                style={{ cursor: 'pointer' }}
-                                            >
-                                                <th scope='row' className='px-3 py-3 w-8'>
-                                                    <div className='flex items-center'>
-                                                        <input
-                                                            id='checkbox-all-search'
-                                                            checked={sensorsToDelete.includes(
-                                                                sensor
-                                                            )}
-                                                            onChange={e => {
-                                                                if (
-                                                                    sensorsToDelete.includes(sensor)
-                                                                ) {
-                                                                    setSensorsToDelete(
-                                                                        sensorsToDelete.filter(
-                                                                            s => s !== sensor
-                                                                        )
-                                                                    );
-                                                                } else {
-                                                                    setSensorsToDelete(
-                                                                        sensorsToDelete.concat([
-                                                                            sensor,
-                                                                        ])
-                                                                    );
-                                                                }
-                                                            }}
-                                                            type='checkbox'
-                                                            className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 dark:bg-gray-700'
-                                                        />
-                                                    </div>
-                                                </th>
-                                                <td
-                                                    className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor)}
-                                                >
-                                                    {sensor.name}
-                                                </td>
-                                                <td
-                                                    className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor)}
-                                                >
-                                                    {sensor.description}
-                                                </td>
-                                                <td
-                                                    className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor)}
-                                                >
-                                                    {sensor.signals.length}
-                                                </td>
-                                                <td
-                                                    className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor)}
-                                                >
-                                                    <span> {new Date().toLocaleDateString()}</span>
-                                                </td>
-                                                <td
-                                                    className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor)}
-                                                >
-                                                    0
-                                                </td>
-                                                <td
-                                                    className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor)}
-                                                >
-                                                    <a href='#'>
-                                                        {sensor.latitude},{sensor.longitude}
-                                                    </a>
-                                                </td>
-                                                <td
-                                                    className='p-3 px-3'
-                                                    onClick={() => handleClick(sensor)}
-                                                >
-                                                    {sensor.buildingId || 'Global Sensor'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
+
+                                    {/*table for global sensor*/}
+                                    {renderSensorTable({
+                                        sensors: twinState.current.sensors.filter(
+                                            sensor => !sensor.buildingId
+                                        ),
+                                        handleClick,
+                                        sensorsToDelete,
+                                        setSensorsToDelete,
+                                        global: true,
+                                    })}
+
+                                    {/*table for building sensors*/}
+                                    {renderSensorTable({
+                                        sensors: twinState.current.sensors.filter(
+                                            sensor => sensor.buildingId
+                                        ),
+                                        handleClick,
+                                        sensorsToDelete,
+                                        setSensorsToDelete,
+                                        global: false,
+                                    })}
                                 </table>
                             </div>
                         )}

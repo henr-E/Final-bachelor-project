@@ -4,7 +4,7 @@ import { Alert, Button, Modal } from 'flowbite-react';
 import { twinObject } from '@/proto/twins/twin';
 import { TwinFromProvider } from '@/store/twins';
 
-interface DeleteMultipleSimulationsModalProps {
+interface DeleteMultipleTwinsModalProps {
     isModalOpen: boolean;
     twins: TwinFromProvider[];
     confirm: () => void;
@@ -16,7 +16,7 @@ function DeleteMultipleTwinsModal({
     twins,
     closeModal,
     confirm,
-}: DeleteMultipleSimulationsModalProps) {
+}: DeleteMultipleTwinsModalProps) {
     const handleConfirmButtonClick = () => {
         confirm();
         closeModal();
