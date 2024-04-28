@@ -1,5 +1,5 @@
 'use client';
-import { Badge, Button, Textarea } from 'flowbite-react';
+import { Badge, Button } from 'flowbite-react';
 import { Icon } from '@mdi/react';
 import {
     mdiCursorPointer,
@@ -14,7 +14,6 @@ import dynamic from 'next/dynamic';
 import { TwinContext } from '@/store/twins';
 import { BuildingItem, LineItem, MapItems, MapItemType, NodeItem } from '@/components/maps/MapItem';
 import ToastNotification from '@/components/notification/ToastNotification';
-import { JsonToTable } from 'react-json-to-table';
 import { TwinServiceDefinition } from '@/proto/twins/twin';
 import { createChannel, createClient } from 'nice-grpc-web';
 import { uiBackendServiceUrl } from '@/api/urls';
@@ -456,8 +455,8 @@ function MapEditor({
                                             {selectedBuilding.street}
                                         </div>
                                         <div>
-                                            <span className='font-semibold'>Sensors:</span>
-                                            <div>
+                                            <div className='flex flex-wrap gap-2'>
+                                                <span className='font-semibold'>Sensors:</span>
                                                 {(() => {
                                                     const filteredSensors =
                                                         twinState.current.sensors.filter(
@@ -465,26 +464,18 @@ function MapEditor({
                                                                 sensor.buildingId ===
                                                                 selectedBuilding.id
                                                         );
-                                                    return (
-                                                        <div className='mt-2'>
-                                                            <div className='flex flex-wrap gap-2'>
-                                                                {filteredSensors.map(sensor => (
-                                                                    <Badge
-                                                                        key={sensor.id}
-                                                                        color='gray'
-                                                                        style={{
-                                                                            cursor: 'pointer',
-                                                                        }}
-                                                                        onClick={() =>
-                                                                            handleClick(sensor)
-                                                                        }
-                                                                    >
-                                                                        {sensor.name}
-                                                                    </Badge>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    );
+                                                    return filteredSensors.map(buildingSensor => (
+                                                        <Badge
+                                                            key={buildingSensor.id}
+                                                            color='gray'
+                                                            style={{ cursor: 'pointer' }}
+                                                            onClick={() =>
+                                                                handleClick(buildingSensor)
+                                                            }
+                                                        >
+                                                            {buildingSensor.name}
+                                                        </Badge>
+                                                    ));
                                                 })()}
                                             </div>
                                         </div>
@@ -513,7 +504,20 @@ function MapEditor({
                                         }}
                                         onClick={() => {
                                             if (twinState.current) {
-                                                setIsCreateSensorModalOpen(true);
+                                                const filteredSensors =
+                                                    twinState.current.sensors.filter(
+                                                        sensor =>
+                                                            sensor.buildingId ===
+                                                            selectedBuilding.id
+                                                    );
+                                                if (filteredSensors.length != 0) {
+                                                    ToastNotification(
+                                                        'warning',
+                                                        'There can be only one sensor for each building.'
+                                                    );
+                                                } else {
+                                                    setIsCreateSensorModalOpen(true);
+                                                }
                                             } else {
                                                 ToastNotification(
                                                     'error',
