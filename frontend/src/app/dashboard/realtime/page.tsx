@@ -11,6 +11,7 @@ import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
 import { SensorDataFetchingServiceDefinition } from '@/proto/sensor/data-fetching';
 import { LiveDataSingleSensor } from '@/api/sensor/dataFetching';
 import { getFirstQuantity } from '@/lib/util';
+import { useRouter } from 'next/router';
 
 const PredictionMapImport = dynamic<PredictionMapProps>(
     () => import('@/components/maps/PredictionMap'),
