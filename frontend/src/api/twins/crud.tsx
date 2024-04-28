@@ -96,3 +96,30 @@ export async function BackendUndoDeleteBuilding(buildingId: number): Promise<boo
         return false;
     }
 }
+
+export async function BackendCreatePreset(presetName: string, presetInfo: string) {
+    try {
+        const channel = createChannel(uiBackendServiceUrl);
+        const client = createClient(TwinServiceDefinition, channel);
+        const request = { name: presetName, info: presetInfo };
+        const response = await client.createPreset(request);
+        return response;
+    } catch (error) {
+        ToastNotification('error', 'Failed to create preset.');
+        console.error('Failed to create preset.', error);
+        return;
+    }
+}
+
+export async function BackendGetAllPreset() {
+    try {
+        const channel = createChannel(uiBackendServiceUrl);
+        const client = createClient(TwinServiceDefinition, channel);
+        const response = await client.getAllPreset({});
+        return response.preset;
+    } catch (error) {
+        ToastNotification('error', 'Failed to fetch preset.');
+        console.error('Failed to fetch preset.', error);
+        return;
+    }
+}

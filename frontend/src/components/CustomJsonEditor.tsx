@@ -2,7 +2,7 @@ import React, { ReactNode, useEffect, useState } from 'react';
 import { Accordion, Button, TextInput } from 'flowbite-react';
 import { MdOutlineDeleteOutline } from 'react-icons/md';
 import { AiOutlinePlus } from 'react-icons/ai';
-import ToastNotification from '@/components/notification/ToastNotification';
+import { ComponentStructure } from '@/proto/simulation/simulation';
 
 interface JsonData {
     [key: string]: any;
@@ -12,6 +12,27 @@ interface Props {
     data?: JsonData;
     onSave: (data: JsonData | undefined) => void; // Callback to handle save operation
 }
+
+export const TypeConverter = (structure: ComponentStructure | undefined): any => {
+    if (structure?.primitive == 11) {
+        return '';
+    } else if (structure?.primitive && structure?.primitive <= 10) {
+        return 0;
+    } else if (structure?.primitive && structure?.primitive >= 12) {
+        return 0.1;
+    } else if (structure?.list) {
+        return [TypeConverter(structure?.list)];
+    } else if (structure?.struct) {
+        let items: { [key: string]: any } = {};
+
+        Object.keys(structure?.struct.data).forEach(function (key, index) {
+            items[key] = TypeConverter(structure?.struct?.data[key]);
+        });
+        return items;
+    } else {
+        console.log('error');
+    }
+};
 
 const CustomJsonEditor: React.FC<Props> = ({ data, onSave }) => {
     const [editableData, setEditableData] = useState<JsonData | undefined>(data);
@@ -121,7 +142,7 @@ const CustomJsonEditor: React.FC<Props> = ({ data, onSave }) => {
                                     </td>
                                 ))}
                                 <td>
-                                    {`delete:`}
+                                    <p>Delete</p>
                                     <Button
                                         className='h-11 inline-flex items-center justify-center'
                                         onClick={() => deleteItemFromArray(path, index)}
@@ -135,6 +156,7 @@ const CustomJsonEditor: React.FC<Props> = ({ data, onSave }) => {
                             <td></td>
                             <td></td>
                             <td>
+                                <p>Add item</p>
                                 <Button
                                     className='h-11 inline-flex items-center justify-center'
                                     onClick={() => addItemToArray(path)}
@@ -151,7 +173,6 @@ const CustomJsonEditor: React.FC<Props> = ({ data, onSave }) => {
                         <Accordion.Panel>
                             <Accordion.Title>{key}</Accordion.Title>
                             <Accordion.Content>
-                                <span style={{ color: 'red' }}>For advanced users only.</span>
                                 {renderRows(value, path)}
                                 <div className='flex justify-center mt-4'>
                                     <Button
