@@ -11,6 +11,9 @@
     handle /sensor.crud.SensorCRUDService/* {
         reverse_proxy grpcwebpoxy:8081
     }
+    handle /sensor.data_fetching.SensorDataFetchingService/* {
+        reverse_proxy grpcwebpoxy:8081
+    }
 
     reverse_proxy frontend:3000
 }

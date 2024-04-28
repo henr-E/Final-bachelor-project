@@ -95,4 +95,65 @@ interface QuantityWithUnits {
     baseUnit: string;
 }
 
-export { Prefix, Quantity, Unit, prefixExponents, prefixes, type QuantityWithUnits };
+interface SensorState {
+    // sensorID -> < signalID -> number >
+    mostRecentValues: Record<string, Record<number, number>>;
+}
+
+interface SetMostRecentValueAction {
+    type: 'set_most_recent_value';
+    sensorId: string;
+    signalId: number;
+    value: number;
+}
+
+type SensorAction = SetMostRecentValueAction;
+
+function reducer(state: SensorState, action: SensorAction): SensorState {
+    switch (action.type) {
+        case 'set_most_recent_value': {
+            return {
+                ...state,
+                mostRecentValues: {
+                    ...state.mostRecentValues,
+                    [action.sensorId]: {
+                        ...state.mostRecentValues[action.sensorId],
+                        [action.signalId]: action.value,
+                    },
+                },
+            };
+        }
+        default: {
+            return {
+                ...state,
+            };
+        }
+    }
+}
+
+const initialState: SensorState = {
+    mostRecentValues: {},
+};
+
+const SensorContext = createContext<[SensorState, React.Dispatch<SensorAction>]>([
+    initialState,
+    async () => {},
+]);
+
+function SensorProvider({ children }: { children: React.ReactNode }) {
+    const [state, dispatch] = useReducer(reducer, initialState);
+
+    return <SensorContext.Provider value={[state, dispatch]}>{children}</SensorContext.Provider>;
+}
+
+export {
+    Prefix,
+    Quantity,
+    SensorContext,
+    SensorProvider,
+    Unit,
+    prefixExponents,
+    prefixes,
+    type QuantityWithUnits,
+    type SensorAction,
+};

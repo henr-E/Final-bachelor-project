@@ -17,6 +17,7 @@ import ToastNotification from '@/components/notification/ToastNotification';
 import { TwinContext } from '@/store/twins';
 import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
 import { undoDeleteBuildingRequest } from '@/proto/twins/twin';
+import { getFirstQuantity } from '@/lib/util';
 
 interface CreateSensorModalProps {
     isModalOpen: boolean;
@@ -37,12 +38,6 @@ function CreateSensorModal({
     closeModal,
     handleCreateSensor,
 }: CreateSensorModalProps) {
-    const getFirstQuantity = (
-        q: Record<string, QuantityWithUnits>
-    ): QuantityWithUnits | undefined => {
-        return Object.values(q).length === 0 ? undefined : Object.values(q)[0];
-    };
-
     const getBaseUnit = (q: QuantityWithUnits): Unit => {
         const baseUnitId = q.baseUnit;
         const unit = q.units.find(u => u.id === baseUnitId);
@@ -121,9 +116,17 @@ function CreateSensorModal({
             case ModalPage.BASIC: {
                 if (!basicFormRef.current?.reportValidity()) return;
                 setModalPage(modalPage + 1);
+
+                setQuantities([quantitiesWithUnits['timestamp'].quantity]);
+
                 break;
             }
             case ModalPage.SIGNALS: {
+                if (quantities.find(q => q.id === 'timestamp') === undefined) {
+                    ToastNotification('error', 'Sensor should always contain a `timestamp` signal');
+                    break;
+                }
+
                 setModalPage(modalPage + 1);
 
                 setUnits(quantities.map(q => getBaseUnit(quantitiesWithUnits[q.id])));
@@ -345,12 +348,13 @@ function CreateSensorModal({
                                     <Button
                                         key={i}
                                         color='indigo'
-                                        onClick={() =>
+                                        onClick={() => {
+                                            if (quantity.id === 'timestamp') return;
                                             setQuantities([
                                                 ...quantities.slice(0, i),
                                                 ...quantities.slice(i + 1),
-                                            ])
-                                        }
+                                            ]);
+                                        }}
                                         theme={{
                                             color: {
                                                 indigo: 'bg-indigo-600 text-white ring-indigo-600',
@@ -359,7 +363,9 @@ function CreateSensorModal({
                                         pill
                                     >
                                         {quantity.repr}
-                                        <HiXMark className='ml-2 text-gray-200' size={20} />
+                                        {quantity.id !== 'timestamp' && (
+                                            <HiXMark className='ml-2 text-gray-200' size={20} />
+                                        )}
                                     </Button>
                                 ))}
                                 {quantities.length === 0 && (

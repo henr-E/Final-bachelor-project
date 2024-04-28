@@ -14,7 +14,7 @@ import {
     useMapEvents,
 } from 'react-leaflet';
 import { mdiCheck, mdiClose, mdiAlert } from '@mdi/js';
-import { Icon as leafLetIcon, LatLngExpression, LeafletEventHandlerFnMap } from 'leaflet';
+import { Icon as leafLetIcon, LatLngExpression, LeafletEventHandlerFnMap, DivIcon } from 'leaflet';
 import {
     BuildingItem,
     LineItem,
@@ -27,6 +27,10 @@ import ToastNotification from '../notification/ToastNotification';
 import { createChannel, createClient } from 'nice-grpc-web';
 import { uiBackendServiceUrl } from '@/api/urls';
 import { buildingObject, TwinServiceDefinition } from '@/proto/twins/twin';
+import { SensorContext } from '@/store/sensor';
+import L from 'leaflet';
+import { useLeafletContext } from '@react-leaflet/core';
+import Script from 'next/script';
 import Icon from '@mdi/react';
 import { s } from 'hastscript';
 import '@/css/leaflet.css';
@@ -37,6 +41,8 @@ export interface PredictionMapProps {
     nodes?: Map<number, NodeItem>;
     edges?: LineItem[];
     onSelectBuilding?: (building: BuildingItem) => void;
+    realtime?: boolean;
+    quantityFilter?: string;
 }
 enum status {
     ok = 1,
@@ -89,15 +95,20 @@ function ComponentStateTooltip({ warningComp }: ComponentStateTooltipProps) {
 
 export function PredictionMap({
     twin,
+    quantityFilter,
     eventHandlers = {},
     nodes = new Map(),
     edges = [],
     onSelectBuilding = undefined,
+    realtime = false,
 }: PredictionMapProps) {
     const [twinState, dispatch] = useContext(TwinContext);
+    const [sensorState, dispatchSensor] = useContext(SensorContext);
     const [cityName, setCityName] = useState<string>(twin.name);
     const [buildings, setBuildings] = useState<Array<BuildingItem>>([]);
     const buildingsRef = useRef(buildings); //Use a reference because needed when called from eventHandlers
+
+    const heatmap = useRef(null);
 
     function calculateCenterPoint(building: buildingObject): LatLngExpression {
         let totalX = 0;
@@ -284,6 +295,67 @@ export function PredictionMap({
         return { components, color: innerColor };
     }
 
+    function Heatmap() {
+        const context = useLeafletContext();
+
+        const filteredValues = twin.sensors
+            .filter(sensor => buildings.find(b => b.id === sensor.buildingId))
+            .flatMap(sensor =>
+                sensor.signals
+                    .filter(
+                        (signal, i) =>
+                            signal.quantity === quantityFilter &&
+                            sensorState.mostRecentValues[sensor.id]?.[signal.id] !== undefined
+                    )
+                    .map((signal, i) => sensorState.mostRecentValues[sensor.id]?.[signal.id])
+            );
+
+        const maxValue = Math.max(...filteredValues);
+        const minValue = Math.min(...filteredValues);
+
+        useEffect(() => {
+            if (realtime && (L as any).heatLayer && quantityFilter) {
+                if (heatmap.current) {
+                    context.map.removeLayer(heatmap.current);
+                }
+
+                const heatmapLayer = (L as any).heatLayer(
+                    twin.sensors
+                        .filter(sensor => buildings.find(b => b.id === sensor.buildingId))
+                        .flatMap(sensor => {
+                            const building = buildings.find(
+                                b => b.id === sensor.buildingId
+                            ) as BuildingItem;
+
+                            const coordinates = calculateCenterPoint(building) as number[];
+
+                            return sensor.signals
+                                .filter(
+                                    signal =>
+                                        quantityFilter !== undefined &&
+                                        signal.quantity === quantityFilter &&
+                                        sensorState.mostRecentValues[sensor.id]?.[signal.id] !==
+                                            undefined
+                                )
+                                .map((signal, i) => [
+                                    ...coordinates,
+                                    sensorState.mostRecentValues?.[sensor.id]?.[signal.id] /
+                                        maxValue,
+                                ]);
+                        }),
+                    {
+                        radius: 25,
+                    }
+                );
+
+                heatmap.current = heatmapLayer;
+                heatmapLayer.addTo(context.map);
+            }
+        });
+
+        return <></>;
+    }
+
     return (
         <>
             <MapContainer
@@ -298,6 +370,7 @@ export function PredictionMap({
                 center={[twin.latitude, twin.longitude]}
                 zoom={16}
             >
+                <Heatmap />
                 <MapClickHandler />
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -388,8 +461,43 @@ export function PredictionMap({
                             </Polygon>
                         );
                     })}
+                {realtime &&
+                    twin.sensors
+                        .filter(sensor => buildings.find(b => b.id === sensor.buildingId))
+                        .flatMap(sensor => {
+                            const building = buildings.find(
+                                b => b.id === sensor.buildingId
+                            ) as BuildingItem;
+
+                            const coordinates = calculateCenterPoint(building);
+
+                            return sensor.signals
+                                .filter(
+                                    signal =>
+                                        (signal.quantity === quantityFilter ||
+                                            quantityFilter === '') &&
+                                        sensorState.mostRecentValues[sensor.id]?.[signal.id] !==
+                                            undefined
+                                )
+                                .map((signal, i) => (
+                                    <Marker
+                                        key={i}
+                                        position={coordinates}
+                                        icon={
+                                            new DivIcon({
+                                                className: 'realtime-value',
+                                                html: `${sensorState.mostRecentValues?.[
+                                                    sensor.id
+                                                ]?.[signal.id]?.toFixed(3)}`,
+                                            })
+                                        }
+                                    ></Marker>
+                                ));
+                        })}
+                {realtime && <div></div>}
                 <ChangeLocation />
             </MapContainer>
+            <Script src='/leaflet-heat.js'></Script>
         </>
     );
 }
