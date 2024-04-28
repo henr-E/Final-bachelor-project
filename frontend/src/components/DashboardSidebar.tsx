@@ -63,26 +63,6 @@ function DashboardSidebar() {
                 <SidebarItem href='/dashboard/simulation' label='Simulation'>
                     <MdSensors size={20} />
                 </SidebarItem>
-                <div className='flex items-center'>
-                    <span className='ms-2 text-gray-500'>Grid Operation</span>
-                </div>
-                <SidebarItem
-                    href='/dashboard/outage-monitoring'
-                    label='Outage Monitoring'
-                ></SidebarItem>
-                <SidebarItem
-                    href='/dashboard/outage-diagnosis'
-                    label='Outage Diagnosis'
-                ></SidebarItem>
-                <SidebarItem
-                    href='/dashboard/effect-analysis'
-                    label='Effect Analysis'
-                ></SidebarItem>
-                <SidebarItem href='/dashboard/load-balancing' label='Load Balancing'></SidebarItem>
-                <SidebarItem href='/dashboard/cost-reduction' label='Cost Reduction'></SidebarItem>
-                <span className='ms-2 text-gray-500'>Government</span>
-                <SidebarItem href='/dashboard/zoning' label='Zoning'></SidebarItem>
-                <SidebarItem href='/dashboard/forecasting' label='Forecasting'></SidebarItem>
             </div>
             <hr />
             <div className='m-2 flex flex-row'>
