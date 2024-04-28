@@ -5,7 +5,9 @@ Power-flow or load-flow studies are important for planning future expansion of p
 
 Wikipedia contributors. (2024, January 2). Power-flow study [Wikipedia](https://en.wikipedia.org/wiki/Power-flow_study)
 
-## Three Node Types in Power-Flow Studies
+## Theory
+
+### Three Node Types in Power-Flow Studies
 
 In the context of power-flow studies, nodes (or buses) in an electrical power system are categorized into three main types based on the parameters that are specified and those that are calculated:
 
@@ -15,7 +17,7 @@ In the context of power-flow studies, nodes (or buses) in an electrical power sy
     
 3.  **PV Bus (Generator Bus)**: At these buses, the active power generated (P) and the voltage magnitude (V) are known, while the reactive power (Q) and the voltage angle are to be calculated. These buses typically represent generator connections within the power system, where the generator output voltage is controlled to a set value, but the reactive power can vary.
 
-## Gauss-Seidel Iterative Method
+### Gauss-Seidel Iterative Method
 The Gauss-Seidel method is an iterative technique used to solve the power-flow problem in an electrical network. It's particularly useful for solving the set of nonlinear equations that arise in load-flow studies. The basic steps of the Gauss-Seidel method are as follows:
 
 1.  **Initialization**: Start by initializing the voltage at all buses. A common initial guess is to set all voltage magnitudes to 1.0 p.u. (per unit) and all angles to zero, except for the slack bus, which is set to its specified value. (Which can also be zero)
@@ -33,6 +35,8 @@ Where:
 - $V_k^{(\text{old})}$ are the voltages at other buses $k$ from the previous iteration.
 
 3.  **Convergence Check**: After updating the voltages at all buses, the differences between the old and new voltages are checked. If the differences for all buses are below a specified tolerance, the process is considered to have converged, and the current values are taken as the solution. If not, the process is repeated.
-
-## Notes
+### Notes
 We chose Gauss-Seidel for its simplicity and ease of implementation, especially for small to medium-sized systems. However, for very large systems or systems with high R/X ratios, the method may converge slowly or not at all. This is a problem that needs to be addressed in future versions.
+
+## Usage
+The simulation expects seven components, and an optional analytics component. The SensorLoadNode and SensorGeneratorNode hold the measured or simulated values the simulation will run with, this means every sensor node needs a corresponding real node (without `Sensor` prefix). The latter will be used as the output for the simulation, and the initial values do not have to be sensible. After the simulation is finished, the real components will be solved. It is up to another program to check if the results are valid (Not outside limits).
