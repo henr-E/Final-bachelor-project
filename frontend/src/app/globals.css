@@ -29,3 +29,8 @@ body {
         text-wrap: balance;
     }
 }
+
+.realtime-value {
+    background: none;
+    border: none;
+}

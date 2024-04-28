@@ -104,7 +104,13 @@ impl HistoricDataReader {
         self.historic_data = vec![Vec::new(); 24];
 
         // Construct file path
-        let mut file_path = navigate_to_assets_sensor_data_directory()?;
+        let mut file_path = match navigate_to_assets_sensor_data_directory() {
+            Ok(f) => f,
+            Err(e) => {
+                tracing::error!("could not find sensor data directory");
+                return Err(e);
+            }
+        };
         file_path.push("historic-data");
         file_path.push(file_name.clone());
 

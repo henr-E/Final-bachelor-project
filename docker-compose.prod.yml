@@ -150,6 +150,7 @@ services:
     networks:
       - backend
     environment:
+      ASSETS_SENSOR_DATA_PATH: /assets/sensor-data
       SENSOR_DATA_INGESTOR_URL: http://sensor-data-ingestor:8080
       DATABASE_HOST: database
       DATABASE_PORT: 5432
