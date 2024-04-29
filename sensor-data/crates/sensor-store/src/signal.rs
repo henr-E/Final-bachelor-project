@@ -1,7 +1,9 @@
-use crate::{error::Error, quantity::Quantity, unit::Unit, SensorStore};
+use std::{borrow::Cow, collections::HashSet};
+
 use chrono::{DateTime, Utc};
 use sqlx::{postgres::types::PgInterval, types::BigDecimal};
-use std::{borrow::Cow, collections::HashSet};
+
+use crate::{error::Error, quantity::Quantity, unit::Unit, SensorStore};
 
 pub type Signals<'a> = HashSet<Signal<'a>>;
 
@@ -37,6 +39,42 @@ pub struct SignalValue {
 }
 
 impl Signal<'_> {
+    /// Returns a [`SignalValues`] instance
+    ///
+    /// NOTE: This function assumes that the `sensor_signal_id` is unique over all sensors.
+    pub async fn values<'s>(
+        &'s self,
+        sensor_store: &SensorStore,
+    ) -> Result<SignalValues<'_, 's>, Error> {
+        let signal_values = sqlx::query!(
+            r#"
+                SELECT
+                    value,
+                    timestamp
+                FROM sensor_values
+                WHERE
+                    sensor_signal_id = $1::int
+                ORDER BY timestamp ASC
+            "#,
+            self.id,
+        )
+        .fetch_all(&sensor_store.db_pool)
+        .await?;
+
+        let signal_values = signal_values
+            .into_iter()
+            .map(|sv| SignalValue {
+                value: sv.value,
+                timestamp: sv.timestamp,
+            })
+            .collect::<Vec<_>>();
+
+        Ok(SignalValues {
+            signal: self,
+            values: signal_values,
+        })
+    }
+
     /// Returns a [`SignalValues`] instance with values whose timestamp is within the provided
     /// `interval` into the past starting from `now`.
     ///

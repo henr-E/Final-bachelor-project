@@ -1,4 +1,3 @@
-use ndarray::Array2;
 use predictions::VAR;
 
 // This file gives an example usage of the vector auto regressor model
@@ -297,8 +296,6 @@ fn main() {
         2.107, 8.9, 250.0, 22.0, 0.0, 0.0, 2.041, 8.6, 250.0, 20.0, 0.0, 0.0, 2.029, 8.0, 250.0,
         18.0, 0.0, 0.0, 1.547, 8.0, 250.0, 17.0, 0.0, 0.0, 0.748, 7.3, 240.0, 17.0, 0.0, 0.0,
     ];
-    // transform data into a matrix dataset. every 6 entries will be a row.
-    let dataset = Array2::from_shape_vec((data.len() / 6, 6), data).unwrap();
-    let mut var = VAR::new(dataset).unwrap();
+    let mut var = VAR::new(data, 6).unwrap();
     let _preds = var.get_next_predictions(400);
 }

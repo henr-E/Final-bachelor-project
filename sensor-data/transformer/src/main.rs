@@ -277,7 +277,6 @@ impl TransformerJob {
             let values: Vec<BigDecimal> = chunk
                 .iter()
                 .map(|item| {
-                    dbg!(&item.value);
                     let value = item
                         .value
                         .split_whitespace()

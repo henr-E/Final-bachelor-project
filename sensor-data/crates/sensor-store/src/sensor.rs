@@ -1,3 +1,9 @@
+use std::{borrow::Cow, collections::HashMap};
+
+use chrono::{DateTime, Utc};
+use sqlx::{postgres::types::PgInterval, types::BigDecimal};
+use uuid::Uuid;
+
 use crate::{
     error::Error,
     quantity::Quantity,
@@ -5,10 +11,6 @@ use crate::{
     unit::Unit,
     SensorStore,
 };
-use chrono::{DateTime, Utc};
-use sqlx::{postgres::types::PgInterval, types::BigDecimal};
-use std::{borrow::Cow, collections::HashMap};
-use uuid::Uuid;
 
 /// Represents a sensor with associated [`Signals`].
 pub struct Sensor<'a> {
@@ -98,6 +100,29 @@ impl<'a> Sensor<'a> {
             result.insert(signal.id, signal_values);
         }
 
+        Ok(result)
+    }
+
+    /// For every [`Signal`] of the [`Sensor`] associated with the specified quantity, get all [`SignalValues`]
+    ///
+    /// NOTE: This function assumes that the `sensor_signal_id` (from the database) is unique over
+    /// all sensors.
+    pub async fn signal_values_for_quantity<'s>(
+        &'s self,
+        sensor_store: &SensorStore,
+        quantity: Quantity,
+    ) -> Result<Vec<BigDecimal>, Error> {
+        let result: Vec<BigDecimal> = Vec::new();
+        for signal in self.signals.iter() {
+            if signal.quantity == quantity {
+                let signal_values = signal.values(sensor_store).await?;
+                return Ok(signal_values
+                    .values
+                    .iter()
+                    .map(|v| v.value.clone())
+                    .collect());
+            }
+        }
         Ok(result)
     }
 }

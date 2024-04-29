@@ -1,5 +1,12 @@
 #![doc = include_str!("../README.md")]
 
+use futures::stream::Stream;
+use sqlx::{Error as SqlxError, PgPool, Postgres, Transaction};
+use uuid::Uuid;
+
+use database_config::database_url;
+use sensor::SensorBuilder;
+
 pub use crate::{
     error::Error,
     quantity::Quantity,
@@ -7,12 +14,6 @@ pub use crate::{
     signal::{Signal, Signals},
     unit::Unit,
 };
-
-use database_config::database_url;
-use futures::stream::Stream;
-use sensor::SensorBuilder;
-use sqlx::{Error as SqlxError, PgPool, Postgres, Transaction};
-use uuid::Uuid;
 
 pub mod error;
 pub mod quantity;
@@ -58,8 +59,30 @@ impl SensorStore {
                 })
             };
 
+        // NOTE: unwrapping on location is ok since there is a `NOT NULL` constraint.
         let sensor = Sensor::builder(
             sensor_id,
+            sensor.name,
+            sensor.description,
+            (sensor.lon.unwrap(), sensor.lat.unwrap()),
+            sensor.twin_id,
+            sensor.building_id,
+        );
+        Ok(self.add_signals_to_builder(sensor).await?.build())
+    }
+
+    /// Get a single [`Sensor`] from the database given its building id.
+    pub async fn get_sensor_for_building(&self, building_id: i32) -> Result<Sensor<'_>, Error> {
+        let sensor = sqlx::query!(
+            "SELECT id::uuid, name, description, location[0]::float as lon, location[1]::float as lat, twin_id, building_id FROM sensors WHERE building_id = $1::int",
+            building_id
+        )
+            .fetch_one(&self.db_pool)
+            .await?;
+
+        // NOTE: unwrapping on location is ok since there is a `NOT NULL` constraint.
+        let sensor = Sensor::builder(
+            sensor.id,
             sensor.name,
             sensor.description,
             (sensor.lon.unwrap(), sensor.lat.unwrap()),
@@ -212,6 +235,37 @@ impl SensorStore {
         Ok(sensors)
     }
 
+    pub async fn get_all_global_sensors(
+        &self,
+    ) -> Result<impl Stream<Item = Result<Sensor, Error>>, Error> {
+        use futures::stream::{self, StreamExt};
+
+        let sensors = sqlx::query!(
+            "SELECT id, name, description, location[0] as lon, location[1] as lat, twin_id, building_id FROM sensors WHERE building_id IS NULL"
+        )
+            .fetch_all(&self.db_pool)
+            .await?
+            .into_iter()
+            .map(|s| {
+                Sensor::builder(
+                    s.id,
+                    s.name,
+                    s.description,
+                    (s.lon.unwrap(), s.lat.unwrap()),
+                    s.twin_id,
+                    s.building_id
+                )
+            });
+
+        let sensors = stream::iter(sensors).then(|s| async {
+            self.add_signals_to_builder(s)
+                .await
+                .map(SensorBuilder::build)
+        });
+
+        Ok(sensors)
+    }
+
     async fn add_signals_to_builder<'a>(
         &self,
         mut sensor_builder: SensorBuilder<'a>,
@@ -247,10 +301,11 @@ impl SensorStore {
 
 #[cfg(test)]
 mod unit_quantity_tests {
-    use super::{Quantity, Unit};
     use enumset::EnumSet;
 
-    /// Ensure that every unit belongs to a quantity and vice versa. This is done to find unused
+    use super::{Quantity, Unit};
+
+    /// Ensure that every unit belongs to a quantity and vica versa. This is done to find unused
     /// quantities and wrongly associated units.
     #[test]
     fn complete_set() {

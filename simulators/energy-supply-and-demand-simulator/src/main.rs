@@ -1,24 +1,81 @@
-use component_library::energy::{
-    Bases, ConsumerNode, PowerType, ProducerNode, ProductionOverview, TransmissionEdge,
-};
-use component_library::global::chrono::{NaiveDateTime, Timelike};
-use component_library::global::{
-    IlluminanceComponent, SupplyAndDemandAnalytics, TemperatureComponent, TimeComponent,
-};
-use rand::prelude::*;
-use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::{env, net::SocketAddr, process::ExitCode, time::Duration};
+
+use component_library::Building;
+use futures::stream::StreamExt;
+use itertools::izip;
+use rand::prelude::*;
+use rand_distr::num_traits::ToPrimitive;
+use sqlx::types::BigDecimal;
+use thiserror::Error;
 use tracing::{debug, error, info};
 
-#[tokio::main(flavor = "current_thread")]
+use component_library::energy::{ConsumerNode, PowerType, ProducerNode, ProductionOverview};
+use component_library::global::{
+    IrradianceComponent, SupplyAndDemandAnalytics, TimeComponent, WindSpeedComponent,
+};
+use predictions::VAR;
+use sensor_store::{Quantity, Sensor, SensorStore};
+use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
+
+/// Errors that can occur
+#[derive(Debug, Error)]
+pub enum EnergySupplyAndDemandError {
+    #[error("Unable to convert a vector of BigDecimal values to a vector of f64 values.")]
+    FailedConversion(),
+}
+
+/// Convert a vector of BigDecimal values to a vector of f64 values
+fn big_decimals_to_floats(values: Vec<BigDecimal>) -> Result<Vec<f64>, EnergySupplyAndDemandError> {
+    let floats: Result<Vec<f64>, EnergySupplyAndDemandError> = values
+        .into_iter()
+        .map(|bd| {
+            bd.to_f64()
+                .ok_or(EnergySupplyAndDemandError::FailedConversion())
+        })
+        .collect();
+    floats
+}
+
+async fn get_sensor_data_for_quantity_and_sensor(
+    sensor_store: &SensorStore,
+    sensor: &Sensor<'_>,
+    quantity: Quantity,
+) -> Option<Vec<f64>> {
+    let values_as_big_decimals = match sensor
+        .signal_values_for_quantity(sensor_store, quantity)
+        .await
+    {
+        Ok(values_as_big_decimal) => values_as_big_decimal,
+        Err(err) => {
+            error!("Error retrieving the signal values: {}", err);
+            return None;
+        }
+    };
+    let values_as_floats = match big_decimals_to_floats(values_as_big_decimals) {
+        Ok(values_as_floats) => values_as_floats,
+        Err(err) => {
+            error!(
+                "Failed to convert vector of big decimal values to vector of float values.: {}",
+                err
+            );
+            return None;
+        }
+    };
+    if values_as_floats.is_empty() {
+        return None;
+    }
+    Some(values_as_floats)
+}
+
+#[tokio::main]
 async fn main() -> ExitCode {
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt().init();
 
     let listen_addr = match env::var("ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR")
-        .unwrap_or("0.0.0.0:8101".to_string())
+        .unwrap_or("0.0.0.0:8102".to_string())
         .parse::<SocketAddr>()
     {
         Ok(v) => v,
@@ -51,114 +108,313 @@ async fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-///Simulator that gives a random demand and supply to a consumer and producer node respectively every timestep
+///Simulator that gives a random demand and supply to a consumer and producer node respectively every time step
 pub struct EnergySupplyAndDemandSimulator {
     delta_time: Duration,
+    /// Contains sensor data for energy consumption (in Watts) per building
+    models: HashMap<i32, VAR>,
 }
 
 impl Simulator for EnergySupplyAndDemandSimulator {
     fn get_component_info() -> ComponentsInfo {
+        info!("Getting components.");
         ComponentsInfo::new()
             .add_optional_component::<SupplyAndDemandAnalytics>()
+            // time component is required to make predictions
+            .add_required_component::<TimeComponent>()
+            // components that the simulator will retrieve and return with adjusted values
+            .add_required_component::<Building>()
             .add_required_component::<ConsumerNode>()
             .add_required_component::<ProducerNode>()
-            .add_required_component::<TransmissionEdge>()
-            .add_required_component::<Bases>()
-            .add_optional_component::<TimeComponent>()
-            .add_optional_component::<TemperatureComponent>()
             .add_output_component::<ConsumerNode>()
             .add_output_component::<ProducerNode>()
-            .add_output_component::<TransmissionEdge>()
             .add_output_component::<SupplyAndDemandAnalytics>()
     }
 
-    fn new(delta_time: std::time::Duration, _graph: Graph) -> Self {
-        Self {
-            // How much time advances per frame.
-            delta_time,
-        }
+    fn new(delta_time: std::time::Duration, graph: Graph) -> Self {
+        info!("Started new energy simulator.");
+
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let mut sensor_values_power_per_building = HashMap::new();
+                // store sensor values per building for power consumption
+
+                // try to connect with sensor database
+                let sensor_store = match SensorStore::new().await {
+                    Ok(sensor_store) => sensor_store,
+                    Err(err) => {
+                        error!("Database connection failed: {}", err);
+                        return Self {
+                            delta_time,
+                            models: HashMap::new(),
+                        };
+                    }
+                };
+
+                // loop over consumer nodes
+                for (node_id, _, _) in graph.get_all_nodes::<ConsumerNode>().unwrap() {
+                    let Some(building_component) = graph.get_node_component::<Building>(node_id)
+                    else {
+                        error!(
+                            "Building component not found for consumer node with id {node_id:?}"
+                        );
+                        continue;
+                    };
+
+                    // get building id from consumer node
+                    let building_id = building_component.building_id;
+                    // retrieve corresponding sensor
+                    match sensor_store.get_sensor_for_building(building_id).await {
+                        Ok(sensor) => {
+                            // retrieve corresponding sensor power values (if any)
+                            match get_sensor_data_for_quantity_and_sensor(
+                                &sensor_store,
+                                &sensor,
+                                Quantity::Power,
+                            )
+                            .await
+                            {
+                                None => {}
+                                Some(sensor_data_power) => {
+                                    sensor_values_power_per_building
+                                        .insert(building_id, sensor_data_power);
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            error!("Error retrieving the sensor for building: {}", err);
+                            continue;
+                        }
+                    }
+                }
+                info!("Retrieved all energy consumer nodes.");
+
+                // Retrieve all global sensors
+                let mut global_sensors: Vec<Sensor> = Vec::new();
+                match sensor_store.get_all_global_sensors().await {
+                    Ok(sensor_stream) => {
+                        // Iterate over the stream of sensors
+                        sensor_stream
+                            .for_each(|sensor_result| {
+                                match sensor_result {
+                                    Ok(sensor) => global_sensors.push(sensor),
+                                    Err(err) => error!("Error retrieving sensor: {}", err),
+                                }
+                                futures::future::ready(())
+                            })
+                            .await;
+                    }
+                    Err(err) => error!("Error retrieving all sensors: {}", err),
+                }
+                info!("Retrieved all global sensors.");
+
+                // store global sensor values per quantity
+                let mut global_sensor_temperatures = Vec::new();
+                let mut global_sensor_wind_speed = Vec::new();
+                let mut global_sensor_irradiance = Vec::new();
+                for sensor in &global_sensors {
+                    // retrieve corresponding sensor temperature values (if any)
+                    match get_sensor_data_for_quantity_and_sensor(
+                        &sensor_store,
+                        sensor,
+                        Quantity::Temperature,
+                    )
+                    .await
+                    {
+                        None => {
+                            return Self {
+                                delta_time,
+                                models: HashMap::new(),
+                            }
+                        }
+                        Some(sensor_data_temperature) => {
+                            global_sensor_temperatures = sensor_data_temperature;
+                        }
+                    }
+                    // retrieve corresponding sensor irradiance values (if any)
+                    match get_sensor_data_for_quantity_and_sensor(
+                        &sensor_store,
+                        sensor,
+                        Quantity::Irradiance,
+                    )
+                    .await
+                    {
+                        None => {
+                            return Self {
+                                delta_time,
+                                models: HashMap::new(),
+                            }
+                        }
+                        Some(sensor_data_irradiance) => {
+                            global_sensor_irradiance = sensor_data_irradiance;
+                        }
+                    }
+                    // retrieve corresponding sensor wind speed values (if any)
+                    match get_sensor_data_for_quantity_and_sensor(
+                        &sensor_store,
+                        sensor,
+                        Quantity::WindSpeed,
+                    )
+                    .await
+                    {
+                        None => {
+                            return Self {
+                                delta_time,
+                                models: HashMap::new(),
+                            }
+                        }
+                        Some(sensor_data_wind_speed) => {
+                            global_sensor_wind_speed = sensor_data_wind_speed;
+                        }
+                    }
+                }
+                // make models for all buildings.
+                let mut models = HashMap::new();
+                for (building_id, mut energy_data) in sensor_values_power_per_building.into_iter() {
+                    let mut global_sensor_temperatures = global_sensor_temperatures.clone();
+                    let mut global_sensor_irradiance = global_sensor_irradiance.clone();
+                    let mut global_sensor_wind_speed = global_sensor_wind_speed.clone();
+
+                    let mut data: Vec<f64> = Vec::new();
+                    // keep `min_length` amount of last sensor_values.
+                    let min_length = energy_data
+                        .len()
+                        .min(global_sensor_temperatures.len())
+                        .min(global_sensor_irradiance.len())
+                        .min(global_sensor_wind_speed.len());
+
+                    if min_length == 0 {
+                        continue;
+                    }
+
+                    // NOTE: clone due to independent amount of data per sensor.
+                    energy_data.drain(..energy_data.len() - min_length);
+                    global_sensor_temperatures
+                        .drain(..global_sensor_temperatures.len() - min_length);
+                    global_sensor_irradiance.drain(..global_sensor_irradiance.len() - min_length);
+                    global_sensor_wind_speed.drain(..global_sensor_wind_speed.len() - min_length);
+
+                    for (&energy, &temperature, &irradiance, &wind_speed) in izip!(
+                        &energy_data,
+                        &global_sensor_temperatures,
+                        &global_sensor_irradiance,
+                        &global_sensor_wind_speed
+                    ) {
+                        data.append(&mut vec![energy, temperature, irradiance, wind_speed]);
+                    }
+                    info!("Training model with {} rows", data.len() / 5);
+                    if data.is_empty() {
+                        continue;
+                    }
+                    models.insert(
+                        building_id,
+                        match VAR::new(data, 4) {
+                            Some(var) => var,
+                            None => {
+                                return Self {
+                                    delta_time,
+                                    models: HashMap::new(),
+                                }
+                            }
+                        },
+                    );
+                }
+                info!("Finished model training.");
+                Self { delta_time, models }
+            })
+        })
     }
 
     fn do_timestep(&mut self, mut graph: Graph) -> Graph {
-        let current_temp = match graph.get_global_component_mut::<TemperatureComponent>() {
-            Some(temperature) => temperature.current_temp,
-            None => 17.5,
-        };
+        info!("Doing timestep!");
+        //TODO: NO UNWRAPS AND EXPECTS
+        if let Some(_time_component) = graph.get_global_component::<TimeComponent>() {
+            let consumer_nodes: Vec<_> = graph
+                .get_all_nodes::<ConsumerNode>()
+                .unwrap()
+                .map(|n| n.0)
+                .collect();
 
-        let _current_illuminance = match graph.get_global_component_mut::<IlluminanceComponent>() {
-            Some(illuminance) => illuminance.current_illuminance,
-            None => 0.0,
-        };
+            for node_id in consumer_nodes {
+                let Some(building_component) = graph.get_node_component::<Building>(node_id) else {
+                    continue;
+                };
 
-        let mut binding = TimeComponent(NaiveDateTime::default());
-        let current_time = match graph.get_global_component_mut::<TimeComponent>() {
-            Some(timecomponent) => timecomponent,
-            None => &mut binding,
-        };
-        let time_effect = if current_time.0.hour() >= 6 && current_time.0.hour() <= 18 {
-            1.0
-        } else {
-            0.5
-        };
-        let temp_effect = (current_temp - 17.5).abs();
-        let target_demand = 100.0 + temp_effect * 10.0 * time_effect;
+                // get building id from consumer node
+                let building_id = building_component.building_id;
+                // SAFETY: this unwrap is safe because node ids got fetched earlier by using the consumer node as component type
+                let component = graph
+                    .get_node_component_mut::<ConsumerNode>(node_id)
+                    .unwrap();
 
-        for (_, _, component) in graph.get_all_nodes_mut::<ConsumerNode>().unwrap() {
-            let current_demand = component.active_power;
-            let adjustment = rand::thread_rng().gen_range(-0.01..0.05);
-            let delta_demand =
-                (target_demand - current_demand) * adjustment * self.delta_time.as_secs() as f64;
-            let mut rng = rand::thread_rng();
-            let direction_factor = if rng.gen_bool(0.1) { -1.0 } else { 1.0 };
-            component.active_power =
-                (current_demand + delta_demand * direction_factor).clamp(0.0, 500.0)
-        }
+                //TODO: use time component and building id to make prediction for consumer node
+                // This is naive for now, we expect that the next timedelta is 10s.
+                // if no model is found for the building_id, skip the consumer.
+                let model = match self.models.get_mut(&building_id) {
+                    Some(model) => model,
+                    None => continue,
+                };
+                let prediction = model.get_next_prediction();
+                // The energy field is always the first element of the prediction model's result.
+                component.demand = prediction[0];
+            }
 
-        let current_illuminance = match graph.get_global_component::<IlluminanceComponent>() {
-            Some(item) => item.current_illuminance,
-            None => 0.0,
-        };
+            let current_irradiance: f64 = match graph.get_global_component::<IrradianceComponent>()
+            {
+                Some(item) => item.irradiance,
+                None => 10.,
+            };
+            let current_wind_speed: f64 = match graph.get_global_component::<WindSpeedComponent>() {
+                Some(wind) => wind.wind_speed,
+                None => 10.,
+            };
 
-        let mut rng = rand::thread_rng();
-        // TODO: get capacity.
-        let capacity = 1.0;
-        // TODO: get wind speed
-        // meters per second
-        let wind_speed: f64 = 1.0;
-
-        for (_, _, component) in graph.get_all_nodes_mut::<ProducerNode>().unwrap() {
-            match &component.power_type {
-                PowerType::Solar => {
-                    component.active_power =
-                        capacity * current_illuminance * self.delta_time.as_secs_f64() / 3600.0
-                            * 0.2;
-                }
-                PowerType::Wind => {
-                    // https://thundersaidenergy.com/downloads/wind-power-impacts-of-larger-turbines/
-                    // c_p = efficiency percentage. Theoretical maximum * small error factor.
-                    let efficiency = rng.gen_range(0.98..=1.00);
-                    let c_p = 0.593 * efficiency;
-                    // rho = air_dencity, kg / m^3. source: wikipedia
-                    let rho = 1.204;
-                    // lenght of a single blade in meters. range of average lenghts.
-                    let blade_lenght: f64 = rng.gen_range(35.0..45.0);
-                    component.active_power =
-                        0.5 * c_p * rho * PI * blade_lenght.powi(2) * wind_speed.powi(3);
-                }
-                PowerType::Nuclear => {
-                    let efficiency = rng.gen_range(0.99..=1.00);
-                    component.active_power =
-                        capacity * efficiency * self.delta_time.as_secs_f64() / 3600.0;
-                }
-                _ => {
-                    let current_capacity = component.active_power;
-                    let delta_capacity = rand::thread_rng().gen_range(-50.0..50.0)
-                        * self.delta_time.as_secs() as f64;
-                    component.active_power =
-                        (current_capacity + delta_capacity).clamp(1000.0, 2000.0);
+            for (_, _, component) in graph.get_all_nodes_mut::<ProducerNode>().unwrap() {
+                match &component.power_type {
+                    PowerType::Nuclear => {
+                        let mut rng = rand::thread_rng();
+                        let efficiency = rng.gen_range(0.99..=1.00);
+                        component.energy_production = component.energy_production
+                            * efficiency
+                            * self.delta_time.as_secs_f64()
+                            / 3600.0;
+                    }
+                    PowerType::Solar => {
+                        let capacity = component.capacity;
+                        component.energy_production =
+                            capacity * current_irradiance * self.delta_time.as_secs_f64() / 3600.0
+                                * 0.2;
+                    }
+                    PowerType::Wind => {
+                        // https://thundersaidenergy.com/downloads/wind-power-impacts-of-larger-turbines/
+                        // c_p = efficiency percentage. Theoretical maximum * small error factor.
+                        let mut rng = rand::thread_rng();
+                        let efficiency = rng.gen_range(0.98..=1.00);
+                        let c_p = 0.593 * efficiency;
+                        // rho = air_density, kg / m^3. source: wikipedia
+                        let rho = 1.204;
+                        // length of a single blade in meters. range of average lengths.
+                        let blade_length: f64 = rng.gen_range(35.0..45.0);
+                        component.energy_production = 0.5
+                            * c_p
+                            * rho
+                            * PI
+                            * blade_length.powi(2)
+                            * current_wind_speed.powi(3);
+                    }
+                    _ => {
+                        //TODO: this code was present previously and thus kept for now
+                        let current_capacity = component.capacity;
+                        let delta_capacity = rand::thread_rng().gen_range(-50.0..50.0)
+                            * self.delta_time.as_secs() as f64;
+                        component.energy_production =
+                            (current_capacity + delta_capacity).clamp(1000.0, 2000.0)
+                    }
                 }
             }
-        }
+        } else {
+            error!("No time component was found.");
+        };
 
         let mut num_consumer_nodes = 0;
         let mut num_producer_nodes = 0;
@@ -168,25 +424,21 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         let components = graph.get_all_nodes::<ConsumerNode>().into_iter().flatten();
         for (_, _, component) in components {
             num_consumer_nodes += 1;
-            total_demand += component.active_power
+            total_demand += component.demand
         }
 
-        let num_edges = graph
-            .get_all_nodes::<TransmissionEdge>()
-            .into_iter()
-            .flatten()
-            .count();
+        let num_edges = 0;
 
         let mut power_type_percentages: HashMap<PowerType, f64> = HashMap::new();
 
         let components = graph.get_all_nodes::<ProducerNode>().into_iter().flatten();
         for (_, _, component) in components {
             num_producer_nodes += 1;
-            total_capacity += component.active_power;
+            total_capacity += component.energy_production;
             let counter = power_type_percentages
                 .entry(component.power_type)
                 .or_insert(0.0);
-            *counter += component.active_power;
+            *counter += component.energy_production
         }
 
         for (_, percentage) in power_type_percentages.iter_mut() {
@@ -204,14 +456,13 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             analytics.energy_production_overview = vec_overview;
             analytics.consumer_nodes_count = num_consumer_nodes;
             analytics.producer_nodes_count = num_producer_nodes;
-            analytics.transmission_edges_count = num_edges as i32;
+            analytics.transmission_edges_count = num_edges;
             analytics.total_demand = total_demand;
             analytics.total_capacity = total_capacity;
             analytics.utilization = total_demand / total_capacity;
         } else {
             debug!("No analytics component found");
         }
-
         graph
     }
 }

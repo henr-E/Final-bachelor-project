@@ -1,7 +1,7 @@
 'use client';
 import { LeafletEventHandlerFnMap } from 'leaflet';
 import { Button, Card, Spinner } from 'flowbite-react';
-import { useContext, useEffect, useRef, useState, Ref, MutableRefObject } from 'react';
+import { useContext, useEffect, useRef, useState, Ref, MutableRefObject, useMemo } from 'react';
 import { PredictionMapProps } from '@/components/maps/PredictionMap';
 import dynamic from 'next/dynamic';
 import { TwinContext, TwinFromProvider } from '@/store/twins';
@@ -81,6 +81,19 @@ function MapFrame({ frame, frameNr }: MapFrameProps) {
     const nodesRef = useRef(nodes); //Use a reference because needed when called from eventHandlers
     const edgesRef = useRef(edges); //Use a reference because needed when called from eventHandlers
 
+    const sortedGlobalComponents = useMemo(() => {
+        if (!frame?.state?.globalComponents) return null;
+
+        const sortedKeys = Object.keys(frame.state.globalComponents).sort();
+        const sortedComponents: { [p: string]: any } | undefined = {};
+
+        sortedKeys.forEach(key => {
+            sortedComponents[key] = frame?.state?.globalComponents[key];
+        });
+
+        return sortedComponents;
+    }, [frame?.state?.globalComponents]);
+
     useEffect(() => {
         nodesRef.current = nodes;
         edgesRef.current = edges;
@@ -157,7 +170,7 @@ function MapFrame({ frame, frameNr }: MapFrameProps) {
                         <Card className='overflow-x-scroll'>
                             <h1>Global variable</h1>
                             {frame.state?.globalComponents && (
-                                <JsonToTable json={frame.state?.globalComponents} />
+                                <JsonToTable json={sortedGlobalComponents} />
                             )}
                         </Card>
                         <Card className='overflow-x-scroll'>
