@@ -71,27 +71,27 @@ services:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       TIME_SIMULATOR_ADDR: 0.0.0.0:8101
 
-  simulator-temperature:
+  simulator-weather:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-    command: ["/bin/temperature-simulator"]
+    command: [ "/bin/weather-simulator" ]
     networks:
       - backend
     depends_on:
       - simulation-manager
     environment:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
-      TEMPERATURE_SIMULATOR_ADDR: 0.0.0.0:8101
+      WEATHER_SIMULATOR_ADDR: 0.0.0.0:8101
 
-  # simulator-energy-supply-and-demand:
-  #   image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-  #   command: ["/bin/energy-supply-and-demand-simulator"]
-  #   networks:
-  #     - backend
-  #   depends_on:
-  #     - simulation-manager
-  #   environment:
-  #     SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
-  #     ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
+  simulator-energy-supply-and-demand:
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+    command: ["/bin/energy-supply-and-demand-simulator"]
+    networks:
+      - backend
+    depends_on:
+      - simulation-manager
+    environment:
+      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
+      ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8102
 
   # simulator-energy-transmission:
   #   image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
@@ -102,7 +102,19 @@ services:
   #     - simulation-manager
   #   environment:
   #     SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
+  #     ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
   #     ENERGY_SIMULATOR_ADDR: 0.0.0.0:8101
+
+  simulator-energy-transmission:
+    image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
+    command: ["/bin/load-flow"]
+    networks:
+      - backend
+    depends_on:
+      - simulation-manager
+    environment:
+      SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
+      ENERGY_SIMULATOR_ADDR: 0.0.0.0:8101
 
   # SENSOR DATA
   # ===========

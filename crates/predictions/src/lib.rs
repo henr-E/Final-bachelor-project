@@ -1,5 +1,6 @@
 use linfa_linalg::svd::SVD;
 use ndarray::{self, s, Array1, Array2};
+// use ndarray_inverse::Inverse;
 use serde::{Deserialize, Serialize};
 use std::{cmp, f64::consts::PI, io, path::Path};
 
@@ -20,9 +21,22 @@ fn inverse_s(matrix: Array1<f64>) -> Array2<f64> {
 
 /// Calculate the pseudo inverse of a given matrix.
 ///
-/// The method uses the SVD(U, S, V') of the matrix.
+/// The method used to use the SVD(U, S, V') of the matrix.
 /// inverse = V * S' * U'.
+///
+/// The method now calculates the Moore–Penrose inverse(for linearly independent columns).
+/// https://en.wikipedia.org/wiki/Moore%E2%80%93Penrose_inverse#The_QR_method
 fn pseudo_inverse(matrix: Array2<f64>) -> Option<Array2<f64>> {
+    // let moore_pensore_inverse = match matrix.t().dot(&matrix).inv() {
+    //     Some(valid_inverse) => Some(valid_inverse.dot(&matrix)),
+    //     None => matrix
+    //         .dot(&matrix.t())
+    //         .inv()
+    //         .map(|valid_inverse| matrix.t().dot(&valid_inverse)),
+    // };
+    // match moore_pensore_inverse {
+    //     Some(inverse) => Some(inverse),
+    //     None => {
     let svd = matrix.svd(true, true).ok()?;
     let u = svd.0?;
     let s = svd.1;
@@ -30,6 +44,8 @@ fn pseudo_inverse(matrix: Array2<f64>) -> Option<Array2<f64>> {
     let s = inverse_s(s);
     let binding = v_t.t().dot(&s.t()).dot(&u.t());
     Some(binding)
+    // }
+    // }
 }
 
 fn first_order_differencing(input_data: &Array2<f64>) -> Array2<f64> {
@@ -98,6 +114,7 @@ fn fit_model(input_data: &Array2<f64>, order: usize) -> Option<VAR> {
     }
     assert_eq!(x.shape(), [n, q]);
     assert_eq!(y.shape(), [n, p]);
+    // B^ = (X' * X)^-1 (X' * Y)
     let inverse = pseudo_inverse(x.t().dot(&x))?;
     let b_hat = inverse.dot(&x.t().dot(&y));
     // let residuals = y - x.dot(&b_hat);
@@ -162,7 +179,9 @@ pub struct VAR {
 // multiplications are more impactful.
 impl VAR {
     /// Create a new auto regressor for an [`ndarray::Array2`].
-    pub fn new(input_data: ndarray::Array2<f64>) -> Option<Self> {
+    pub fn new(data: Vec<f64>, amt_variables: usize) -> Option<Self> {
+        let input_data =
+            Array2::from_shape_vec((data.len() / amt_variables, amt_variables), data).ok()?;
         let variables = input_data.ncols();
         let (train_data, test_data) = test_split(&input_data, TRAIN_DATA_SPLIT_SIZE);
         let mut best_order = 4;
@@ -170,7 +189,8 @@ impl VAR {
         // try `order` between 4 and 74.
         // testing `order` has a O(mn^2) for svd, O(n^3) for each matrix multiplication.
         // thus testing larger `order` values will unlikely be fruitful.
-        for order in (4..75).step_by(2) {
+        let max_possible_order = std::cmp::min(75, train_data.shape()[0] - 1);
+        for order in (4..max_possible_order).step_by(2) {
             let mut model = fit_model(&train_data, order)?;
             let predictions = model.predict_n(test_data.nrows());
             let sse = sse(&predictions, &test_data);

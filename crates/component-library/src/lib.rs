@@ -1,3 +1,5 @@
+use simulator_communication_macros::{Component, ComponentPiece};
+
 pub mod global {
     use crate::energy::ProductionOverview;
     pub use chrono;
@@ -46,6 +48,34 @@ pub mod global {
         //This is the current temperature in degrees (celsius)
         pub current_temp: f64,
     }
+    #[derive(ComponentPiece, Component)]
+    #[component(name = "global_precipitation", ty = "global")]
+    pub struct PrecipitationComponent {
+        // Precipitation (millimeters per hour)
+        pub precipitation: f64,
+    }
+
+    #[derive(ComponentPiece, Component)]
+    #[component(name = "global_wind_speed", ty = "global")]
+    pub struct WindSpeedComponent {
+        // Wind speed (meters per second)
+        pub wind_speed: f64,
+    }
+
+    #[derive(ComponentPiece, Component)]
+    #[component(name = "global_wind_direction", ty = "global")]
+    pub struct WindDirectionComponent {
+        // Wind direction (degrees)
+        pub wind_direction: f64,
+    }
+
+    #[derive(ComponentPiece, Component)]
+    #[component(name = "global_irradiance", ty = "global")]
+    pub struct IrradianceComponent {
+        // Irradiance (watts per square metre)
+        pub irradiance: f64,
+    }
+
     #[derive(ComponentPiece, Component)]
     #[component(name = "global_illuminance", ty = "global")]
     pub struct IlluminanceComponent {
@@ -178,31 +208,33 @@ pub mod energy {
     }
 
     #[derive(ComponentPiece, Component)]
-    #[component(name = "energy_producer_node", ty = "node")]
-    pub struct ProducerNode {
-        /// Voltage amplitude in volts
-        pub voltage_amplitude: f64,
-        /// Voltage angle in radians
-        pub voltage_angle: f64,
-        /// Active power in watts
-        pub active_power: f64,
-        /// Reactive power in VAR
-        pub reactive_power: f64,
-        /// Type of power produced
-        pub power_type: PowerType,
+    #[component(name = "energy_consumer_node", ty = "node")]
+    pub struct ConsumerNode {
+        /// Energy demand in watts
+        pub demand: f64,
+        /// The equal value for energy demand
+        pub eq_demand: f64,
+        /// Voltage
+        pub voltage: f64,
+        /// Max voltage
+        pub max_voltage: f64,
+        /// Min voltage
+        pub min_voltage: f64,
+        /// Elasticity of demand
+        pub demand_elasticity: f64,
     }
 
     #[derive(ComponentPiece, Component)]
-    #[component(name = "energy_consumer_node", ty = "node")]
-    pub struct ConsumerNode {
-        /// Voltage amplitude in volts
-        pub voltage_amplitude: f64,
-        /// Voltage angle in radians
-        pub voltage_angle: f64,
-        /// Active power in watts
-        pub active_power: f64,
-        /// Reactive power in VAR
-        pub reactive_power: f64,
+    #[component(name = "energy_producer_node", ty = "node")]
+    pub struct ProducerNode {
+        /// Capacity in Watts
+        pub capacity: f64,
+        /// Produced energy
+        pub energy_production: f64,
+        /// voltage
+        pub voltage: f64,
+        /// Type of power produced
+        pub power_type: PowerType,
     }
 
     #[derive(ComponentPiece, Component)]
@@ -226,7 +258,7 @@ pub mod energy {
     }
 
     #[derive(ComponentPiece, Component, Clone)]
-    #[component(name = "energy_prodction_overview", ty = "node")]
+    #[component(name = "energy_production_overview", ty = "node")]
     pub struct ProductionOverview {
         pub power_type: PowerType,
         pub percentage: f64,
@@ -320,20 +352,21 @@ pub mod energy {
         }
 
         fn from_value(value: Value) -> Option<Self> {
-            match value.kind? {
-                Kind::StringValue(s) => match s.as_str() {
-                    "Fossil" => Some(Self::Fossil),
-                    "Renewable" => Some(Self::Renewable),
-                    "Nuclear" => Some(Self::Nuclear),
-                    "Hydro" => Some(Self::Hydro),
-                    "Solar" => Some(Self::Solar),
-                    "Wind" => Some(Self::Wind),
-                    "Battery" => Some(Self::Battery),
-                    "Storage" => Some(Self::Storage),
+            let res = match value.kind? {
+                Kind::StringValue(s) => match s.to_lowercase().as_str() {
+                    "fossil" => Some(Self::Fossil),
+                    "renewable" => Some(Self::Renewable),
+                    "nuclear" => Some(Self::Nuclear),
+                    "hydro" => Some(Self::Hydro),
+                    "solar" => Some(Self::Solar),
+                    "wind" => Some(Self::Wind),
+                    "battery" => Some(Self::Battery),
+                    "storage" => Some(Self::Storage),
                     _ => None,
                 },
                 _ => None,
-            }
+            };
+            res
         }
 
         fn to_value(&self) -> Value {
@@ -352,4 +385,9 @@ pub mod energy {
             }
         }
     }
+}
+#[derive(ComponentPiece, Component)]
+#[component(name = "building", ty = "node")]
+pub struct Building {
+    pub building_id: i32,
 }

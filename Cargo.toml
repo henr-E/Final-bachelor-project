@@ -22,6 +22,7 @@ database-config = { path = "crates/database-config" }
 environment-config = { path = "crates/environment-config" }
 prost-value = { path = "crates/prost-value" }
 proto = { path = "crates/proto" }
+predictions = { path = "crates/predictions" }
 secrets = { path = "crates/secrets" }
 sensor-store = { path = "sensor-data/crates/sensor-store" }
 simulator-communication = { path = "crates/simulator-communication" }

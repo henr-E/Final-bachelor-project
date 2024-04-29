@@ -234,6 +234,11 @@ function MapEditor({
             components: JSON.parse(currentPresetRef.current?.info || '{}'),
             eventHandler: {},
         };
+        if (newItem.components === undefined) {
+            throw new Error('Unreachable: components should always be set.');
+        }
+        newItem.components['building'] = { building_id: building.id };
+
         console.log(newItem);
         building.nodeItem = newItem;
 
