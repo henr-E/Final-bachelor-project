@@ -308,9 +308,16 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                     }
                     models.insert(
                         building_id,
-                        match VAR::new(data, 4) {
-                            Some(var) => var,
-                            None => {
+                        match tokio::task::spawn_blocking(|| VAR::new(data, 4)).await {
+                            Err(err) => {
+                                error!("trainer thread crashed: {err}");
+                                return Self {
+                                    delta_time,
+                                    models: HashMap::new(),
+                                };
+                            }
+                            Ok(Some(var)) => var,
+                            Ok(None) => {
                                 return Self {
                                     delta_time,
                                     models: HashMap::new(),
