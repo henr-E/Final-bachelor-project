@@ -7,9 +7,10 @@ use futures::stream::StreamExt;
 use itertools::izip;
 use rand::prelude::*;
 use rand_distr::num_traits::ToPrimitive;
+use simulator_communication::graph::NodeId;
 use sqlx::types::BigDecimal;
 use thiserror::Error;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, Level};
 
 use component_library::energy::{ConsumerNode, PowerType, ProducerNode, ProductionOverview};
 use component_library::global::{
@@ -72,7 +73,9 @@ async fn get_sensor_data_for_quantity_and_sensor(
 #[tokio::main]
 async fn main() -> ExitCode {
     dotenvy::dotenv().ok();
-    tracing_subscriber::fmt().init();
+    tracing_subscriber::fmt()
+        .with_max_level(Level::DEBUG)
+        .init();
 
     let listen_addr = match env::var("ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR")
         .unwrap_or("0.0.0.0:8102".to_string())
@@ -126,6 +129,8 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             .add_required_component::<Building>()
             .add_required_component::<ConsumerNode>()
             .add_required_component::<ProducerNode>()
+            .add_optional_component::<WindSpeedComponent>()
+            .add_optional_component::<IrradianceComponent>()
             .add_output_component::<ConsumerNode>()
             .add_output_component::<ProducerNode>()
             .add_output_component::<SupplyAndDemandAnalytics>()
@@ -143,7 +148,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                 let sensor_store = match SensorStore::new().await {
                     Ok(sensor_store) => sensor_store,
                     Err(err) => {
-                        error!("Database connection failed: {}", err);
+                        error!("Database connection failed: {}.", err);
                         return Self {
                             delta_time,
                             models: HashMap::new(),
@@ -156,13 +161,14 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                     let Some(building_component) = graph.get_node_component::<Building>(node_id)
                     else {
                         error!(
-                            "Building component not found for consumer node with id {node_id:?}"
+                            "Building component not found for consumer node with id {node_id:?}."
                         );
                         continue;
                     };
 
                     // get building id from consumer node
                     let building_id = building_component.building_id;
+                    debug!("building_id = {building_id}.");
                     // retrieve corresponding sensor
                     match sensor_store.get_sensor_for_building(building_id).await {
                         Ok(sensor) => {
@@ -176,13 +182,17 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                             {
                                 None => {}
                                 Some(sensor_data_power) => {
+                                    debug!(
+                                        "amt power data for building = {:?}, first = {:?}, last = {:?}.",
+                                        sensor_data_power.len(), sensor_data_power.first(), sensor_data_power.last()
+                                    );
                                     sensor_values_power_per_building
                                         .insert(building_id, sensor_data_power);
                                 }
                             }
                         }
                         Err(err) => {
-                            error!("Error retrieving the sensor for building: {}", err);
+                            error!("Error retrieving the sensor for building: {}.", err);
                             continue;
                         }
                     }
@@ -198,13 +208,13 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                             .for_each(|sensor_result| {
                                 match sensor_result {
                                     Ok(sensor) => global_sensors.push(sensor),
-                                    Err(err) => error!("Error retrieving sensor: {}", err),
+                                    Err(err) => error!("Error retrieving sensor: {}.", err),
                                 }
                                 futures::future::ready(())
                             })
                             .await;
                     }
-                    Err(err) => error!("Error retrieving all sensors: {}", err),
+                    Err(err) => error!("Error retrieving all sensors: {}.", err),
                 }
                 info!("Retrieved all global sensors.");
 
@@ -212,6 +222,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                 let mut global_sensor_temperatures = Vec::new();
                 let mut global_sensor_wind_speed = Vec::new();
                 let mut global_sensor_irradiance = Vec::new();
+                debug!("amt global sensors: {}.", global_sensors.len());
                 for sensor in &global_sensors {
                     // retrieve corresponding sensor temperature values (if any)
                     match get_sensor_data_for_quantity_and_sensor(
@@ -283,6 +294,8 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                         .min(global_sensor_irradiance.len())
                         .min(global_sensor_wind_speed.len());
 
+                    debug!("minimum lenght of data = {min_length}.");
+
                     if min_length == 0 {
                         continue;
                     }
@@ -302,10 +315,11 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                     ) {
                         data.append(&mut vec![energy, temperature, irradiance, wind_speed]);
                     }
-                    info!("Training model with {} rows", data.len() / 5);
                     if data.is_empty() {
+                        debug!("data was empty for building_id = {building_id}.");
                         continue;
                     }
+                    info!("Training model with {} rows.", data.len() / 5);
                     models.insert(
                         building_id,
                         match tokio::task::spawn_blocking(|| VAR::new(data, 4)).await {
@@ -318,15 +332,17 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                             }
                             Ok(Some(var)) => var,
                             Ok(None) => {
+                                debug!("Model training failed for building_id = {building_id}.");
                                 return Self {
                                     delta_time,
                                     models: HashMap::new(),
-                                }
+                                };
                             }
                         },
                     );
                 }
                 info!("Finished model training.");
+                debug!("building_id's with models: {:?}.", models.keys());
                 Self { delta_time, models }
             })
         })
@@ -336,19 +352,28 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         info!("Doing timestep!");
         //TODO: NO UNWRAPS AND EXPECTS
         if let Some(_time_component) = graph.get_global_component::<TimeComponent>() {
-            let consumer_nodes: Vec<_> = graph
+            let consumer_nodes: Vec<NodeId> = graph
                 .get_all_nodes::<ConsumerNode>()
                 .unwrap()
                 .map(|n| n.0)
                 .collect();
+            debug!(
+                "amount of consumer nodes in graph = {}.",
+                consumer_nodes.len()
+            );
 
             for node_id in consumer_nodes {
                 let Some(building_component) = graph.get_node_component::<Building>(node_id) else {
+                    debug!(
+                        "Could not find building component for node_id = {:?}.",
+                        node_id
+                    );
                     continue;
                 };
 
                 // get building id from consumer node
                 let building_id = building_component.building_id;
+                debug!("generating predictions for building_id = {}.", building_id);
                 // SAFETY: this unwrap is safe because node ids got fetched earlier by using the consumer node as component type
                 let component = graph
                     .get_node_component_mut::<ConsumerNode>(node_id)
@@ -359,10 +384,17 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                 // if no model is found for the building_id, skip the consumer.
                 let model = match self.models.get_mut(&building_id) {
                     Some(model) => model,
-                    None => continue,
+                    None => {
+                        debug!(
+                            "NO model found for building_id = {}! Skipping prediction step.",
+                            building_id
+                        );
+                        continue;
+                    }
                 };
                 let prediction = model.get_next_prediction();
                 // The energy field is always the first element of the prediction model's result.
+                debug!("predicted {}.", prediction[0]);
                 component.demand = prediction[0];
             }
 
@@ -377,6 +409,10 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             };
 
             for (_, _, component) in graph.get_all_nodes_mut::<ProducerNode>().unwrap() {
+                debug!(
+                    "predicting producer node type = {:?}.",
+                    component.power_type
+                );
                 match &component.power_type {
                     PowerType::Nuclear => {
                         let mut rng = rand::thread_rng();

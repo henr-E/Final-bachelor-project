@@ -81,8 +81,6 @@ async fn run() {
 /// Generate fake sensor data and send it to the ingest service.
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter("sensor_data_generator=DEBUG,INFO")
-        .init();
+    tracing_subscriber::fmt().init();
     run().await;
 }

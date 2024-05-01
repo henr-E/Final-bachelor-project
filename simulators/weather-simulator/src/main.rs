@@ -5,7 +5,7 @@ use itertools::izip;
 use rand_distr::num_traits::ToPrimitive;
 use sqlx::types::BigDecimal;
 use thiserror::Error;
-use tracing::{error, info};
+use tracing::{debug, error, info, Level};
 
 use component_library::global::{
     IrradianceComponent, PrecipitationComponent, TemperatureComponent, TimeComponent,
@@ -65,7 +65,9 @@ async fn get_sensor_data_for_quantity_and_sensor(
 #[tokio::main]
 async fn main() -> ExitCode {
     _ = dotenvy::dotenv();
-    tracing_subscriber::fmt().init();
+    tracing_subscriber::fmt()
+        .with_max_level(Level::DEBUG)
+        .init();
 
     let listen_addr = match env::var("WEATHER_SIMULATOR_ADDR")
         .unwrap_or("127.0.0.1:8103".to_string())
@@ -149,6 +151,11 @@ impl Simulator for WeatherSimulator {
                 Err(err) => error!("Error retrieving all sensors: {}", err),
             }
             info!("Retrieved all global sensors.");
+            debug!("amount of global_sensors = {}", global_sensors.len());
+
+            // NOTE: This code seems a bit odd. this is because the signals for global sensors in
+                // the database are unique. So there are no 2 temperature signals in the database
+                // that share the global sensor property.
 
             // store global sensor values per quantity
             let mut global_sensors_temperatures = Vec::new();
@@ -223,6 +230,11 @@ impl Simulator for WeatherSimulator {
                     }
                 }
             }
+            debug!("Amount of global_sensors_precipitation= {}.", global_sensors_precipitation.len());
+            debug!("Amount of global_sensors_temperatures = {}.", global_sensors_temperatures.len());
+            debug!("Amount of global_sensors_irradiance = {}.", global_sensors_irradiance.len());
+            debug!("Amount of global_sensors_wind_speed = {}.", global_sensors_wind_speed.len());
+            debug!("Amount of global_sensors_wind_direction = {}.", global_sensors_wind_direction.len());
 
             let mut data: Vec<f64> = Vec::new();
             let min_length = global_sensors_precipitation
@@ -231,6 +243,7 @@ impl Simulator for WeatherSimulator {
                 .min(global_sensors_irradiance.len())
                 .min(global_sensors_wind_speed.len())
                 .min(global_sensors_wind_direction.len());
+            debug!("minimum length of data: {}", min_length);
 
             global_sensors_temperatures.drain(..global_sensors_temperatures.len() - min_length);
             global_sensors_irradiance.drain(..global_sensors_irradiance.len() - min_length);
@@ -255,10 +268,12 @@ impl Simulator for WeatherSimulator {
             }
             info!("Training model with {} rows", data.len() / 5);
             if data.is_empty() {
+                debug!("Data is empty!");
                 return Self{ model: None };
             }
             let model = VAR::new(data, 5);
             info!("Finished model training.");
+            debug!("model training succeeded = {}", model.is_some());
             Self { model }
         })
         })
