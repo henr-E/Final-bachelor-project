@@ -81,6 +81,12 @@ services:
     environment:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       WEATHER_SIMULATOR_ADDR: 0.0.0.0:8101
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      ENV_IMPURE: true
+    secrets:
+      - DATABASE_PASSWORD
 
   simulator-energy-supply-and-demand:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
@@ -92,18 +98,12 @@ services:
     environment:
       SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
       ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8102
-
-  # simulator-energy-transmission:
-  #   image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
-  #   command: ["/bin/load-flow"]
-  #   networks:
-  #     - backend
-  #   depends_on:
-  #     - simulation-manager
-  #   environment:
-  #     SIMULATOR_CONNECTOR_ADDR: http://simulation-manager:8099
-  #     ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR: 0.0.0.0:8101
-  #     ENERGY_SIMULATOR_ADDR: 0.0.0.0:8101
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      ENV_IMPURE: true
+    secrets:
+      - DATABASE_PASSWORD
 
   simulator-energy-transmission:
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
