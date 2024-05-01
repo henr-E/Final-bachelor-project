@@ -410,10 +410,11 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                                     <div className='mb-2 block'>
                                         <Label htmlFor='name' value='Name' />
                                     </div>
-                                    <TextInput
+                                    <input
                                         id='name'
                                         type='text'
                                         value={name}
+                                        className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
                                         placeholder='name'
                                         required
                                         maxLength={50}
@@ -428,10 +429,11 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                                             value='Timestep delta (seconds)'
                                         />
                                     </div>
-                                    <TextInput
+                                    <input
                                         id='timesteps'
                                         value={timeStepDelta}
                                         placeholder={'1'}
+                                        className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
                                         min={1}
                                         maxLength={200}
                                         required
@@ -445,11 +447,12 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                                     <div className='mb-2 block'>
                                         <Label htmlFor='starttime' value='Start time (hh:mm:ss)' />
                                     </div>
-                                    <TextInput
+                                    <input
                                         id='starttime'
                                         type='text'
                                         value={startTime}
                                         placeholder={'00:00:00'}
+                                        className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
                                         pattern='\d{2}:\d{2}:\d{2}'
                                         maxLength={200}
                                         required
@@ -474,9 +477,10 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                                     <div className='mb-2 block'>
                                         <Label htmlFor='endtime' value='End time (hh:mm:ss)' />
                                     </div>
-                                    <TextInput
+                                    <input
                                         id='endtime'
                                         type='text'
+                                        className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
                                         value={endTime}
                                         placeholder={'00:00:00'}
                                         pattern='\d{2}:\d{2}:\d{2}'

@@ -146,6 +146,12 @@ const CustomJsonEditor: React.FC<Props> = ({ data, onSave }) => {
                                     <Button
                                         className='h-11 inline-flex items-center justify-center'
                                         onClick={() => deleteItemFromArray(path, index)}
+                                        color='indigo'
+                                        theme={{
+                                            color: {
+                                                indigo: 'bg-indigo-600 text-white ring-indigo-600',
+                                            },
+                                        }}
                                     >
                                         <MdOutlineDeleteOutline />
                                     </Button>
@@ -160,6 +166,12 @@ const CustomJsonEditor: React.FC<Props> = ({ data, onSave }) => {
                                 <Button
                                     className='h-11 inline-flex items-center justify-center'
                                     onClick={() => addItemToArray(path)}
+                                    color='indigo'
+                                    theme={{
+                                        color: {
+                                            indigo: 'bg-indigo-600 text-white ring-indigo-600',
+                                        },
+                                    }}
                                 >
                                     <AiOutlinePlus />
                                 </Button>

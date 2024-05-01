@@ -355,12 +355,24 @@ function MapEditor({
                             <Button
                                 outline={!currentPreset}
                                 onClick={(_: any) => changePreset(undefined)}
+                                color='indigo'
+                                theme={{
+                                    color: {
+                                        indigo: 'bg-indigo-600 text-white ring-indigo-600',
+                                    },
+                                }}
                             >
                                 <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
                                     <Icon path={mdiCursorPointer} size={1} />
                                 </span>
                             </Button>
                             <Button
+                                color='indigo'
+                                theme={{
+                                    color: {
+                                        indigo: 'bg-indigo-600 text-white ring-indigo-600',
+                                    },
+                                }}
                                 //outline={cursor !== CursorState.PLACE_PRODUCER}
                                 onClick={OnClickPreset}
                             >
@@ -373,6 +385,12 @@ function MapEditor({
                                     <Button
                                         outline={currentPreset?.name !== preset?.name}
                                         onClick={() => changePreset(preset)}
+                                        color='indigo'
+                                        theme={{
+                                            color: {
+                                                indigo: 'bg-indigo-600 text-white ring-indigo-600',
+                                            },
+                                        }}
                                     >
                                         {preset?.name}
                                     </Button>
