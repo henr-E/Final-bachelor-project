@@ -167,6 +167,12 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                                         onClick={() => {
                                             handleInfo(name);
                                         }}
+                                        color='indigo'
+                                        theme={{
+                                            color: {
+                                                indigo: 'bg-indigo-600 text-white ring-indigo-600',
+                                            },
+                                        }}
                                     >
                                         {name}
                                     </Button>
