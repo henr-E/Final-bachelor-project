@@ -261,7 +261,11 @@ function CreateSensorModal({
     };
 
     const handleAddSignalButtonClick = () => {
-        setQuantities(quantity === undefined ? quantities : [...quantities, quantity]);
+        if (quantity && !quantities.some(q => q.id === quantity.id)) {
+            setQuantities([...quantities, quantity]);
+        } else {
+            ToastNotification('warning', 'Quantity already exists.');
+        }
     };
 
     return (
