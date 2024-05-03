@@ -6,8 +6,12 @@ use core::panic;
 use std::{
     any::{Any, TypeId},
     collections::HashMap,
+    error::Error,
+    future::Future,
     time::Duration,
 };
+
+use tonic::Status;
 
 use crate::{
     component::Component,
@@ -15,8 +19,8 @@ use crate::{
     Value,
 };
 
-type ValueToComponentsFn = fn(Vec<(usize, Value)>) -> Option<Box<dyn Any + Send>>;
-type ComponentsToValueFn = fn(Box<dyn Any + Send>) -> Vec<(usize, Value)>;
+type ValueToComponentsFn = fn(Vec<(usize, Value)>) -> Option<Box<dyn Any + Send + Sync>>;
+type ComponentsToValueFn = fn(Box<dyn Any + Send + Sync>) -> Vec<(usize, Value)>;
 
 /// Contains all the data needed to easily work with different components at runtime.
 #[derive(Debug)]
@@ -31,7 +35,9 @@ pub(crate) struct ComponentInfo {
 
 /// Generic function to go from a Vec of Values to a ComponentStorage.
 /// Function pointers of this function are stored in the ComponentInfo's.
-fn values_to_components<C: Component>(values: Vec<(usize, Value)>) -> Option<Box<dyn Any + Send>> {
+fn values_to_components<C: Component>(
+    values: Vec<(usize, Value)>,
+) -> Option<Box<dyn Any + Send + Sync>> {
     let components: Option<Vec<(usize, C)>> = values
         .into_iter()
         .map(|(i, v)| -> Option<(usize, C)> { Some((i, C::from_value(v)?)) })
@@ -47,7 +53,7 @@ fn values_to_components<C: Component>(values: Vec<(usize, Value)>) -> Option<Box
 /// Generic function to go from a ComponentStorage to a Vec of Values.
 /// Function pointers to this function are stored in the ComponentInfo's.
 fn components_to_values<C: Component>(
-    component_storage: Box<dyn Any + Send>,
+    component_storage: Box<dyn Any + Send + Sync>,
 ) -> Vec<(usize, Value)> {
     let component_storage = component_storage.downcast::<ComponentStorage<C>>().expect(
         "Component storage is of the wrong type, This is a bug in the simulator communication lib",
@@ -172,7 +178,7 @@ impl ComponentsInfo {
 /// Implement this trait on a struct representing a running simulation.
 /// As the [`new`](Simulator::new) function will be used to create a
 /// new instance of this simulator for every new simulation the manager asks for.
-pub trait Simulator: Send + 'static {
+pub trait Simulator: Send + Sized + 'static {
     /// Get info about the components this [`Simulator`] will be using.
     ///
     /// See [`ComponentsInfo`] for more information.
@@ -183,7 +189,13 @@ pub trait Simulator: Send + 'static {
     /// This function will be called every time a new simulation is started by the manager.
     /// The graph represents the starting state of the simulation and will be sent again in
     /// the first timestep.
-    fn new(delta_time: Duration, graph: Graph) -> Self;
+    ///
+    /// This function should not block. If you want to run an expensive CPU-bound operation or
+    /// some other operation that blocks the thread, consider using [spawn_blocking](tokio::task::spawn_blocking).
+    fn new(
+        delta_time: Duration,
+        graph: Graph,
+    ) -> impl Future<Output = Result<Self, SimulationError>> + Send;
 
     /// Handle a single timestep.
     ///
@@ -193,5 +205,34 @@ pub trait Simulator: Send + 'static {
     ///
     /// You sould return a [`Graph`] containing all the components marked as output components in
     /// the [`ComponentsInfo`]. With the result of the simulation this timestep.
-    fn do_timestep(&mut self, graph: Graph) -> Graph;
+    fn do_timestep(
+        &mut self,
+        graph: Graph,
+    ) -> impl Future<Output = Result<Graph, SimulationError>> + Send;
+}
+
+/// Represents any error that can occur while running a simulation.
+#[derive(Debug)]
+pub enum SimulationError {
+    /// An unexpected error occurred when trying to run the simulation.
+    ///
+    /// Applicable for errors such as database errors and implementation errors.
+    Internal(Box<dyn Error + Send>),
+    /// Got invalid user input. The simulation was misconfigured by the user.
+    InvalidInput(String),
+}
+
+impl<E: Error + Send + 'static> From<E> for SimulationError {
+    fn from(value: E) -> Self {
+        Self::Internal(Box::new(value))
+    }
+}
+
+impl From<SimulationError> for Status {
+    fn from(value: SimulationError) -> Self {
+        match value {
+            SimulationError::Internal(err) => Status::internal(format!("internal error: {err:#}")),
+            SimulationError::InvalidInput(err) => Status::invalid_argument(err),
+        }
+    }
 }

@@ -44,7 +44,7 @@ pub(crate) struct ComponentStorage<C: Component> {
 
 #[derive(Debug)]
 struct ComponentStorageMap {
-    components: HashMap<TypeId, Box<dyn Any + Send>>,
+    components: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
 }
 
 impl ComponentStorageMap {
@@ -289,7 +289,7 @@ impl Graph {
     /// # Example:
     ///
     /// ```rust
-    /// # use simulator_communication::{simulator::{Simulator, ComponentsInfo}, graph::Graph};
+    /// # use simulator_communication::{simulator::{Simulator, ComponentsInfo, SimulationError}, graph::Graph};
     /// # fn do_timestep(_: &mut Graph) {}
     /// #
     /// struct ExampleSimulator;
@@ -300,17 +300,17 @@ impl Graph {
     /// #       todo!()
     ///     }
     ///
-    ///     fn new(
+    ///     async fn new(
     ///         _delta_time: std::time::Duration,
     ///         _graph: simulator_communication::graph::Graph,
-    ///     ) -> Self {
+    ///     ) -> Result<Self, SimulationError> {
     ///         // < SNIP >
     /// #       todo!()
     ///     }
     ///
-    ///     fn do_timestep(&mut self, mut graph: Graph) -> Graph {
+    ///     async fn do_timestep(&mut self, mut graph: Graph) -> Result<Graph, SimulationError> {
     ///         do_timestep(&mut graph);
-    ///         graph.filter(Self::get_component_info())
+    ///         Ok(graph.filter(Self::get_component_info()))
     ///     }
     /// }
     /// ```

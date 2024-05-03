@@ -13,7 +13,9 @@ use component_library::global::{
 };
 use predictions::VAR;
 use sensor_store::{Quantity, Sensor, SensorStore};
-use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
+use simulator_communication::{
+    simulator::SimulationError, ComponentsInfo, Graph, Server, Simulator,
+};
 
 /// Errors that can occur
 #[derive(Debug, Error)]
@@ -121,171 +123,178 @@ impl Simulator for WeatherSimulator {
             .add_output_component::<IrradianceComponent>()
     }
 
-    fn new(_delta_time: std::time::Duration, _graph: Graph) -> Self {
+    async fn new(_delta_time: std::time::Duration, _graph: Graph) -> Result<Self, SimulationError> {
         info!("Started new weather simulator.");
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                // try to connect with sensor database
-                let sensor_store = match SensorStore::new().await {
-                    Ok(sensor_store) => sensor_store,
-                    Err(err) => {
-                        error!("Database connection failed: {}", err);
-                        return Self { model: None };
-                    }
-                };
-            // Retrieve all global sensors
-            let mut global_sensors: Vec<Sensor> = Vec::new();
-            match sensor_store.get_all_global_sensors().await {
-                Ok(sensor_stream) => {
-                    // Iterate over the stream of sensors
-                    sensor_stream
-                        .for_each(|sensor_result| {
-                            match sensor_result {
-                                Ok(sensor) => global_sensors.push(sensor),
-                                Err(err) => error!("Error retrieving sensor: {}", err),
-                            }
-                            futures::future::ready(())
-                        })
-                        .await;
-                }
-                Err(err) => error!("Error retrieving all sensors: {}", err),
+        // try to connect with sensor database
+        let sensor_store = match SensorStore::new().await {
+            Ok(sensor_store) => sensor_store,
+            Err(err) => {
+                error!("Database connection failed: {}", err);
+                return Ok(Self { model: None });
             }
-            info!("Retrieved all global sensors.");
-            debug!("amount of global_sensors = {}", global_sensors.len());
+        };
+        // Retrieve all global sensors
+        let mut global_sensors: Vec<Sensor> = Vec::new();
+        match sensor_store.get_all_global_sensors().await {
+            Ok(sensor_stream) => {
+                // Iterate over the stream of sensors
+                sensor_stream
+                    .for_each(|sensor_result| {
+                        match sensor_result {
+                            Ok(sensor) => global_sensors.push(sensor),
+                            Err(err) => error!("Error retrieving sensor: {}", err),
+                        }
+                        futures::future::ready(())
+                    })
+                    .await;
+            }
+            Err(err) => error!("Error retrieving all sensors: {}", err),
+        }
+        info!("Retrieved all global sensors.");
+        debug!("amount of global_sensors = {}", global_sensors.len());
 
-            // NOTE: This code seems a bit odd. this is because the signals for global sensors in
-                // the database are unique. So there are no 2 temperature signals in the database
-                // that share the global sensor property.
+        // NOTE: This code seems a bit odd. this is because the signals for global sensors in
+        // the database are unique. So there are no 2 temperature signals in the database
+        // that share the global sensor property.
 
-            // store global sensor values per quantity
-            let mut global_sensors_temperatures = Vec::new();
-            let mut global_sensors_wind_speed = Vec::new();
-            let mut global_sensors_irradiance = Vec::new();
-            let mut global_sensors_precipitation = Vec::new();
-            let mut global_sensors_wind_direction = Vec::new();
-            for sensor in &global_sensors {
-                // retrieve corresponding sensor temperature values (if any)
-                match get_sensor_data_for_quantity_and_sensor(
-                    &sensor_store,
-                    sensor,
-                    Quantity::Temperature,
-                )
-                .await
-                {
-                    None => {}
-                    Some(sensor_data_temperature) => {
-                        global_sensors_temperatures = sensor_data_temperature;
-                    }
-                }
-                // retrieve corresponding sensor irradiance values (if any)
-                match get_sensor_data_for_quantity_and_sensor(
-                    &sensor_store,
-                    sensor,
-                    Quantity::Irradiance,
-                )
-                .await
-                {
-                    None => {}
-                    Some(sensor_data_irradiance) => {
-                        global_sensors_irradiance = sensor_data_irradiance;
-                    }
-                }
-                // retrieve corresponding sensor wind speed values (if any)
-                match get_sensor_data_for_quantity_and_sensor(
-                    &sensor_store,
-                    sensor,
-                    Quantity::WindSpeed,
-                )
-                .await
-                {
-                    None => {}
-                    Some(sensor_data_wind_speed) => {
-                        global_sensors_wind_speed = sensor_data_wind_speed;
-                    }
-                }
-                // retrieve corresponding sensor rainfall values (if any)
-                match get_sensor_data_for_quantity_and_sensor(
-                    &sensor_store,
-                    sensor,
-                    Quantity::Rainfall,
-                )
-                .await
-                {
-                    None => {}
-                    Some(sensor_data_precipitation) => {
-                        global_sensors_precipitation = sensor_data_precipitation;
-                    }
-                }
-                // retrieve corresponding sensor wind direction values (if any)
-                match get_sensor_data_for_quantity_and_sensor(
-                    &sensor_store,
-                    sensor,
-                    Quantity::WindDirection,
-                )
-                .await
-                {
-                    None => {}
-                    Some(sensor_data_wind_direction) => {
-                        global_sensors_wind_direction = sensor_data_wind_direction;
-                    }
+        // store global sensor values per quantity
+        let mut global_sensors_temperatures = Vec::new();
+        let mut global_sensors_wind_speed = Vec::new();
+        let mut global_sensors_irradiance = Vec::new();
+        let mut global_sensors_precipitation = Vec::new();
+        let mut global_sensors_wind_direction = Vec::new();
+        for sensor in &global_sensors {
+            // retrieve corresponding sensor temperature values (if any)
+            match get_sensor_data_for_quantity_and_sensor(
+                &sensor_store,
+                sensor,
+                Quantity::Temperature,
+            )
+            .await
+            {
+                None => {}
+                Some(sensor_data_temperature) => {
+                    global_sensors_temperatures = sensor_data_temperature;
                 }
             }
-            debug!("Amount of global_sensors_precipitation= {}.", global_sensors_precipitation.len());
-            debug!("Amount of global_sensors_temperatures = {}.", global_sensors_temperatures.len());
-            debug!("Amount of global_sensors_irradiance = {}.", global_sensors_irradiance.len());
-            debug!("Amount of global_sensors_wind_speed = {}.", global_sensors_wind_speed.len());
-            debug!("Amount of global_sensors_wind_direction = {}.", global_sensors_wind_direction.len());
-
-            let mut data: Vec<f64> = Vec::new();
-            let min_length = global_sensors_precipitation
-                .len()
-                .min(global_sensors_temperatures.len())
-                .min(global_sensors_irradiance.len())
-                .min(global_sensors_wind_speed.len())
-                .min(global_sensors_wind_direction.len());
-            debug!("minimum length of data: {}", min_length);
-
-            global_sensors_temperatures.drain(..global_sensors_temperatures.len() - min_length);
-            global_sensors_irradiance.drain(..global_sensors_irradiance.len() - min_length);
-            global_sensors_wind_speed.drain(..global_sensors_wind_speed.len() - min_length);
-            global_sensors_precipitation.drain(..global_sensors_precipitation.len() - min_length);
-            global_sensors_wind_direction.drain(..global_sensors_wind_direction.len() - min_length);
-
-            for (&temperature, &irradiance, &wind_speed, &precipitation, &wind_direction) in izip!(
-                &global_sensors_temperatures,
-                &global_sensors_irradiance,
-                &global_sensors_wind_speed,
-                &global_sensors_precipitation,
-                &global_sensors_wind_direction,
-            ) {
-                data.append(&mut vec![
-                    precipitation,
-                    temperature,
-                    irradiance,
-                    wind_speed,
-                    wind_direction,
-                ]);
+            // retrieve corresponding sensor irradiance values (if any)
+            match get_sensor_data_for_quantity_and_sensor(
+                &sensor_store,
+                sensor,
+                Quantity::Irradiance,
+            )
+            .await
+            {
+                None => {}
+                Some(sensor_data_irradiance) => {
+                    global_sensors_irradiance = sensor_data_irradiance;
+                }
             }
-            info!("Training model with {} rows", data.len() / 5);
-            if data.is_empty() {
-                debug!("Data is empty!");
-                return Self{ model: None };
+            // retrieve corresponding sensor wind speed values (if any)
+            match get_sensor_data_for_quantity_and_sensor(
+                &sensor_store,
+                sensor,
+                Quantity::WindSpeed,
+            )
+            .await
+            {
+                None => {}
+                Some(sensor_data_wind_speed) => {
+                    global_sensors_wind_speed = sensor_data_wind_speed;
+                }
             }
-            let model = VAR::new(data, 5);
-            info!("Finished model training.");
-            debug!("model training succeeded = {}", model.is_some());
-            Self { model }
-        })
-        })
+            // retrieve corresponding sensor rainfall values (if any)
+            match get_sensor_data_for_quantity_and_sensor(&sensor_store, sensor, Quantity::Rainfall)
+                .await
+            {
+                None => {}
+                Some(sensor_data_precipitation) => {
+                    global_sensors_precipitation = sensor_data_precipitation;
+                }
+            }
+            // retrieve corresponding sensor wind direction values (if any)
+            match get_sensor_data_for_quantity_and_sensor(
+                &sensor_store,
+                sensor,
+                Quantity::WindDirection,
+            )
+            .await
+            {
+                None => {}
+                Some(sensor_data_wind_direction) => {
+                    global_sensors_wind_direction = sensor_data_wind_direction;
+                }
+            }
+        }
+        debug!(
+            "Amount of global_sensors_precipitation= {}.",
+            global_sensors_precipitation.len()
+        );
+        debug!(
+            "Amount of global_sensors_temperatures = {}.",
+            global_sensors_temperatures.len()
+        );
+        debug!(
+            "Amount of global_sensors_irradiance = {}.",
+            global_sensors_irradiance.len()
+        );
+        debug!(
+            "Amount of global_sensors_wind_speed = {}.",
+            global_sensors_wind_speed.len()
+        );
+        debug!(
+            "Amount of global_sensors_wind_direction = {}.",
+            global_sensors_wind_direction.len()
+        );
+
+        let mut data: Vec<f64> = Vec::new();
+        let min_length = global_sensors_precipitation
+            .len()
+            .min(global_sensors_temperatures.len())
+            .min(global_sensors_irradiance.len())
+            .min(global_sensors_wind_speed.len())
+            .min(global_sensors_wind_direction.len());
+        debug!("minimum length of data: {}", min_length);
+
+        global_sensors_temperatures.drain(..global_sensors_temperatures.len() - min_length);
+        global_sensors_irradiance.drain(..global_sensors_irradiance.len() - min_length);
+        global_sensors_wind_speed.drain(..global_sensors_wind_speed.len() - min_length);
+        global_sensors_precipitation.drain(..global_sensors_precipitation.len() - min_length);
+        global_sensors_wind_direction.drain(..global_sensors_wind_direction.len() - min_length);
+
+        for (&temperature, &irradiance, &wind_speed, &precipitation, &wind_direction) in izip!(
+            &global_sensors_temperatures,
+            &global_sensors_irradiance,
+            &global_sensors_wind_speed,
+            &global_sensors_precipitation,
+            &global_sensors_wind_direction,
+        ) {
+            data.append(&mut vec![
+                precipitation,
+                temperature,
+                irradiance,
+                wind_speed,
+                wind_direction,
+            ]);
+        }
+        info!("Training model with {} rows", data.len() / 5);
+        if data.is_empty() {
+            debug!("Data is empty!");
+            return Ok(Self { model: None });
+        }
+        let model = VAR::new(data, 5);
+        info!("Finished model training.");
+        debug!("model training succeeded = {}", model.is_some());
+        Ok(Self { model })
     }
 
-    fn do_timestep(&mut self, mut graph: Graph) -> Graph {
+    async fn do_timestep(&mut self, mut graph: Graph) -> Result<Graph, SimulationError> {
         info!("Doing timestep!");
         if let Some(_time_component) = graph.get_global_component::<TimeComponent>() {
             let predictions = match self.model.as_mut() {
                 None => {
                     error!("Failed to create prediction model.");
-                    return graph;
+                    return Ok(graph);
                 }
                 Some(model) => model.get_next_prediction(),
             };
@@ -332,6 +341,6 @@ impl Simulator for WeatherSimulator {
         } else {
             error!("No time component was found.");
         };
-        graph
+        Ok(graph)
     }
 }
