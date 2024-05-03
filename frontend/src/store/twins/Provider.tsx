@@ -68,6 +68,11 @@ interface LoadSensorsAction {
     sensors: Sensor[];
 }
 
+interface UpdateSensorAction {
+    type: 'update_sensor';
+    sensor: Sensor;
+}
+
 type TwinAction =
     | SwitchTwinAction
     | LoadTwinsAction
@@ -76,7 +81,8 @@ type TwinAction =
     | LoadSimulationsAction
     | LoadSensorsAction
     | DeleteSensorAction
-    | DeleteSimulationAction;
+    | DeleteSimulationAction
+    | UpdateSensorAction;
 
 function reducer(state: TwinState, action: TwinAction): TwinState {
     switch (action.type) {
@@ -167,6 +173,21 @@ function reducer(state: TwinState, action: TwinAction): TwinState {
                     sensors: action.sensors,
                 },
             };
+        }
+        case 'update_sensor': {
+            if (state.current) {
+                const updatedSensors = state.current.sensors.map(sensor =>
+                    sensor.id === action.sensor.id ? action.sensor : sensor
+                );
+                return {
+                    ...state,
+                    current: {
+                        ...state.current,
+                        sensors: updatedSensors,
+                    },
+                };
+            }
+            return state;
         }
         default: {
             return {

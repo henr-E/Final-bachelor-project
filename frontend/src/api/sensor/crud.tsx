@@ -157,3 +157,22 @@ export async function BackendDeleteSensor(sensor_id: string): Promise<boolean> {
     }
     return success;
 }
+
+export async function updateSensor(sensor: Sensor): Promise<boolean> {
+    const channel = createChannel(uiBackendServiceUrl);
+    const client: SensorCRUDServiceClient = createClient(SensorCRUDServiceDefinition, channel);
+
+    try {
+        const response = await client.updateSensor({ uuid: sensor.id, sensor: { ...sensor } });
+        if (response.failures !== undefined) {
+            const failures = response.failures.reasons.map(r => failureReasonToString(r));
+            console.error(`Updating sensor failed because of following reasons: ${failures}`);
+            return false;
+        } else {
+            return true;
+        }
+    } catch (error) {
+        console.error('Failed to update sensor', error);
+        return false;
+    }
+}

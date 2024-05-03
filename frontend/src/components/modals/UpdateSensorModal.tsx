@@ -8,6 +8,7 @@ import {
     Unit,
     Prefix,
     QuantityWithUnits,
+    prefixMap,
 } from '@/store/sensor';
 import { v4 as uuidv4 } from 'uuid';
 import { Button, ButtonGroup, Label, Modal } from 'flowbite-react';
@@ -16,14 +17,16 @@ import { Sensor } from '@/proto/sensor/sensor-crud';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { TwinContext } from '@/store/twins';
 import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
-import { undoDeleteBuildingRequest } from '@/proto/twins/twin';
+import { BigDecimal } from '@/proto/sensor/bigdecimal';
+import { bigIntToExponent } from '@/store/sensor';
 import { getFirstQuantity } from '@/lib/util';
 
-interface CreateSensorModalProps {
+interface UpdateSensorModalProps {
     isModalOpen: boolean;
     selectedBuildingId: number | null;
-    handleCreateSensor: (sensor: Sensor) => Promise<void>;
+    handleUpdateSensor: (sensor: Sensor) => Promise<void>;
     closeModal: () => void;
+    sensor: Sensor;
 }
 
 enum ModalPage {
@@ -32,81 +35,91 @@ enum ModalPage {
     INGEST,
 }
 
-function CreateSensorModal({
+function UpdateSensorModal({
     isModalOpen,
     selectedBuildingId,
     closeModal,
-    handleCreateSensor,
-}: CreateSensorModalProps) {
-    const getBaseUnit = (q: QuantityWithUnits): Unit => {
-        const baseUnitId = q.baseUnit;
-        const unit = q.units.find(u => u.id === baseUnitId);
-        if (unit === undefined) {
-            throw Error('Base unit id not found in map of units (should be unreachable).');
-        }
-        return unit;
-    };
-
+    handleUpdateSensor,
+    sensor,
+}: UpdateSensorModalProps) {
     const [modalPage, setModalPage] = useState<ModalPage>(ModalPage.BASIC);
+
     const [quantitiesWithUnits, setQuantitiesWithUnits] = useState<
         Record<string, QuantityWithUnits>
     >({});
 
     // step 1: general settings
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
+    const [name, setName] = useState(sensor.name);
+    const [description, setDescription] = useState(sensor.description);
 
     // step 2: quantities
     const [quantity, setQuantity] = useState<Quantity | undefined>();
-    const [quantities, setQuantities] = useState<Quantity[]>([]);
+    const [quantities, setQuantities] = useState<Record<string, Quantity>>({});
 
     // step 3: signals
-    const [allUnits, setAllUnits] = useState<Record<string, Unit>>({});
-    const [units, setUnits] = useState<Unit[]>([]);
-    const [prefixes, setPrefixes] = useState<Prefix[]>([]);
-    const [aliases, setAliases] = useState<string[]>([]);
+    const [units, setUnits] = useState<Record<string, Unit>>({});
+    const [prefixes, setPrefixes] = useState<Record<string, Prefix>>({});
+    const [aliases, setAliases] = useState<Record<string, string>>({});
 
     const [twinState, dispatch] = useContext(TwinContext);
 
     const basicFormRef = useRef<HTMLFormElement>(null);
 
     useEffect(() => {
-        (async () => {
-            const quantitiesWithUnits = await BackendGetQuantityWithUnits();
+        BackendGetQuantityWithUnits().then(quantitiesWithUnits => {
             setQuantitiesWithUnits(quantitiesWithUnits);
-            setQuantity(getFirstQuantity(quantitiesWithUnits)?.quantity);
-        })();
-    }, []);
 
-    useEffect(() => {
-        // Construct all units by merging arrays of units on id.
-        setAllUnits(
-            Object.values(quantitiesWithUnits)
-                .map(q => q.units)
-                // Collect all units into array with duplicates included.
-                .reduce((units, us) => units.concat(us), [])
-                // Convert array into record with id being the key.
-                .reduce(
-                    (units, u) => {
-                        // Only set the value of the unit if the id is not
-                        // already present in the map.
-                        units[u.id] ??= u;
-                        return units;
-                    },
-                    {} as Record<string, Unit>
-                )
-        );
-    }, [quantitiesWithUnits]);
+            const existingSensorQuantities = Object.fromEntries(
+                sensor.signals.map(s => {
+                    const quantity: Quantity = quantitiesWithUnits[s.quantity].quantity;
+
+                    return [s.id, quantity];
+                })
+            );
+
+            const existingSensorUnits = Object.fromEntries(
+                sensor.signals.map(s => {
+                    const unit: Unit | undefined = quantitiesWithUnits[s.quantity].units.find(
+                        u => u.repr === s.unit.toUpperCase()
+                    );
+
+                    if (!unit) {
+                        throw new Error(
+                            'Update sensor modal: failed to load unit from the backend for an existing sensor'
+                        );
+                    }
+
+                    return [s.id, unit];
+                })
+            );
+
+            const existingSensorAliases = Object.fromEntries(
+                sensor.signals.map(s => [s.id, s.alias])
+            );
+
+            const existingSensorPrefixes = Object.fromEntries(
+                sensor.signals.map(s => {
+                    if (!s.prefix) {
+                        return [s.id, Prefix.ONE];
+                    }
+
+                    const exp = s.prefix.exponent + Math.log(s.prefix.integer[0]) / Math.log(10);
+
+                    const prefix = allPrefixes.find(p => prefixExponents[p] === exp);
+
+                    return [s.id, prefix as Prefix];
+                })
+            );
+
+            setQuantities(existingSensorQuantities);
+            setUnits(existingSensorUnits);
+            setAliases(existingSensorAliases);
+            setPrefixes(existingSensorPrefixes);
+        });
+    }, []);
 
     const handleModalClose = () => {
         setModalPage(ModalPage.BASIC);
-        setName('');
-        setDescription('');
-        setQuantity(getFirstQuantity(quantitiesWithUnits)?.quantity);
-        setQuantities([]);
-        setUnits([]);
-        setPrefixes([]);
-        setAliases([]);
 
         closeModal();
     };
@@ -116,37 +129,18 @@ function CreateSensorModal({
             case ModalPage.BASIC: {
                 if (!basicFormRef.current?.reportValidity()) return;
                 setModalPage(modalPage + 1);
-
-                setQuantities([quantitiesWithUnits['timestamp'].quantity]);
-
                 break;
             }
             case ModalPage.SIGNALS: {
-                if (quantities.find(q => q.id === 'timestamp') === undefined) {
-                    ToastNotification('error', 'Sensor should always contain a `timestamp` signal');
-                    break;
-                }
-
                 setModalPage(modalPage + 1);
-
-                setUnits(quantities.map(q => getBaseUnit(quantitiesWithUnits[q.id])));
-                setPrefixes(quantities.map(_ => Prefix.ONE));
-                setAliases(quantities.map(q => `${q.repr}-N`));
-
                 break;
             }
             case ModalPage.INGEST: {
-                const aliasSet = new Set(aliases);
-                if (aliasSet.size !== aliases.length) {
-                    ToastNotification('error', 'Signal alias values should be unique.');
-                    break;
-                }
-
                 if (!twinState.current?.id) {
                     ToastNotification('error', 'Something went wrong when creating the sensor.');
                     break;
                 }
-                setModalPage(0);
+
                 //if no building is selected, it is a global sensor and it should be set to undefined.
                 //Convert the selectedBuildingId from number | null to number | undefined.
                 //I chose to not make selectedBuildingId number | undefined because if something goes wrong it will
@@ -159,53 +153,59 @@ function CreateSensorModal({
                     sensorSelectedBuildingId = selectedBuildingId;
                 }
 
-                const sensor: Sensor = {
-                    id: uuidv4(),
+                const newSensor: Sensor = {
+                    id: sensor.id,
                     twinId: twinState.current?.id,
                     name: name,
                     description: description,
                     latitude: 51,
                     longitude: 4.1,
-                    signals: quantities.map((q, i) => ({
+                    signals: Object.entries(quantities).map(([id, quantity], i) => ({
                         id: 0,
-                        quantity: q.id,
-                        unit: getBaseUnit(quantitiesWithUnits[q.id]).id,
-                        ingestionUnit: units[i].id,
+                        quantity: quantity.id,
+                        unit: quantitiesWithUnits[quantity.id].baseUnit,
+                        ingestionUnit: units[id].id,
                         prefix: {
                             sign: false,
                             integer: [1],
-                            exponent: prefixExponents[prefixes[i]],
+                            exponent: prefixExponents[prefixes[id]],
                         },
-                        alias: aliases[i],
+                        alias: aliases[id],
                     })),
                     buildingId: sensorSelectedBuildingId,
                 };
 
-                await handleCreateSensor(sensor);
+                await handleUpdateSensor(newSensor);
 
                 handleModalClose();
+
                 break;
             }
         }
+    };
+
+    const getBaseUnit = (q: QuantityWithUnits): Unit => {
+        const baseUnitId = q.baseUnit;
+        const unit = q.units.find(u => u.id === baseUnitId);
+        if (unit === undefined) {
+            throw Error('Base unit id not found in map of units (should be unreachable).');
+        }
+        return unit;
     };
 
     const handlePreviousButtonClick = () => {
         setModalPage(modalPage - 1);
 
         if (modalPage === ModalPage.BASIC) {
-            setName('');
-            setDescription('');
-            setQuantity(getFirstQuantity(quantitiesWithUnits)?.quantity);
-
             handleModalClose();
         }
     };
 
-    const CreateSensorStepper = ({ page }: { page: ModalPage }) => {
+    const UpdateSensorStepper = ({ page }: { page: ModalPage }) => {
         const activeStyles = 'text-indigo-600';
 
         return (
-            <ol className='flex items-center w-full text-sm font-medium text-center text-gray-500 sm:text-base mb-8'>
+            <ol className='flex items-center w-full text-sm font-medium text-center text-gray-500 sm:text-base mb-8 '>
                 <li
                     className={`flex md:w-full items-center ${activeStyles} sm:after:content-[''] after:w-full after:h-1 after:border-b after:border-gray-200 after:border-1 after:hidden sm:after:inline-block after:mx-6 xl:after:mx-10`}
                 >
@@ -261,12 +261,31 @@ function CreateSensorModal({
     };
 
     const handleAddSignalButtonClick = () => {
-        if (quantity && !quantities.some(q => q.id === quantity.id)) {
-            setQuantities([...quantities, quantity]);
-        } else {
-            ToastNotification('warning', 'Quantity already exists.');
+        if (quantity && !Object.values(quantities).includes(quantity)) {
+            const id = uuidv4();
+
+            setQuantities({
+                ...quantities,
+                [id]: quantity,
+            });
+
+            setUnits({
+                ...units,
+                [id]: getBaseUnit(quantitiesWithUnits[quantity.id]),
+            });
+
+            setPrefixes({
+                ...prefixes,
+                [id]: Prefix.ONE,
+            });
+
+            setAliases({
+                ...aliases,
+                [id]: `${quantity.repr}-N`,
+            });
         }
     };
+
     return (
         <>
             <Modal
@@ -275,14 +294,14 @@ function CreateSensorModal({
                 onClose={handleModalClose}
             >
                 <Modal.Header>
-                    Create Sensor (
+                    Update Sensor (
                     {selectedBuildingId === null
                         ? `Global Sensor for twin ${twinState.current?.name}`
                         : `Sensor for building number ${selectedBuildingId}`}
                     )
                 </Modal.Header>
                 <Modal.Body>
-                    <CreateSensorStepper page={modalPage} />
+                    <UpdateSensorStepper page={modalPage} />
                     {modalPage === ModalPage.BASIC && (
                         <div className='my-4'>
                             <form ref={basicFormRef}>
@@ -347,16 +366,22 @@ function CreateSensorModal({
                                 </button>
                             </ButtonGroup>
                             <div className='w-100 min-h-32 p-2 bg-indigo-200 rounded-xl shadow-md flex flex-row flex-wrap items-center justify-center gap-2'>
-                                {quantities.map((quantity, i) => (
+                                {Object.entries(quantities).map(([id, quantity], i) => (
                                     <Button
-                                        key={i}
+                                        key={id}
                                         color='indigo'
                                         onClick={() => {
                                             if (quantity.id === 'timestamp') return;
-                                            setQuantities([
-                                                ...quantities.slice(0, i),
-                                                ...quantities.slice(i + 1),
-                                            ]);
+
+                                            delete quantities[id];
+                                            delete units[id];
+                                            delete prefixes[id];
+                                            delete aliases[id];
+
+                                            setQuantities({ ...quantities });
+                                            setUnits({ ...units });
+                                            setPrefixes({ ...prefixes });
+                                            setAliases({ ...aliases });
                                         }}
                                         theme={{
                                             color: {
@@ -371,7 +396,7 @@ function CreateSensorModal({
                                         )}
                                     </Button>
                                 ))}
-                                {quantities.length === 0 && (
+                                {Object.values(quantities).length === 0 && (
                                     <span className='text-sm text-gray-500'>No Signals</span>
                                 )}
                             </div>
@@ -398,23 +423,24 @@ function CreateSensorModal({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {quantities.map((quantity, i) => (
-                                        <tr key={i}>
+                                    {Object.entries(quantities).map(([id, quantity]) => (
+                                        <tr key={id}>
                                             <td className='w-32 p-2'>
                                                 <span>{quantity.repr}</span>
                                             </td>
                                             <td className='w-48 p-2'>
                                                 <select
-                                                    value={units[i].id}
-                                                    onChange={e =>
-                                                        setUnits(
-                                                            units.map((u, j) =>
-                                                                j === i
-                                                                    ? allUnits[e.target.value]
-                                                                    : u
-                                                            )
-                                                        )
-                                                    }
+                                                    value={units[id].id}
+                                                    onChange={e => {
+                                                        setUnits({
+                                                            ...units,
+                                                            [id]: quantitiesWithUnits[
+                                                                quantity.id
+                                                            ].units.find(
+                                                                u => u.id === e.target.value
+                                                            ) as Unit,
+                                                        });
+                                                    }}
                                                     className='block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-indigo-500 focus:border-indigo-500'
                                                 >
                                                     {quantitiesWithUnits[quantity.id].units.map(
@@ -428,18 +454,17 @@ function CreateSensorModal({
                                             </td>
                                             <td className='w-24 p-2'>
                                                 <select
-                                                    value={prefixes[i]}
-                                                    onChange={e =>
-                                                        setPrefixes([
-                                                            ...prefixes.slice(0, i),
-                                                            parseInt(e.target.value),
-                                                            ...prefixes.slice(i + 1),
-                                                        ])
-                                                    }
+                                                    value={prefixes[id]}
+                                                    onChange={e => {
+                                                        setPrefixes({
+                                                            ...prefixes,
+                                                            [id]: parseInt(e.target.value),
+                                                        });
+                                                    }}
                                                     className='block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-indigo-500 focus:border-indigo-500'
                                                 >
-                                                    {allPrefixes.map((prefix, i) => (
-                                                        <option key={i} value={prefix}>
+                                                    {allPrefixes.map((prefix, n) => (
+                                                        <option key={n} value={prefix}>
                                                             {Prefix[prefix]}
                                                         </option>
                                                     ))}
@@ -448,14 +473,13 @@ function CreateSensorModal({
                                             <td className='w-48 p-2'>
                                                 <input
                                                     className='block w-full p-2 text-gray-900 border border-gray-300 rounded-lg bg-gray-50 text-xs focus:ring-indigo-500 focus:border-indigo-500'
-                                                    value={aliases[i]}
-                                                    onChange={e =>
-                                                        setAliases([
-                                                            ...aliases.slice(0, i),
-                                                            e.target.value,
-                                                            ...aliases.slice(i + 1),
-                                                        ])
-                                                    }
+                                                    value={aliases[id]}
+                                                    onChange={e => {
+                                                        setAliases({
+                                                            ...aliases,
+                                                            [id]: e.target.value,
+                                                        });
+                                                    }}
                                                 />
                                             </td>
                                         </tr>
@@ -481,7 +505,10 @@ function CreateSensorModal({
                     <div className='grow'></div>
                     <Button
                         color='indigo'
-                        disabled={modalPage === ModalPage.SIGNALS && quantities.length === 0}
+                        disabled={
+                            modalPage === ModalPage.SIGNALS &&
+                            Object.values(quantities).length === 0
+                        }
                         theme={{
                             color: {
                                 indigo: 'bg-indigo-600 text-white ring-indigo-600',
@@ -489,7 +516,7 @@ function CreateSensorModal({
                         }}
                         onClick={handleNextButtonClick}
                     >
-                        {modalPage === ModalPage.INGEST ? 'Create' : 'Next'}
+                        {modalPage === ModalPage.INGEST ? 'Update' : 'Next'}
                     </Button>
                 </Modal.Footer>
             </Modal>
@@ -497,4 +524,4 @@ function CreateSensorModal({
     );
 }
 
-export default CreateSensorModal;
+export default UpdateSensorModal;
