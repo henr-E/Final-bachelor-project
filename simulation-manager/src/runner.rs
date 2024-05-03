@@ -267,8 +267,9 @@ impl Runner {
                 timestep_delta: delta as u64,
             };
 
-            // setup of simulators
-            future::join_all(
+            // Setup of simulators. If any one of the simulators returns en error, set the status as
+            // failed.
+            if let Err(err) = future::try_join_all(
                 selected
                     .clone()
                     .into_iter()
@@ -278,7 +279,18 @@ impl Runner {
                         server.setup(setup_request).await
                     }),
             )
-            .await;
+            .await
+            {
+                self.db
+                    .update_status(
+                        simulation_id,
+                        StatusEnum::Failed,
+                        Some(&format!("Simulator returned error during setup: {err}")),
+                    )
+                    .await
+                    .context("status was not updated")?;
+                return Ok(SetupStatus::Failed);
+            }
             return Ok(SetupStatus::Success);
         }
         Ok(SetupStatus::Failed)
@@ -341,6 +353,14 @@ impl Runner {
         let selected = self.get_selected_simulators(simulation_id).await?;
 
         for i in 0..iterations {
+            // Used to indicate whether a simulator experienced an error during simulation. A
+            // separate enum is made for this as we want to handle this separately from other
+            // error types.
+            enum TimestepResult {
+                Ok(Transport),
+                Aborted(tonic::Status),
+            }
+
             // parallel execution of the simulators in the simulation for the current time step
             let results = future::try_join_all(
                 selected
@@ -375,10 +395,11 @@ impl Runner {
                             graph: Some(graph.clone()),
                             global_components: grpc_global.clone(),
                         });
-                        let do_time_step_response = server
-                            .do_timestep(do_time_step_request)
-                            .await
-                            .context("in call `do_timestep`")?;
+                        let do_time_step_response =
+                            match server.do_timestep(do_time_step_request).await {
+                                Ok(val) => val,
+                                Err(err) => return Ok(TimestepResult::Aborted(err)),
+                            };
 
                         // read out results of simulator
                         let output_state = do_time_step_response
@@ -387,11 +408,11 @@ impl Runner {
                             .context("no output state found")?;
 
                         // place results into Transport struct
-                        anyhow::Ok(Transport {
+                        anyhow::Ok(TimestepResult::Ok(Transport {
                             simulation_id,
                             iteration: i + 1,
                             state: output_state,
-                        })
+                        }))
                     }),
             )
             .await?;
@@ -401,6 +422,23 @@ impl Runner {
 
             // merge previous state with all output states
             for result in results {
+                let result = match result {
+                    TimestepResult::Ok(v) => v,
+                    TimestepResult::Aborted(err) => {
+                        self.db
+                            .update_status(
+                                simulation_id,
+                                StatusEnum::Failed,
+                                Some(&format!("Simulator returned error during timestep: {err}")),
+                            )
+                            .await
+                            .context("status was not updated")?;
+                        // Return ok here as the error has already been handled. Returning an error
+                        // would override the status again.
+                        return Ok(());
+                    }
+                };
+
                 // Replace previous node with the version that has been returned by the simulator.
                 // Since simulators can not edit the same nodes, this will always work.
                 // Nodes that were not returned by any simulator will also still be present

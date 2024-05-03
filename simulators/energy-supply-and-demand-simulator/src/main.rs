@@ -8,6 +8,7 @@ use itertools::izip;
 use rand::prelude::*;
 use rand_distr::num_traits::ToPrimitive;
 use simulator_communication::graph::NodeId;
+use simulator_communication::simulator::SimulationError;
 use sqlx::types::BigDecimal;
 use thiserror::Error;
 use tracing::{debug, error, info, Level};
@@ -136,219 +137,212 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             .add_output_component::<SupplyAndDemandAnalytics>()
     }
 
-    fn new(delta_time: std::time::Duration, graph: Graph) -> Self {
+    async fn new(delta_time: std::time::Duration, graph: Graph) -> Result<Self, SimulationError> {
         info!("Started new energy simulator.");
 
-        tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                let mut sensor_values_power_per_building = HashMap::new();
-                // store sensor values per building for power consumption
+        let mut sensor_values_power_per_building = HashMap::new();
+        // store sensor values per building for power consumption
 
-                // try to connect with sensor database
-                let sensor_store = match SensorStore::new().await {
-                    Ok(sensor_store) => sensor_store,
+        // try to connect with sensor database
+        let sensor_store = match SensorStore::new().await {
+            Ok(sensor_store) => sensor_store,
+            Err(err) => {
+                error!("Database connection failed: {}.", err);
+                return Ok(Self {
+                    delta_time,
+                    models: HashMap::new(),
+                });
+            }
+        };
+
+        // loop over consumer nodes
+        for (node_id, _, _) in graph.get_all_nodes::<ConsumerNode>().unwrap() {
+            let Some(building_component) = graph.get_node_component::<Building>(node_id) else {
+                error!("Building component not found for consumer node with id {node_id:?}.");
+                continue;
+            };
+
+            // get building id from consumer node
+            let building_id = building_component.building_id;
+            debug!("building_id = {building_id}.");
+            // retrieve corresponding sensor
+            match sensor_store.get_sensor_for_building(building_id).await {
+                Ok(sensor) => {
+                    // retrieve corresponding sensor power values (if any)
+                    match get_sensor_data_for_quantity_and_sensor(
+                        &sensor_store,
+                        &sensor,
+                        Quantity::Power,
+                    )
+                    .await
+                    {
+                        None => {}
+                        Some(sensor_data_power) => {
+                            debug!(
+                                "amt power data for building = {:?}, first = {:?}, last = {:?}.",
+                                sensor_data_power.len(),
+                                sensor_data_power.first(),
+                                sensor_data_power.last()
+                            );
+                            sensor_values_power_per_building.insert(building_id, sensor_data_power);
+                        }
+                    }
+                }
+                Err(err) => {
+                    error!("Error retrieving the sensor for building: {}.", err);
+                    continue;
+                }
+            }
+        }
+        info!("Retrieved all energy consumer nodes.");
+
+        // Retrieve all global sensors
+        let mut global_sensors: Vec<Sensor> = Vec::new();
+        match sensor_store.get_all_global_sensors().await {
+            Ok(sensor_stream) => {
+                // Iterate over the stream of sensors
+                sensor_stream
+                    .for_each(|sensor_result| {
+                        match sensor_result {
+                            Ok(sensor) => global_sensors.push(sensor),
+                            Err(err) => error!("Error retrieving sensor: {}.", err),
+                        }
+                        futures::future::ready(())
+                    })
+                    .await;
+            }
+            Err(err) => error!("Error retrieving all sensors: {}.", err),
+        }
+        info!("Retrieved all global sensors.");
+
+        // store global sensor values per quantity
+        let mut global_sensor_temperatures = Vec::new();
+        let mut global_sensor_wind_speed = Vec::new();
+        let mut global_sensor_irradiance = Vec::new();
+        debug!("amt global sensors: {}.", global_sensors.len());
+        for sensor in &global_sensors {
+            // retrieve corresponding sensor temperature values (if any)
+            match get_sensor_data_for_quantity_and_sensor(
+                &sensor_store,
+                sensor,
+                Quantity::Temperature,
+            )
+            .await
+            {
+                None => {
+                    return Ok(Self {
+                        delta_time,
+                        models: HashMap::new(),
+                    })
+                }
+                Some(sensor_data_temperature) => {
+                    global_sensor_temperatures = sensor_data_temperature;
+                }
+            }
+            // retrieve corresponding sensor irradiance values (if any)
+            match get_sensor_data_for_quantity_and_sensor(
+                &sensor_store,
+                sensor,
+                Quantity::Irradiance,
+            )
+            .await
+            {
+                None => {
+                    return Ok(Self {
+                        delta_time,
+                        models: HashMap::new(),
+                    })
+                }
+                Some(sensor_data_irradiance) => {
+                    global_sensor_irradiance = sensor_data_irradiance;
+                }
+            }
+            // retrieve corresponding sensor wind speed values (if any)
+            match get_sensor_data_for_quantity_and_sensor(
+                &sensor_store,
+                sensor,
+                Quantity::WindSpeed,
+            )
+            .await
+            {
+                None => {
+                    return Ok(Self {
+                        delta_time,
+                        models: HashMap::new(),
+                    })
+                }
+                Some(sensor_data_wind_speed) => {
+                    global_sensor_wind_speed = sensor_data_wind_speed;
+                }
+            }
+        }
+        // make models for all buildings.
+        let mut models = HashMap::new();
+        for (building_id, mut energy_data) in sensor_values_power_per_building.into_iter() {
+            let mut global_sensor_temperatures = global_sensor_temperatures.clone();
+            let mut global_sensor_irradiance = global_sensor_irradiance.clone();
+            let mut global_sensor_wind_speed = global_sensor_wind_speed.clone();
+
+            let mut data: Vec<f64> = Vec::new();
+            // keep `min_length` amount of last sensor_values.
+            let min_length = energy_data
+                .len()
+                .min(global_sensor_temperatures.len())
+                .min(global_sensor_irradiance.len())
+                .min(global_sensor_wind_speed.len());
+
+            debug!("minimum lenght of data = {min_length}.");
+
+            if min_length == 0 {
+                continue;
+            }
+
+            // NOTE: clone due to independent amount of data per sensor.
+            energy_data.drain(..energy_data.len() - min_length);
+            global_sensor_temperatures.drain(..global_sensor_temperatures.len() - min_length);
+            global_sensor_irradiance.drain(..global_sensor_irradiance.len() - min_length);
+            global_sensor_wind_speed.drain(..global_sensor_wind_speed.len() - min_length);
+
+            for (&energy, &temperature, &irradiance, &wind_speed) in izip!(
+                &energy_data,
+                &global_sensor_temperatures,
+                &global_sensor_irradiance,
+                &global_sensor_wind_speed
+            ) {
+                data.append(&mut vec![energy, temperature, irradiance, wind_speed]);
+            }
+            if data.is_empty() {
+                debug!("data was empty for building_id = {building_id}.");
+                continue;
+            }
+            info!("Training model with {} rows.", data.len() / 5);
+            models.insert(
+                building_id,
+                match tokio::task::spawn_blocking(|| VAR::new(data, 4)).await {
                     Err(err) => {
-                        error!("Database connection failed: {}.", err);
-                        return Self {
+                        error!("trainer thread crashed: {err}");
+                        return Ok(Self {
                             delta_time,
                             models: HashMap::new(),
-                        };
+                        });
                     }
-                };
-
-                // loop over consumer nodes
-                for (node_id, _, _) in graph.get_all_nodes::<ConsumerNode>().unwrap() {
-                    let Some(building_component) = graph.get_node_component::<Building>(node_id)
-                    else {
-                        error!(
-                            "Building component not found for consumer node with id {node_id:?}."
-                        );
-                        continue;
-                    };
-
-                    // get building id from consumer node
-                    let building_id = building_component.building_id;
-                    debug!("building_id = {building_id}.");
-                    // retrieve corresponding sensor
-                    match sensor_store.get_sensor_for_building(building_id).await {
-                        Ok(sensor) => {
-                            // retrieve corresponding sensor power values (if any)
-                            match get_sensor_data_for_quantity_and_sensor(
-                                &sensor_store,
-                                &sensor,
-                                Quantity::Power,
-                            )
-                            .await
-                            {
-                                None => {}
-                                Some(sensor_data_power) => {
-                                    debug!(
-                                        "amt power data for building = {:?}, first = {:?}, last = {:?}.",
-                                        sensor_data_power.len(), sensor_data_power.first(), sensor_data_power.last()
-                                    );
-                                    sensor_values_power_per_building
-                                        .insert(building_id, sensor_data_power);
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            error!("Error retrieving the sensor for building: {}.", err);
-                            continue;
-                        }
+                    Ok(Some(var)) => var,
+                    Ok(None) => {
+                        debug!("Model training failed for building_id = {building_id}.");
+                        return Ok(Self {
+                            delta_time,
+                            models: HashMap::new(),
+                        });
                     }
-                }
-                info!("Retrieved all energy consumer nodes.");
-
-                // Retrieve all global sensors
-                let mut global_sensors: Vec<Sensor> = Vec::new();
-                match sensor_store.get_all_global_sensors().await {
-                    Ok(sensor_stream) => {
-                        // Iterate over the stream of sensors
-                        sensor_stream
-                            .for_each(|sensor_result| {
-                                match sensor_result {
-                                    Ok(sensor) => global_sensors.push(sensor),
-                                    Err(err) => error!("Error retrieving sensor: {}.", err),
-                                }
-                                futures::future::ready(())
-                            })
-                            .await;
-                    }
-                    Err(err) => error!("Error retrieving all sensors: {}.", err),
-                }
-                info!("Retrieved all global sensors.");
-
-                // store global sensor values per quantity
-                let mut global_sensor_temperatures = Vec::new();
-                let mut global_sensor_wind_speed = Vec::new();
-                let mut global_sensor_irradiance = Vec::new();
-                debug!("amt global sensors: {}.", global_sensors.len());
-                for sensor in &global_sensors {
-                    // retrieve corresponding sensor temperature values (if any)
-                    match get_sensor_data_for_quantity_and_sensor(
-                        &sensor_store,
-                        sensor,
-                        Quantity::Temperature,
-                    )
-                    .await
-                    {
-                        None => {
-                            return Self {
-                                delta_time,
-                                models: HashMap::new(),
-                            }
-                        }
-                        Some(sensor_data_temperature) => {
-                            global_sensor_temperatures = sensor_data_temperature;
-                        }
-                    }
-                    // retrieve corresponding sensor irradiance values (if any)
-                    match get_sensor_data_for_quantity_and_sensor(
-                        &sensor_store,
-                        sensor,
-                        Quantity::Irradiance,
-                    )
-                    .await
-                    {
-                        None => {
-                            return Self {
-                                delta_time,
-                                models: HashMap::new(),
-                            }
-                        }
-                        Some(sensor_data_irradiance) => {
-                            global_sensor_irradiance = sensor_data_irradiance;
-                        }
-                    }
-                    // retrieve corresponding sensor wind speed values (if any)
-                    match get_sensor_data_for_quantity_and_sensor(
-                        &sensor_store,
-                        sensor,
-                        Quantity::WindSpeed,
-                    )
-                    .await
-                    {
-                        None => {
-                            return Self {
-                                delta_time,
-                                models: HashMap::new(),
-                            }
-                        }
-                        Some(sensor_data_wind_speed) => {
-                            global_sensor_wind_speed = sensor_data_wind_speed;
-                        }
-                    }
-                }
-                // make models for all buildings.
-                let mut models = HashMap::new();
-                for (building_id, mut energy_data) in sensor_values_power_per_building.into_iter() {
-                    let mut global_sensor_temperatures = global_sensor_temperatures.clone();
-                    let mut global_sensor_irradiance = global_sensor_irradiance.clone();
-                    let mut global_sensor_wind_speed = global_sensor_wind_speed.clone();
-
-                    let mut data: Vec<f64> = Vec::new();
-                    // keep `min_length` amount of last sensor_values.
-                    let min_length = energy_data
-                        .len()
-                        .min(global_sensor_temperatures.len())
-                        .min(global_sensor_irradiance.len())
-                        .min(global_sensor_wind_speed.len());
-
-                    debug!("minimum lenght of data = {min_length}.");
-
-                    if min_length == 0 {
-                        continue;
-                    }
-
-                    // NOTE: clone due to independent amount of data per sensor.
-                    energy_data.drain(..energy_data.len() - min_length);
-                    global_sensor_temperatures
-                        .drain(..global_sensor_temperatures.len() - min_length);
-                    global_sensor_irradiance.drain(..global_sensor_irradiance.len() - min_length);
-                    global_sensor_wind_speed.drain(..global_sensor_wind_speed.len() - min_length);
-
-                    for (&energy, &temperature, &irradiance, &wind_speed) in izip!(
-                        &energy_data,
-                        &global_sensor_temperatures,
-                        &global_sensor_irradiance,
-                        &global_sensor_wind_speed
-                    ) {
-                        data.append(&mut vec![energy, temperature, irradiance, wind_speed]);
-                    }
-                    if data.is_empty() {
-                        debug!("data was empty for building_id = {building_id}.");
-                        continue;
-                    }
-                    info!("Training model with {} rows.", data.len() / 5);
-                    models.insert(
-                        building_id,
-                        match tokio::task::spawn_blocking(|| VAR::new(data, 4)).await {
-                            Err(err) => {
-                                error!("trainer thread crashed: {err}");
-                                return Self {
-                                    delta_time,
-                                    models: HashMap::new(),
-                                };
-                            }
-                            Ok(Some(var)) => var,
-                            Ok(None) => {
-                                debug!("Model training failed for building_id = {building_id}.");
-                                return Self {
-                                    delta_time,
-                                    models: HashMap::new(),
-                                };
-                            }
-                        },
-                    );
-                }
-                info!("Finished model training.");
-                debug!("building_id's with models: {:?}.", models.keys());
-                Self { delta_time, models }
-            })
-        })
+                },
+            );
+        }
+        info!("Finished model training.");
+        debug!("building_id's with models: {:?}.", models.keys());
+        Ok(Self { delta_time, models })
     }
 
-    fn do_timestep(&mut self, mut graph: Graph) -> Graph {
+    async fn do_timestep(&mut self, mut graph: Graph) -> Result<Graph, SimulationError> {
         info!("Doing timestep!");
         //TODO: NO UNWRAPS AND EXPECTS
         if let Some(_time_component) = graph.get_global_component::<TimeComponent>() {
@@ -506,6 +500,6 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         } else {
             debug!("No analytics component found");
         }
-        graph
+        Ok(graph)
     }
 }

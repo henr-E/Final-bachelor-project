@@ -13,6 +13,7 @@ use component_library::energy::{
 use diagnostics::energy_production::power_type_percentages;
 use diagnostics::total_power;
 use graph::{edge::LineType, node::BusNode, node::PowerType as BusNodeType};
+use simulator_communication::simulator::SimulationError;
 use solvers::solver::Solver;
 use std::{collections::HashMap, env, net::SocketAddr, process::ExitCode};
 use tracing::debug;
@@ -119,11 +120,11 @@ impl Simulator for LoadFlowSimulator {
             .add_output_component::<TransmissionEdge>()
     }
 
-    fn new(_: std::time::Duration, _graph: Graph) -> Self {
-        Self {}
+    async fn new(_: std::time::Duration, _graph: Graph) -> Result<Self, SimulationError> {
+        Ok(Self {})
     }
 
-    fn do_timestep(&mut self, mut graph: Graph) -> Graph {
+    async fn do_timestep(&mut self, mut graph: Graph) -> Result<Graph, SimulationError> {
         let mut s_base = 100.0;
         let mut v_base = 100.0;
         let mut p_base = 100.0;
@@ -270,7 +271,7 @@ impl Simulator for LoadFlowSimulator {
             debug!("No analytics component found");
         }
 
-        graph.filter(Self::get_component_info())
+        Ok(graph.filter(Self::get_component_info()))
     }
 }
 

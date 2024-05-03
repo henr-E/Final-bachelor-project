@@ -105,7 +105,7 @@ impl<S: Simulator> proto::simulator::simulator_server::Simulator for Server<S> {
         let graph = Graph::from_state(initial_state, &self.components_info)
             .ok_or_else(|| Status::invalid_argument("Could not create graph"))?;
 
-        *self.simulator.lock().await = Some(S::new(delta_time, graph));
+        *self.simulator.lock().await = Some(S::new(delta_time, graph).await?);
 
         Ok(Response::new(SetupResponse {}))
     }
@@ -128,7 +128,8 @@ impl<S: Simulator> proto::simulator::simulator_server::Simulator for Server<S> {
             .ok_or_else(|| {
                 Status::failed_precondition("should `setup` before calling `do_timestep`")
             })?
-            .do_timestep(graph);
+            .do_timestep(graph)
+            .await?;
 
         Ok(Response::new(TimestepResult {
             output_state: Some(
@@ -148,13 +149,13 @@ impl<S: Simulator> proto::simulator::simulator_server::Simulator for Server<S> {
 
 /// ```
 /// # use std::{net::SocketAddr, process::ExitCode, time::Duration};
-/// # use simulator_communication::{Server, Graph, ComponentsInfo, Simulator};
+/// # use simulator_communication::{Server, Graph, ComponentsInfo, Simulator, simulator::SimulationError};
 /// #
 /// # struct ExampleSimulator {}
 /// # impl Simulator for ExampleSimulator {
 /// # fn get_component_info() -> ComponentsInfo { todo!() }
-/// # fn new(delta_time: Duration, graph: Graph) -> Self { todo!() }
-/// # fn do_timestep(&mut self, graph: Graph) -> Graph { todo!() }
+/// # async fn new(delta_time: Duration, graph: Graph) -> Result<Self, SimulationError> { todo!() }
+/// # async fn do_timestep(&mut self, graph: Graph) -> Result<Graph, SimulationError> { todo!() }
 /// # }
 /// # async fn a() -> ExitCode {
 /// # let simulator_addr: SocketAddr = todo!();

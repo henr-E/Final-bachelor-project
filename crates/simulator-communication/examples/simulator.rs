@@ -1,7 +1,7 @@
 use std::{env, net::SocketAddr, process::ExitCode};
 
 use simulator_communication::{
-    Component, ComponentPiece, ComponentsInfo, Graph, Server, Simulator,
+    simulator::SimulationError, Component, ComponentPiece, ComponentsInfo, Graph, Server, Simulator,
 };
 
 /// Every simulator will have their own type that implements the [`Simulator`] trait.
@@ -23,14 +23,14 @@ impl Simulator for ExampleSimulator {
             .add_optional_component::<ExampleGlobalComponent>()
     }
 
-    fn new(_delta_time: std::time::Duration, _graph: Graph) -> Self {
-        Self {}
+    async fn new(_delta_time: std::time::Duration, _graph: Graph) -> Result<Self, SimulationError> {
+        Ok(Self {})
     }
 
-    fn do_timestep(&mut self, graph: Graph) -> Graph {
+    async fn do_timestep(&mut self, graph: Graph) -> Result<Graph, SimulationError> {
         // A real simulator would apply some operations on the graph to modify it before sending
         // back the result.
-        graph
+        Ok(graph)
     }
 }
 

@@ -1,7 +1,9 @@
 use component_library::global::TimeComponent;
-use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
+use simulator_communication::{
+    simulator::SimulationError, ComponentsInfo, Graph, Server, Simulator,
+};
 use std::{env, net::SocketAddr, process::ExitCode};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
@@ -51,19 +53,20 @@ impl Simulator for TimeSimulator {
             .add_output_component::<TimeComponent>()
     }
 
-    fn new(delta_time: std::time::Duration, _graph: Graph) -> Self {
+    async fn new(delta_time: std::time::Duration, _graph: Graph) -> Result<Self, SimulationError> {
         info!("Started new simulation.");
-        Self { delta_time }
+        Ok(Self { delta_time })
     }
 
-    fn do_timestep(&mut self, mut graph: Graph) -> Graph {
-        info!("Executing timestep.");
+    async fn do_timestep(&mut self, mut graph: Graph) -> Result<Graph, SimulationError> {
+        debug!("Executing timestep.");
 
         let Some(time) = graph.get_global_component_mut::<TimeComponent>() else {
-            error!("No time component was found.");
-            return graph;
+            return Err(SimulationError::InvalidInput(
+                "missing time component found".to_string(),
+            ));
         };
         time.0 += self.delta_time;
-        graph
+        Ok(graph)
     }
 }
