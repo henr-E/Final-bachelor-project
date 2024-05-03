@@ -315,32 +315,34 @@ impl Graph {
     /// }
     /// ```
     pub fn filter(mut self, component_info: ComponentsInfo) -> Graph {
-        let mut new_graph = Self {
+        Self {
             node_components: ComponentStorageMap {
-                components: HashMap::new(),
+                components: self
+                    .node_components
+                    .components
+                    .drain()
+                    .filter(|(id, _)| component_info.output_components.contains_key(id))
+                    .collect(),
             },
             edge_components: ComponentStorageMap {
-                components: HashMap::new(),
+                components: self
+                    .edge_components
+                    .components
+                    .drain()
+                    .filter(|(id, _)| component_info.output_components.contains_key(id))
+                    .collect(),
             },
             global_components: ComponentStorageMap {
-                components: HashMap::new(),
+                components: self
+                    .global_components
+                    .components
+                    .drain()
+                    .filter(|(id, _)| component_info.output_components.contains_key(id))
+                    .collect(),
             },
             // Copy nodes and edges
             ..self
-        };
-        for (id, _) in component_info.output_components.iter() {
-            if let Some(component) = self.node_components.components.remove(id) {
-                new_graph.node_components.components.insert(*id, component);
-            } else if let Some(component) = self.edge_components.components.remove(id) {
-                new_graph.edge_components.components.insert(*id, component);
-            } else if let Some(component) = self.global_components.components.remove(id) {
-                new_graph
-                    .global_components
-                    .components
-                    .insert(*id, component);
-            }
         }
-        new_graph
     }
 }
 
@@ -673,7 +675,7 @@ mod tests {
         );
     }
 
-    fn create_test_graph() -> Graph {
+    fn create_test_graph() -> (Graph, proto::State, ComponentsInfo) {
         let components_info = ComponentsInfo::new()
             .add_required_component::<TestNodeComp>()
             .add_required_component::<TestNodeComp2>()
@@ -740,19 +742,35 @@ mod tests {
         let global_components =
             HashMap::from([(TestGlobalComp::get_name(), TestGlobalComp(1).to_value())]);
 
-        Graph::from_state(
-            ::proto::simulation::State {
-                graph: Some(::proto::simulation::Graph { nodes, edge: edges }),
-                global_components,
-            },
-            &components_info,
-        )
-        .unwrap()
+        let state = ::proto::simulation::State {
+            graph: Some(::proto::simulation::Graph { nodes, edge: edges }),
+            global_components,
+        };
+        let graph = Graph::from_state(state.clone(), &components_info).unwrap();
+
+        (graph, state, components_info)
+    }
+
+    #[test]
+    fn graph_fillter() {
+        let (graph, _state, components_info) = create_test_graph();
+        let components_info = components_info
+            .add_output_component::<TestNodeComp>()
+            .add_output_component::<TestEdgeComp>()
+            .add_output_component::<TestGlobalComp>();
+
+        let graph = graph.filter(components_info.clone());
+        assert!(graph.get_all_nodes::<TestNodeComp>().is_some());
+        assert!(graph.get_all_nodes::<TestNodeComp2>().is_none());
+        assert!(graph.get_all_edges::<TestEdgeComp>().is_some());
+        assert!(graph.get_all_edges::<TestEdgeComp2>().is_none());
+        assert!(graph.get_global_component::<TestGlobalComp>().is_some());
+        assert!(graph.get_global_component::<TestGlobalComp2>().is_none());
     }
 
     #[test]
     fn get_all() {
-        let graph = create_test_graph();
+        let graph = create_test_graph().0;
 
         assert_eq!(
             graph
@@ -889,7 +907,7 @@ mod tests {
 
     #[test]
     fn get_single() {
-        let graph = create_test_graph();
+        let graph = create_test_graph().0;
 
         assert_eq!(
             graph.get_node_component::<TestNodeComp>(NodeId(0)),
@@ -928,7 +946,7 @@ mod tests {
 
     #[test]
     fn get_via_edges() {
-        let graph = create_test_graph();
+        let graph = create_test_graph().0;
 
         assert_eq!(
             graph

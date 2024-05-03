@@ -51,26 +51,42 @@ export function FrameToMapInformation(
 
     let nodeItems = new Map(nodeItemArray.map(i => [i.id, i]));
 
-    let lineItemArray = frame?.state?.graph?.edge.map(item => {
-        let connectingItems = [
-            nodeItems.get(item.from) as NodeItem,
-            nodeItems.get(item.to) as NodeItem,
-        ];
-        const newItem: LineItem = {
-            name: item.componentType,
-            id: item.id,
-            components: item.componentData,
-            items: connectingItems,
-            type: MapItems.Line,
-            eventHandler: { click: e => showEdge(item.id) },
-        };
-        return newItem;
+    let checkEdges = new Map<string, number>();
+    let tempEdges: LineItem[] = [];
+    frame?.state?.graph?.edge.map(edge => {
+        const loc_id = edge.from + ',' + edge.to;
+
+        if (!checkEdges.has(loc_id)) {
+            let components: { [id: string]: any } = {};
+            components[edge.componentType] = edge.componentData;
+
+            let connectingItems = [
+                nodeItems.get(edge.from) as NodeItem,
+                nodeItems.get(edge.to) as NodeItem,
+            ];
+
+            const newItem: LineItem = {
+                components: components,
+                inactive: false,
+                name: edge.id.toString(),
+                id: edge.id,
+                items: connectingItems,
+                type: MapItems.Line,
+                eventHandler: { click: e => showEdge(edge.id) },
+            };
+            tempEdges.push(newItem);
+            checkEdges.set(loc_id, tempEdges.length - 1);
+            return;
+        }
+        let index = checkEdges.get(loc_id)!;
+
+        let components: { [id: string]: any } = {};
+        components[edge.componentType] = edge.componentData;
+
+        tempEdges[index].components = { ...tempEdges[index].components, ...components };
     });
-    console.log(lineItemArray);
 
-    if (!lineItemArray) return [nodeItems, undefined];
-
-    return [nodeItems, lineItemArray];
+    return [nodeItems, tempEdges];
 }
 
 function MapFrame({ frame, frameNr }: MapFrameProps) {
@@ -111,30 +127,7 @@ function MapFrame({ frame, frameNr }: MapFrameProps) {
         setNodes(mapItems[0]);
 
         if (!mapItems[1]) return;
-        console.log('check');
-
-        //Converts edges with the same nodes to one edge with multiple components
-        let checkEdges = new Map<string, number>();
-        let tempEdges: LineItem[] = [];
-        mapItems[1].map(edge => {
-            if (!checkEdges.has(edge.items[0].id + ',' + edge.items[1].id)) {
-                tempEdges.push(edge);
-                checkEdges.set(edge.items[0].id + ',' + edge.items[1].id, tempEdges.length - 1);
-                return;
-            }
-            let index = checkEdges.get(edge.items[0].id + ',' + edge.items[1].id);
-            if (index == undefined) {
-                //Normally should not come here
-                ToastNotification('error', `There when something wrong with edge: ${edge.id}`);
-                return;
-            }
-            let components: { [id: string]: any } = tempEdges[index].components || {};
-            Object.entries(edge.components || {}).forEach(([keyItem, value]) => {
-                components[keyItem] = value;
-            });
-            tempEdges[index].components = components;
-        });
-        setEdges(tempEdges);
+        setEdges(mapItems[1]);
     }, [frame]);
 
     if (!twinState.current) {

@@ -1,5 +1,7 @@
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::f64::consts::PI;
+use std::hash::{Hash, Hasher};
 use std::{env, net::SocketAddr, process::ExitCode, time::Duration};
 
 use component_library::Building;
@@ -13,7 +15,9 @@ use sqlx::types::BigDecimal;
 use thiserror::Error;
 use tracing::{debug, error, info, Level};
 
-use component_library::energy::{ConsumerNode, PowerType, ProducerNode, ProductionOverview};
+use component_library::energy::{
+    PowerType, ProductionOverview, SensorGeneratorNode, SensorLoadNode,
+};
 use component_library::global::{
     IrradianceComponent, SupplyAndDemandAnalytics, TimeComponent, WindSpeedComponent,
 };
@@ -128,12 +132,12 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             .add_required_component::<TimeComponent>()
             // components that the simulator will retrieve and return with adjusted values
             .add_required_component::<Building>()
-            .add_required_component::<ConsumerNode>()
-            .add_required_component::<ProducerNode>()
+            .add_required_component::<SensorLoadNode>()
+            .add_required_component::<SensorGeneratorNode>()
             .add_optional_component::<WindSpeedComponent>()
             .add_optional_component::<IrradianceComponent>()
-            .add_output_component::<ConsumerNode>()
-            .add_output_component::<ProducerNode>()
+            .add_output_component::<SensorLoadNode>()
+            .add_output_component::<SensorGeneratorNode>()
             .add_output_component::<SupplyAndDemandAnalytics>()
     }
 
@@ -156,7 +160,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         };
 
         // loop over consumer nodes
-        for (node_id, _, _) in graph.get_all_nodes::<ConsumerNode>().unwrap() {
+        for (node_id, _, _) in graph.get_all_nodes::<SensorLoadNode>().unwrap() {
             let Some(building_component) = graph.get_node_component::<Building>(node_id) else {
                 error!("Building component not found for consumer node with id {node_id:?}.");
                 continue;
@@ -347,7 +351,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         //TODO: NO UNWRAPS AND EXPECTS
         if let Some(_time_component) = graph.get_global_component::<TimeComponent>() {
             let consumer_nodes: Vec<NodeId> = graph
-                .get_all_nodes::<ConsumerNode>()
+                .get_all_nodes::<SensorLoadNode>()
                 .unwrap()
                 .map(|n| n.0)
                 .collect();
@@ -370,7 +374,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                 debug!("generating predictions for building_id = {}.", building_id);
                 // SAFETY: this unwrap is safe because node ids got fetched earlier by using the consumer node as component type
                 let component = graph
-                    .get_node_component_mut::<ConsumerNode>(node_id)
+                    .get_node_component_mut::<SensorLoadNode>(node_id)
                     .unwrap();
 
                 //TODO: use time component and building id to make prediction for consumer node
@@ -389,7 +393,8 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                 let prediction = model.get_next_prediction();
                 // The energy field is always the first element of the prediction model's result.
                 debug!("predicted {}.", prediction[0]);
-                component.demand = prediction[0];
+                component.active_power = prediction[0];
+                component.reactive_power = 0.02 * component.active_power;
             }
 
             let current_irradiance: f64 = match graph.get_global_component::<IrradianceComponent>()
@@ -402,25 +407,27 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                 None => 10.,
             };
 
-            for (_, _, component) in graph.get_all_nodes_mut::<ProducerNode>().unwrap() {
+            for (id, _, component) in graph.get_all_nodes_mut::<SensorGeneratorNode>().unwrap() {
                 debug!(
                     "predicting producer node type = {:?}.",
                     component.power_type
                 );
+
                 match &component.power_type {
                     PowerType::Nuclear => {
                         let mut rng = rand::thread_rng();
                         let efficiency = rng.gen_range(0.99..=1.00);
-                        component.energy_production = component.energy_production
-                            * efficiency
-                            * self.delta_time.as_secs_f64()
-                            / 3600.0;
+                        component.active_power =
+                            component.active_power * efficiency * self.delta_time.as_secs_f64()
+                                / 3600.0;
                     }
                     PowerType::Solar => {
-                        let capacity = component.capacity;
-                        component.energy_production =
-                            capacity * current_irradiance * self.delta_time.as_secs_f64() / 3600.0
-                                * 0.2;
+                        // Hash the node id as a pseudo way to give every house random but contestant solar panel area
+                        let mut h = DefaultHasher::new();
+                        id.hash(&mut h);
+                        let solar_panel_area = h.finish() % 10 + 2;
+
+                        component.active_power = solar_panel_area as f64 * current_irradiance;
                     }
                     PowerType::Wind => {
                         // https://thundersaidenergy.com/downloads/wind-power-impacts-of-larger-turbines/
@@ -432,7 +439,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                         let rho = 1.204;
                         // length of a single blade in meters. range of average lengths.
                         let blade_length: f64 = rng.gen_range(35.0..45.0);
-                        component.energy_production = 0.5
+                        component.active_power = 0.5
                             * c_p
                             * rho
                             * PI
@@ -441,11 +448,10 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                     }
                     _ => {
                         //TODO: this code was present previously and thus kept for now
-                        let current_capacity = component.capacity;
                         let delta_capacity = rand::thread_rng().gen_range(-50.0..50.0)
                             * self.delta_time.as_secs() as f64;
-                        component.energy_production =
-                            (current_capacity + delta_capacity).clamp(1000.0, 2000.0)
+                        component.active_power =
+                            (component.active_power + delta_capacity).clamp(1000.0, 2000.0)
                     }
                 }
             }
@@ -458,28 +464,36 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         let mut total_demand = 0.0;
         let mut total_capacity = 0.0;
 
-        let components = graph.get_all_nodes::<ConsumerNode>().into_iter().flatten();
+        let components = graph
+            .get_all_nodes::<SensorLoadNode>()
+            .into_iter()
+            .flatten();
         for (_, _, component) in components {
             num_consumer_nodes += 1;
-            total_demand += component.demand
+            total_demand += component.active_power
         }
 
         let num_edges = 0;
 
         let mut power_type_percentages: HashMap<PowerType, f64> = HashMap::new();
 
-        let components = graph.get_all_nodes::<ProducerNode>().into_iter().flatten();
+        let components = graph
+            .get_all_nodes::<SensorGeneratorNode>()
+            .into_iter()
+            .flatten();
         for (_, _, component) in components {
             num_producer_nodes += 1;
-            total_capacity += component.energy_production;
+            total_capacity += component.active_power;
             let counter = power_type_percentages
                 .entry(component.power_type)
                 .or_insert(0.0);
-            *counter += component.energy_production
+            *counter += component.active_power
         }
 
         for (_, percentage) in power_type_percentages.iter_mut() {
-            *percentage /= total_capacity
+            if total_capacity != 0.0 {
+                *percentage /= total_capacity
+            }
         }
 
         if let Some(analytics) = graph.get_global_component_mut::<SupplyAndDemandAnalytics>() {
@@ -496,7 +510,9 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             analytics.transmission_edges_count = num_edges;
             analytics.total_demand = total_demand;
             analytics.total_capacity = total_capacity;
-            analytics.utilization = total_demand / total_capacity;
+            if total_capacity != 0.0 {
+                analytics.utilization = total_demand / total_capacity;
+            }
         } else {
             debug!("No analytics component found");
         }

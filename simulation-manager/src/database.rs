@@ -268,7 +268,7 @@ impl SimulationsDB {
                 "INSERT INTO node_components (name, node_id, component_data) VALUES ($1, $2, $3)",
                 component.0,
                 node_id,
-                prost_to_serde_json(component.1)
+                prost_to_serde_json(component.1).context("invalid component data")?
             )
             .execute(self.connection().await?)
             .await?;
@@ -299,8 +299,9 @@ impl SimulationsDB {
             .fetch_all(self.connection().await?)
             .await?
             .into_iter()
-            .map(|c| (c.name, serde_json_to_prost(c.component_data)))
-            .collect();
+            .map(|c| Some((c.name, serde_json_to_prost(c.component_data)?)))
+            .collect::<Option<_>>()
+            .context("invalid component in db")?;
 
             nodes.push(Node {
                 id: n.node_id as u64,
@@ -336,8 +337,10 @@ impl SimulationsDB {
         .fetch_all(self.connection().await?)
         .await?
         .into_iter()
-        .map(|c| (c.name, serde_json_to_prost(c.component_data)))
-        .collect();
+        .map(|c| Some((c.name, serde_json_to_prost(c.component_data)?)))
+        .collect::<Option<_>>()
+        .context("invalid component in db")?;
+
         let node: (Node, i32) = (
             Node {
                 id: result1.node_id as u64,
@@ -353,7 +356,8 @@ impl SimulationsDB {
     /// Add an edge to the edges table.
     pub async fn add_edge(&mut self, edge: Edge, simulation_id: i32, time_step: i32) -> Result<()> {
         let component_data =
-            prost_to_serde_json(edge.component_data.context("missing component data")?);
+            prost_to_serde_json(edge.component_data.context("missing component data")?)
+                .context("invalid component data")?;
         let rows_affected = query!(
             "INSERT INTO edges (edge_id, simulation_id, time_step, from_node, to_node, component_data, component_type) VALUES ($1, $2, $3, $4, $5, $6, $7)",
             edge.id as i32, simulation_id, time_step, edge.from as i32, edge.to as i32, component_data, edge.component_type
@@ -375,14 +379,18 @@ impl SimulationsDB {
         .fetch_all(self.connection().await?)
         .await?
         .into_iter()
-        .map(|e| Edge {
-            from: e.from_node as u64,
-            to: e.to_node as u64,
-            component_type: e.component_type,
-            component_data: Option::from(serde_json_to_prost(e.component_data)),
-            id: e.edge_id as u64,
+        .map(|e| {
+            Ok(Edge {
+                from: e.from_node as u64,
+                to: e.to_node as u64,
+                component_type: e.component_type,
+                component_data: Some(
+                    serde_json_to_prost(e.component_data).context("invalid component in db")?,
+                ),
+                id: e.edge_id as u64,
+            })
         })
-        .collect();
+        .collect::<Result<_>>()?;
         Ok(edges)
     }
 
@@ -407,7 +415,10 @@ impl SimulationsDB {
                 from: result.from_node as u64,
                 to: result.to_node as u64,
                 component_type: result.component_type,
-                component_data: Option::from(serde_json_to_prost(result.component_data)),
+                component_data: Some(
+                    serde_json_to_prost(result.component_data)
+                        .context("invalid component in db")?,
+                ),
             },
             result.id,
         );
@@ -436,7 +447,7 @@ impl SimulationsDB {
     ) -> Result<()> {
         query!(
             "INSERT INTO global_components (time_step, name, simulation_id, component_data) VALUES ($1, $2, $3, $4)",
-            time_step, name, simulation_id, prost_to_serde_json(value)
+            time_step, name, simulation_id, prost_to_serde_json(value).context("invalid component data")?
         ).execute(self.connection().await?).await?;
         Ok(())
     }
@@ -455,8 +466,9 @@ impl SimulationsDB {
         .fetch_all(self.connection().await?)
         .await?
         .into_iter()
-        .map(|c| (c.name, serde_json_to_prost(c.component_data)))
-        .collect())
+        .map(|c| Some((c.name, serde_json_to_prost(c.component_data)?)))
+        .collect::<Option<_>>()
+        .context("invalid component in db")?)
     }
 
     /// Get specific global components.
@@ -475,7 +487,7 @@ impl SimulationsDB {
             .await?;
         Ok((
             components.name,
-            serde_json_to_prost(components.component_data),
+            serde_json_to_prost(components.component_data).context("invalid component in db")?,
         ))
     }
 
@@ -491,8 +503,9 @@ impl SimulationsDB {
         .fetch_all(self.connection().await?)
         .await?
         .into_iter()
-        .map(|c| (c.name, serde_json_to_prost(c.component_data)))
-        .collect())
+        .map(|c| Some((c.name, serde_json_to_prost(c.component_data)?)))
+        .collect::<Option<_>>()
+        .context("invalid component in db")?)
     }
 
     /// Return the highest time_step of all global components of a simulation.

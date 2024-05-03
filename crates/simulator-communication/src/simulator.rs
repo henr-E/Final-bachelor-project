@@ -23,7 +23,7 @@ type ValueToComponentsFn = fn(Vec<(usize, Value)>) -> Option<Box<dyn Any + Send 
 type ComponentsToValueFn = fn(Box<dyn Any + Send + Sync>) -> Vec<(usize, Value)>;
 
 /// Contains all the data needed to easily work with different components at runtime.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct ComponentInfo {
     pub(crate) type_id: TypeId,
     pub(crate) name: String,
@@ -117,7 +117,7 @@ impl ComponentInfo {
 /// # ;
 /// # }
 /// ```
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct ComponentsInfo {
     pub(crate) string_to_typeid: HashMap<String, TypeId>,
     pub(crate) components: HashMap<TypeId, ComponentInfo>,

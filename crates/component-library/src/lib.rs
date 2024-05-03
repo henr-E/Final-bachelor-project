@@ -208,36 +208,6 @@ pub mod energy {
     }
 
     #[derive(ComponentPiece, Component)]
-    #[component(name = "energy_consumer_node", ty = "node")]
-    pub struct ConsumerNode {
-        /// Energy demand in watts
-        pub demand: f64,
-        /// The equal value for energy demand
-        pub eq_demand: f64,
-        /// Voltage
-        pub voltage: f64,
-        /// Max voltage
-        pub max_voltage: f64,
-        /// Min voltage
-        pub min_voltage: f64,
-        /// Elasticity of demand
-        pub demand_elasticity: f64,
-    }
-
-    #[derive(ComponentPiece, Component)]
-    #[component(name = "energy_producer_node", ty = "node")]
-    pub struct ProducerNode {
-        /// Capacity in Watts
-        pub capacity: f64,
-        /// Produced energy
-        pub energy_production: f64,
-        /// voltage
-        pub voltage: f64,
-        /// Type of power produced
-        pub power_type: PowerType,
-    }
-
-    #[derive(ComponentPiece, Component)]
     #[component(name = "energy_transmission_edge", ty = "edge")]
     pub struct TransmissionEdge {
         pub resistance_per_meter: f64,
