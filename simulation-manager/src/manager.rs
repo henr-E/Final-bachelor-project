@@ -79,17 +79,34 @@ impl SimulationManager for Manager {
         request: Request<DeleteSimulationRequestManager>,
     ) -> Result<Response<()>, Status> {
         let req = request.into_inner();
-        let simulation_id = req.id.unwrap().uuid;
+        let simulation_id = req.id.expect("Request should provide an ID.").uuid;
 
         // Start transaction
         let mut db = self.db.lock().await;
-        db.begin_transaction().await.unwrap();
+        db.begin_transaction().await.map_err(|err| {
+            Status::internal(format!(
+                "delete_simulation could not begin transaction with message: {:?}",
+                err.to_string()
+            ))
+        })?;
 
         // Delete the simulation
-        db.delete_simulation_via_name(&simulation_id).await.unwrap();
+        db.delete_simulation_via_name(&simulation_id)
+            .await
+            .map_err(|err| {
+                Status::internal(format!(
+                    "delete_simulation could not delete the simulation with message: {:?}",
+                    err.to_string()
+                ))
+            })?;
 
         // Commit transaction
-        db.commit().await.unwrap();
+        db.commit().await.map_err(|err| {
+            Status::internal(format!(
+                "delete_simulation could not commit the deletion with message: {:?}",
+                err.to_string()
+            ))
+        })?;
         Ok(Response::new(()))
     }
 
@@ -123,7 +140,12 @@ impl SimulationManager for Manager {
         let simulators = selection.name;
         // Start transaction
         let mut db = self.db.lock().await;
-        db.begin_transaction().await.unwrap();
+        db.begin_transaction().await.map_err(|err| {
+            Status::internal(format!(
+                "push_simulation could not begin transaction with message: {:?}",
+                err.to_string()
+            ))
+        })?;
 
         //add a new simulation to the simulation table
         let simulation_index = db
@@ -135,24 +157,59 @@ impl SimulationManager for Manager {
                 simulators,
             )
             .await
-            .unwrap();
+            .map_err(|err| {
+                Status::internal(format!(
+                    "push_simulation could not insert the simulation with message: {:?}",
+                    err.to_string()
+                ))
+            })?;
 
         //place simulation id in queue
-        db.enqueue(simulation_index).await.unwrap();
+        db.enqueue(simulation_index).await.map_err(|err| {
+            Status::internal(format!(
+                "push_simulation could not enqueue the new simulation with message: {:?}",
+                err.to_string()
+            ))
+        })?;
         // Store graph in database
         for node in nodes {
-            db.add_node(node, simulation_index, 0).await.unwrap();
+            db.add_node(node, simulation_index, 0)
+                .await
+                .map_err(|err| {
+                    Status::internal(format!(
+                        "push_simulation could not add the nodes with message: {:?}",
+                        err.to_string()
+                    ))
+                })?;
         }
         for edge in edges {
-            db.add_edge(edge, simulation_index, 0).await.unwrap();
+            db.add_edge(edge, simulation_index, 0)
+                .await
+                .map_err(|err| {
+                    Status::internal(format!(
+                        "push_simulation could not add the edges with message: {:?}",
+                        err.to_string()
+                    ))
+                })?;
         }
         for (key, value) in global {
             db.add_global_component(&key, value, simulation_index, 0)
                 .await
-                .unwrap();
+                .map_err(|err| {
+                    Status::internal(format!(
+                        "push_simulation could not add global variable {} with message: {:?}",
+                        key,
+                        err.to_string()
+                    ))
+                })?;
         }
         // Commit transaction
-        db.commit().await.unwrap();
+        db.commit().await.map_err(|err| {
+            Status::internal(format!(
+                "push_simulation could not commit the new simulation with message: {:?}",
+                err.to_string()
+            ))
+        })?;
         self.notif_sender.try_send(()).ok();
         Ok(Response::new(()))
     }
@@ -168,21 +225,47 @@ impl SimulationManager for Manager {
 
         // Start transaction
         let mut db = self.db.lock().await;
-        db.begin_transaction().await.unwrap();
+        db.begin_transaction().await.map_err(|err| {
+            Status::internal(format!(
+                "get_simulation could not begin transaction with message: {:?}",
+                err.to_string()
+            ))
+        })?;
 
-        let simulation = db.get_simulation_via_name(&simulation_id).await.unwrap();
+        let simulation = db
+            .get_simulation_via_name(&simulation_id)
+            .await
+            .map_err(|err| {
+                Status::internal(format!(
+                    "get_simulation could not fetch the simulation with message: {:?}",
+                    err.to_string()
+                ))
+            })?;
 
         // Get current timestep
-        let node_timestep = db.get_node_max_timestep(simulation.id).await.unwrap();
+        let node_timestep = db
+            .get_node_max_timestep(simulation.id)
+            .await
+            .map_err(|err| {
+                Status::internal(format!(
+                    "get_simulation could not fetch the max node timestep with message: {:?}",
+                    err.to_string()
+                ))
+            })?;
 
         let component_timestep = db
             .get_global_components_max_timestep(simulation.id)
             .await
-            .unwrap();
+            .map_err(|err| Status::internal(format!("get_simulation could not fetch the max global variable timestep with message: {:?}", err.to_string())))?;
 
         let timestep = node_timestep.max(component_timestep);
 
-        let sim_status = db.get_status(simulation.id).await.unwrap();
+        let sim_status = db.get_status(simulation.id).await.map_err(|err| {
+            Status::internal(format!(
+                "get_simulation could not fetch the simulation status with message: {:?}",
+                err.to_string()
+            ))
+        })?;
 
         // Create response
         let simulation_data = SimulationData {
@@ -235,10 +318,10 @@ impl SimulationManager for Manager {
                 // Start transaction
                 let mut db = db.lock().await;
 
-                db.begin_transaction().await.unwrap();
+                db.begin_transaction().await.map_err(|err| Status::internal(format!("get_simulation_frames could not begin transaction with message: {:?}", err.to_string())))?;
 
                 // Simulation index
-                let simulation_id = db.get_simulation_via_name(&simulation_name).await.unwrap().id;
+                let simulation_id = db.get_simulation_via_name(&simulation_name).await.map_err(|err| Status::internal(format!("get_simulation_frames could not get the simulation id with message: {:?}", err.to_string())))?.id;
 
                 let frame_index = frame_request.frame_nr as i32;
 
@@ -247,22 +330,22 @@ impl SimulationManager for Manager {
                     edge: vec![],
                 };
 
-                let nodes_send = db.get_nodes(simulation_id, frame_index).await.unwrap();
+                let nodes_send = db.get_nodes(simulation_id, frame_index).await.map_err(|err| Status::internal(format!("get_simulation_frames could get the nodes with message: {:?}", err.to_string())))?;
 
                 for node in nodes_send {
                     graph.nodes.push(node);
                 }
 
-                let edges_send = db.get_edges(simulation_id, frame_index).await.unwrap();
+                let edges_send = db.get_edges(simulation_id, frame_index).await.map_err(|err| Status::internal(format!("get_simulation_frames could not get the edges with message: {:?}", err.to_string())))?;
 
                 for edge in edges_send {
                     graph.edge.push(edge);
                 }
 
-                let globals = db.get_global_components(simulation_id, frame_index).await.unwrap();
+                let globals = db.get_global_components(simulation_id, frame_index).await.map_err(|err| Status::internal(format!("get_simulation_frames could not get the global variables with message: {:?}", err.to_string())))?;
 
                 // Commit transaction
-                db.commit().await.unwrap();
+                db.commit().await.map_err(|err| Status::internal(format!("get_simulation_frames could not commit the changes with message: {:?}", err.to_string())))?;
 
                 // output
                 yield Ok(SimulationFrame {
