@@ -487,9 +487,9 @@ impl Runner {
             };
             self.state_sender.send(transport)?;
             let status = match i {
-                0 => StatusEnum::Pending,
-                i if i < iterations - 1 => StatusEnum::Computing,
                 i if i == iterations - 1 => StatusEnum::Finished,
+                i if i < iterations - 1 => StatusEnum::Computing,
+                0 => StatusEnum::Pending,
                 _ => StatusEnum::Failed,
             };
             let temp_status = status.clone();
