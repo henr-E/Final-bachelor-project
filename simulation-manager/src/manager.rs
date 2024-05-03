@@ -116,6 +116,7 @@ impl SimulationManager for Manager {
             .expect("Initial state should have a graph.");
         let nodes = graph.nodes;
         let edges = graph.edge;
+
         let global = initial_state.global_components;
         let selection = simulation.selection.ok_or(Status::invalid_argument(
             "Invalid grpc, no selection present",
@@ -422,13 +423,15 @@ mod manager_grpc_test {
                 name: "key1".to_string(),
                 component_data: prost_to_serde_json(Value {
                     kind: Some(value::Kind::NumberValue(1.0)),
-                }),
+                })
+                .unwrap(),
             },
             ExpectedNodeComponents {
                 name: "key2".to_string(),
                 component_data: prost_to_serde_json(Value {
                     kind: Some(value::Kind::NumberValue(2.0)),
-                }),
+                })
+                .unwrap(),
             },
         ];
         let res1 = sqlx::query!("SELECT * FROM simulations")
@@ -460,10 +463,10 @@ mod manager_grpc_test {
             .await
             .expect("Error executing query edges");
         assert!(res3.iter().any(|row| row.edge_id == 0 && row.time_step == 0 && row.component_type == "Edge"
-            && row.from_node == 0 && row.to_node == 1 && row.component_data == prost_to_serde_json(Value { kind: Some(value::Kind::NumberValue(42.0)) }))
+            && row.from_node == 0 && row.to_node == 1 && row.component_data == prost_to_serde_json(Value { kind: Some(value::Kind::NumberValue(42.0)) }).unwrap())
                 , "Assertion failed: mismatched values: - edge_id: expected={}; time_step: expected={}, component_type: expected={}, \
                 from_node: expected={}, to_node: expected={}, component_data: expected={}; actual={:?}", 0, 0, "Edge", 0, 1,
-                prost_to_serde_json(Value { kind: Some(value::Kind::NumberValue(42.0)) }), res3);
+                prost_to_serde_json(Value { kind: Some(value::Kind::NumberValue(42.0)) }).unwrap(), res3);
         let res4 = sqlx::query!("SELECT * FROM queue")
             .fetch_all(&pool)
             .await
@@ -480,7 +483,8 @@ mod manager_grpc_test {
             .expect("Error executing query global components");
         let value = prost_to_serde_json(Value {
             kind: Some(value::Kind::NumberValue(3.0)),
-        });
+        })
+        .unwrap();
         assert!(res5.iter().any(|row| row.simulation_id == res.id && row.time_step == 0 && row.name == "key3" &&
             row.component_data == value), "Assertion failed: mismatched values: - id: expected={}, \
                     time_step: expected={}; name: expected={}; component_data: expected={}; actual={:?}", 0, res.id, "key3", value, res5);

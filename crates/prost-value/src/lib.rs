@@ -26,53 +26,59 @@ pub fn from_map(value: BTreeMap<String, Value>) -> Value {
 }
 
 /// Changes a serde_json::Map<String, serde_json::Value> into a Struct
-pub fn to_struct(json: serde_json::Map<String, serde_json::Value>) -> Struct {
-    Struct {
+pub fn to_struct(json: serde_json::Map<String, serde_json::Value>) -> Option<Struct> {
+    Some(Struct {
         fields: json
             .into_iter()
-            .map(|(k, v)| (k, serde_json_to_prost(v)))
-            .collect(),
-    }
+            .map(|(k, v)| Some((k, serde_json_to_prost(v)?)))
+            .collect::<Option<_>>()?,
+    })
 }
 
 /// Changes a Value to a serde_json::Value
-pub fn prost_to_serde_json(x: Value) -> serde_json::Value {
+pub fn prost_to_serde_json(x: Value) -> Option<serde_json::Value> {
     use prost_types::value::Kind::*;
     use serde_json::Value::*;
-    match x.kind {
-        Some(x) => match x {
-            NullValue(_) => Null,
-            BoolValue(v) => Bool(v),
-            NumberValue(n) => Number(serde_json::Number::from_f64(n).unwrap()),
-            StringValue(s) => String(s),
-            ListValue(lst) => Array(lst.values.into_iter().map(prost_to_serde_json).collect()),
-            StructValue(v) => Object(
-                v.fields
-                    .into_iter()
-                    .map(|(k, v)| (k, prost_to_serde_json(v)))
-                    .collect(),
-            ),
-        },
-        None => unimplemented!(),
-    }
+    let r = match x.kind? {
+        NullValue(_) => Null,
+        BoolValue(v) => Bool(v),
+        NumberValue(n) => Number(serde_json::Number::from_f64(n)?),
+        StringValue(s) => String(s),
+        ListValue(lst) => Array(
+            lst.values
+                .into_iter()
+                .map(prost_to_serde_json)
+                .collect::<Option<_>>()?,
+        ),
+        StructValue(v) => Object(
+            v.fields
+                .into_iter()
+                .map(|(k, v)| Some((k, prost_to_serde_json(v)?)))
+                .collect::<Option<_>>()?,
+        ),
+    };
+    Some(r)
 }
 
 /// Changes a serde_json::Value to a Value
-pub fn serde_json_to_prost(json: serde_json::Value) -> Value {
+pub fn serde_json_to_prost(json: serde_json::Value) -> Option<Value> {
     use prost_types::value::Kind::*;
     use serde_json::Value::*;
-    Value {
+    Some(Value {
         kind: Some(match json {
             Null => NullValue(0 /* wat? */),
             Bool(v) => BoolValue(v),
-            Number(n) => NumberValue(n.as_f64().expect("Non-f64-representable number")),
+            Number(n) => NumberValue(n.as_f64()?),
             String(s) => StringValue(s),
             Array(v) => ListValue(prost_types::ListValue {
-                values: v.into_iter().map(serde_json_to_prost).collect(),
+                values: v
+                    .into_iter()
+                    .map(serde_json_to_prost)
+                    .collect::<Option<_>>()?,
             }),
-            Object(v) => StructValue(to_struct(v)),
+            Object(v) => StructValue(to_struct(v)?),
         }),
-    }
+    })
 }
 
 #[cfg(test)]
@@ -100,7 +106,7 @@ mod tests {
             "null": serde_json::Value::Null,
             "array": [0, 1, 2]
         });
-        let res = to_struct(json.as_object().expect("an object").clone());
+        let res = to_struct(json.as_object().expect("an object").clone()).unwrap();
 
         let array = prost_types::ListValue {
             values: vec![
@@ -136,11 +142,11 @@ mod tests {
         );
         tree.insert(
             "null".to_string(),
-            serde_json_to_prost(serde_json::Value::Null),
+            serde_json_to_prost(serde_json::Value::Null).unwrap(),
         );
         tree.insert(
             "string".to_string(),
-            serde_json_to_prost(serde_json::Value::String("this is a string".to_string())),
+            serde_json_to_prost(serde_json::Value::String("this is a string".to_string())).unwrap(),
         );
         let str = Struct { fields: tree };
 
@@ -183,11 +189,11 @@ mod tests {
         );
         tree.insert(
             "null".to_string(),
-            serde_json_to_prost(serde_json::Value::Null),
+            serde_json_to_prost(serde_json::Value::Null).unwrap(),
         );
         tree.insert(
             "string".to_string(),
-            serde_json_to_prost(serde_json::Value::String("this is a string".to_string())),
+            serde_json_to_prost(serde_json::Value::String("this is a string".to_string())).unwrap(),
         );
 
         let json = json!({
@@ -201,7 +207,7 @@ mod tests {
         let mut tree_json: serde_json::map::Map<String, serde_json::Value> =
             serde_json::map::Map::new();
         for (name, value) in tree.clone() {
-            let temp = prost_to_serde_json(value);
+            let temp = prost_to_serde_json(value).unwrap();
             tree_json.insert(name, temp);
         }
 
@@ -209,7 +215,7 @@ mod tests {
 
         let mut tree_from_json: BTreeMap<String, Value> = BTreeMap::new();
         for (name, value) in tree_json.iter() {
-            let temp = serde_json_to_prost(value.clone());
+            let temp = serde_json_to_prost(value.clone()).unwrap();
             tree_from_json.insert(name.clone(), temp);
         }
         assert_eq!(tree, tree_from_json);
