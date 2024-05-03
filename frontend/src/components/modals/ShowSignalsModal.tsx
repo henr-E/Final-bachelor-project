@@ -1,69 +1,20 @@
 'use client';
-import React from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import { Button, Modal } from 'flowbite-react';
-import { Sensor } from '@/proto/sensor/sensor-crud';
+import { Sensor, Signal } from '@/proto/sensor/sensor-crud';
+import { TwinContext } from '@/store/twins';
+import { updateSensor } from '@/api/sensor/crud';
+import ToastNotification from '@/components/notification/ToastNotification';
+import UpdateSensorModal from '@/components/modals/UpdateSensorModal';
+import { toast } from 'react-toastify';
+import { bigIntToExponent, prefixes, prefixExponents, prefixMap } from '@/store/sensor';
 import { BigDecimal } from '@/proto/sensor/bigdecimal';
 
 interface ShowSignalsModalProps {
     isModalOpen: boolean;
     sensor?: Sensor;
     closeModal: () => void;
-}
-
-const prefixMap = new Map<number, string>([
-    [30, 'QUETTA'],
-    [27, 'RONNA'],
-    [24, 'YOTTA'],
-    [21, 'ZETTA'],
-    [18, 'EXA'],
-    [15, 'PETA'],
-    [12, 'TERA'],
-    [9, 'GIGA'],
-    [6, 'MEGA'],
-    [3, 'KILO'],
-    [2, 'HECTO'],
-    [1, 'DECA'],
-    [0, 'ONE'],
-    [-1, 'DECI'],
-    [-2, 'CENTI'],
-    [-3, 'MILLI'],
-    [-6, 'MICRO'],
-    [-9, 'NANO'],
-    [-12, 'PICO'],
-    [-15, 'FEMTO'],
-    [-18, 'ATTO'],
-    [-21, 'ZEPTO'],
-    [-24, 'YOCTO'],
-    [-27, 'RONTO'],
-    [-30, 'QUECTO'],
-]);
-
-function formatBigInt(bigDecimal: BigDecimal | null | undefined): string {
-    if (bigDecimal === null || bigDecimal === undefined) return 'None';
-
-    //convert integer to 1 number
-    //example 1000
-    const number = parseInt(bigDecimal.integer.reverse().join(''));
-
-    //count the amount of zeros
-    //example 1000 => 3 zeros
-    const str = number.toString(); // Convert the number to a string
-    let zeroCount = 0; // Initialize zero counter
-
-    for (const char of str) {
-        if (char === '0') {
-            zeroCount++; // Increment the counter for each zero found
-        }
-    }
-
-    let amountOfZeros = bigDecimal.exponent + zeroCount;
-    let prefix = prefixMap.get(amountOfZeros);
-
-    if (prefix === undefined) {
-        return 'No prefix found';
-    }
-    return prefix;
 }
 
 /**
@@ -74,10 +25,36 @@ function formatBigInt(bigDecimal: BigDecimal | null | undefined): string {
  * @constructor
  */
 function ShowSignalsModal({ isModalOpen, sensor, closeModal }: ShowSignalsModalProps) {
+    const [isUpdateSensorModalOpen, setIsUpdateSensorModalOpen] = useState(false);
+    const [twinState, dispatchTwin] = useContext(TwinContext);
+    const [showSignalModal, setShowSignalModal] = useState<boolean>();
+
+    const [currentSensor, setCurrentSensor] = useState<Sensor>();
+
+    useEffect(() => {
+        setCurrentSensor(sensor);
+    }, [sensor]);
+
+    useEffect(() => {
+        setShowSignalModal(isModalOpen);
+    }, [isModalOpen]);
+
+    const handleUpdateSensor = async (updatedSensor: Sensor) => {
+        let result = await updateSensor(updatedSensor);
+        if (result) {
+            dispatchTwin({ type: 'update_sensor', sensor: updatedSensor });
+            ToastNotification('success', 'Sensor updated succesfully.');
+        } else {
+            ToastNotification('error', 'Something went wrong when updating the sensor.');
+        }
+
+        setCurrentSensor(updatedSensor);
+    };
+
     return (
         <>
             <Modal
-                show={isModalOpen}
+                show={showSignalModal}
                 onClose={() => {
                     closeModal();
                 }}
@@ -87,7 +64,7 @@ function ShowSignalsModal({ isModalOpen, sensor, closeModal }: ShowSignalsModalP
                     zIndex: 2000,
                 }}
             >
-                <Modal.Header>Signals for Sensor {sensor?.name} </Modal.Header>
+                <Modal.Header>Signals for Sensor {currentSensor?.name} </Modal.Header>
                 <Modal.Body>
                     <div className='shadow-md sm:rounded-lg bg-white p-2 w-full min-h-96 relative'>
                         <table className='text-sm text-left rtl:text-right text-gray-500 w-full table-auto'>
@@ -111,13 +88,19 @@ function ShowSignalsModal({ isModalOpen, sensor, closeModal }: ShowSignalsModalP
                                 </tr>
                             </thead>
                             <tbody>
-                                {sensor?.signals?.map((signal, index) => (
+                                {currentSensor?.signals.map((signal, index) => (
                                     <tr key={index} className='my-6' style={{ cursor: 'pointer' }}>
                                         <td className='p-3 px-3'>{signal.alias}</td>
                                         <td className='p-3 px-3'>{signal.unit}</td>
                                         <td className='p-3 px-3'>{signal.quantity}</td>
                                         <td className='p-3 px-3'>{signal.ingestionUnit}</td>
-                                        <td className='p-3 px-3'>{formatBigInt(signal.prefix)}</td>
+                                        <td className='p-3 px-3'>
+                                            {prefixMap.get(
+                                                bigIntToExponent(
+                                                    signal.prefix as BigDecimal
+                                                ) as number
+                                            )}
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -139,8 +122,35 @@ function ShowSignalsModal({ isModalOpen, sensor, closeModal }: ShowSignalsModalP
                     >
                         Back
                     </Button>
+                    <Button
+                        outline
+                        color='indigo'
+                        theme={{
+                            color: {
+                                indigo: 'bg-indigo-600 text-white ring-indigo-600',
+                            },
+                        }}
+                        onClick={() => {
+                            setIsUpdateSensorModalOpen(true);
+                            setShowSignalModal(false);
+                        }}
+                    >
+                        Update Sensor
+                    </Button>
                 </Modal.Footer>
             </Modal>
+            {currentSensor && (
+                <UpdateSensorModal
+                    isModalOpen={isUpdateSensorModalOpen}
+                    selectedBuildingId={currentSensor.buildingId || null}
+                    handleUpdateSensor={handleUpdateSensor}
+                    closeModal={() => {
+                        setIsUpdateSensorModalOpen(false);
+                        setShowSignalModal(true);
+                    }}
+                    sensor={currentSensor}
+                />
+            )}
         </>
     );
 }
