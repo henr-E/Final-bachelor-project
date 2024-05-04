@@ -9,8 +9,8 @@ use tonic::transport::Channel;
 use tonic::{Request, Response, Status, Streaming};
 
 use proto::frontend::{
-    CreateSimulationParams, CreateSimulationResponse, Simulation, SimulationInterfaceService,
-    Simulations, TwinId,
+    CreateSimulationParams, CreateSimulationResponse, ParentSimulation, Simulation,
+    SimulationInterfaceService, Simulations, TwinId,
 };
 use proto::simulation::simulation_manager::DeleteSimulationRequest as DeleteSimulationRequestManager;
 use proto::simulation::simulation_manager::{
@@ -30,6 +30,7 @@ pub struct SimulationDB {
     start_date_time: i32,
     end_date_time: i32,
     creation_date_time: i32,
+    parent: Option<ParentSimulation>,
 }
 
 #[derive(Clone)]
@@ -135,6 +136,13 @@ impl SimulationInterfaceService for SimulationService {
             start_date_time: req.start_date_time, // Assuming these fields are provided correctly
             end_date_time: req.end_date_time,
             creation_date_time: creation_time.as_secs() as i32, // Assuming this is provided or generated here
+            parent: req.parent,
+        };
+
+        // get parent id and frame
+        let (parent_id, parent_frame) = match new_simulation.parent {
+            Some(parent) => (Some(parent.id), Some(parent.frame as i32)),
+            None => (None, None),
         };
 
         let transaction = self
@@ -144,12 +152,14 @@ impl SimulationInterfaceService for SimulationService {
             .map_err(|err| Status::from_error(Box::new(err)))?;
 
         let simulation_id = sqlx::query!(
-            "INSERT INTO simulations (twin_id , name, start_date_time, end_date_time, creation_date_time) VALUES ($1,$2,$3,$4,$5) RETURNING id",
+            "INSERT INTO simulations (twin_id, name, start_date_time, end_date_time, creation_date_time, parent_id, parent_frame) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
             new_simulation.twin_id,
             new_simulation.name,
             new_simulation.start_date_time,
             new_simulation.end_date_time,
             new_simulation.creation_date_time,
+            parent_id,
+            parent_frame,
         )
             .fetch_one(&self.pool)
             .await
@@ -194,7 +204,7 @@ impl SimulationInterfaceService for SimulationService {
         let items_database = sqlx::query!("SELECT * FROM simulations WHERE twin_id=$1", twin_id)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| Status::internal(format!("Failed to fetch simualations: {}", e)))?;
+            .map_err(|e| Status::internal(format!("Failed to fetch simulations: {}", e)))?;
 
         // put all the found simulations in a vector
         let mut all_simulations: Vec<Simulation> = Vec::new();
@@ -208,6 +218,37 @@ impl SimulationInterfaceService for SimulationService {
                         Status::internal(format!("Failed to get a simulation: {source}"))
                     })?;
 
+            // Get parent simulation if exists
+            let parent: Option<ParentSimulation> = match item.parent_id {
+                Some(id) => {
+                    let parent_name = sqlx::query!("SELECT name FROM simulations WHERE id=$1", id)
+                        .fetch_one(&self.pool)
+                        .await
+                        .map_err(|e| {
+                            Status::internal(format!("Failed to get parent simulation: {e}"))
+                        })?
+                        .name
+                        .to_string();
+
+                    let frame = match item.parent_frame {
+                        Some(parent_frame) => parent_frame as u32,
+                        None => {
+                            return Err(Status::internal(format!(
+                                "No parent frame found in simulation {0} with parent_id {id}",
+                                item.id
+                            )))
+                        }
+                    };
+
+                    Some(ParentSimulation {
+                        id,
+                        name: parent_name,
+                        frame,
+                    })
+                }
+                None => None,
+            };
+
             all_simulations.push(Simulation {
                 id: item.id,
                 name: item.name,
@@ -217,6 +258,7 @@ impl SimulationInterfaceService for SimulationService {
                 frames_loaded: simulation_item.timestep_count as i32,
                 status: simulation_item.status,
                 status_info: simulation_item.status_info,
+                parent,
             });
         }
 
@@ -257,6 +299,35 @@ impl SimulationInterfaceService for SimulationService {
             Err(_) => return Err(Status::not_found("simulation not found")),
         };
 
+        // Get parent simulation if exists
+        let parent: Option<ParentSimulation> = match item.parent_id {
+            Some(id) => {
+                let parent_name = sqlx::query!("SELECT name FROM simulations WHERE id=$1", id)
+                    .fetch_one(&self.pool)
+                    .await
+                    .map_err(|e| Status::internal(format!("Failed to get parent simulation: {e}")))?
+                    .name
+                    .to_string();
+
+                let frame = match item.parent_frame {
+                    Some(parent_frame) => parent_frame as u32,
+                    None => {
+                        return Err(Status::internal(format!(
+                            "No parent frame found in simulation {0} with parent_id {id}",
+                            item.id
+                        )))
+                    }
+                };
+
+                Some(ParentSimulation {
+                    id,
+                    name: parent_name,
+                    frame,
+                })
+            }
+            None => None,
+        };
+
         // create a simulation object to be wrapped in a response, note: no twin_id
         let simulation_found = Simulation {
             id: item.id,
@@ -267,6 +338,7 @@ impl SimulationInterfaceService for SimulationService {
             frames_loaded: simulation_item.timestep_count as i32,
             status: simulation_item.status,
             status_info: simulation_item.status_info,
+            parent,
         };
 
         Ok(Response::new(simulation_found))

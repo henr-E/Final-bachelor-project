@@ -41,6 +41,7 @@ message CreateSimulationParams {
     double time_step_delta = 5;
     simulation.State startState = 6;
     simulation_manager.SimulatorSelection simulators = 7;
+    optional ParentSimulation parent = 8; // Optional simulation it is branched from
 }
 
 message Simulations {
@@ -56,10 +57,18 @@ message Simulation {
     int32 frames_loaded = 6;//amount of ms it took to run the simulation
     SimulationStatus status = 7;
     optional string status_info = 8;
+    optional ParentSimulation parent = 9; // Optional simulation it is branched from
 }
 
 message TwinId {
     string twin_id = 1;
+}
+
+// The parent of a simulation if it has one
+message ParentSimulation {
+    int32 id = 1;
+    string name = 2;
+    uint32 frame = 3; // The frame a new simulation is branched from
 }
 
 //delete a simulation

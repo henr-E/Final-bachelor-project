@@ -126,6 +126,12 @@ function SimulationOverviewPage() {
                                             <th scope='col' className='p-3 px-3'>
                                                 Loaded frames
                                             </th>
+                                            <th scope='col' className='p-3 px-3'>
+                                                Branched from
+                                            </th>
+                                            <th scope='col' className='p-3 px-3'>
+                                                On Frame
+                                            </th>
                                             <th scope='col' className='p-3 px-1 text-center w-20'>
                                                 Status
                                             </th>
@@ -205,6 +211,38 @@ function SimulationOverviewPage() {
                                                     onClick={() => handleClick(simulation.id)}
                                                 >
                                                     {simulation.framesLoaded}
+                                                </td>
+                                                <td
+                                                    className='p-3 px-3'
+                                                    onClick={() =>
+                                                        handleClick(
+                                                            simulation.parent
+                                                                ? simulation.parent?.id
+                                                                : simulation.id
+                                                        )
+                                                    }
+                                                >
+                                                    <>
+                                                        {simulation.parent
+                                                            ? simulation.parent?.name
+                                                            : '-'}
+                                                    </>
+                                                </td>
+                                                <td
+                                                    className='p-3 px-3'
+                                                    onClick={() =>
+                                                        handleClick(
+                                                            simulation.parent
+                                                                ? simulation.parent?.id
+                                                                : simulation.id
+                                                        )
+                                                    }
+                                                >
+                                                    <>
+                                                        {simulation.parent
+                                                            ? simulation.parent?.frame
+                                                            : '-'}
+                                                    </>
                                                 </td>
                                                 <td className='p-3 px-3 text-center items-center flex justify-center w-20'>
                                                     {simulation.status == 0 ? (

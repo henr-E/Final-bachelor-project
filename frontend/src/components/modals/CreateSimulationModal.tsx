@@ -28,6 +28,7 @@ interface CreateSimulationModalProps {
     globalComponents?: string;
     initialNodes?: Map<number, NodeItem>;
     initialEdges?: Array<LineItem>;
+    parent?: [number, string, number];
     simulators?: string[];
 }
 
@@ -123,6 +124,16 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
             return;
         }
 
+        // grpc optional uses undefined
+        let parent = undefined;
+        if (propItems.parent) {
+            parent = {
+                id: propItems.parent[0],
+                name: propItems.parent[1],
+                frame: propItems.parent[2],
+            };
+        }
+
         const twin: CreateSimulationParams = {
             name: name,
             twinId: twinState.current?.id.toString(),
@@ -140,6 +151,7 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
             simulators: {
                 name: simulatorsSelected,
             },
+            parent: parent,
         };
 
         const response = await BackendCreateSimulation(twin);
