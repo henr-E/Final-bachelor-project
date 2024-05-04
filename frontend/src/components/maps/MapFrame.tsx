@@ -149,7 +149,7 @@ function MapFrame({ frame, frameNr }: MapFrameProps) {
 
     return (
         <div className='h-full grid grid-cols-12'>
-            <div className={`h-full col-span-9 ${!frame ? 'blur-sm' : ''}`}>
+            <div className={`col-span-9 ${!frame ? 'blur-sm' : ''} h-full auto-rows-max`}>
                 <PredictionMapImport
                     twin={twinState.current}
                     nodes={nodes}
@@ -157,9 +157,9 @@ function MapFrame({ frame, frameNr }: MapFrameProps) {
                     edges={edges}
                 />
             </div>
-            <div className='col-span-3 mx-6'>
+            <div className='col-span-3 mx-6 overflow-y-scroll h-[68vh]'>
                 {frame ? (
-                    <div className='h-full space-y-1'>
+                    <div className='space-y-1'>
                         <Card className='overflow-x-scroll'>
                             <h1>Global variable</h1>
                             {frame.state?.globalComponents && (
@@ -174,8 +174,8 @@ function MapFrame({ frame, frameNr }: MapFrameProps) {
                         </Card>
                     </div>
                 ) : (
-                    <div className='col-span-3 mx-6'>
-                        <Card className='text-center items-center'>
+                    <div className='w-full'>
+                        <Card className='text-center items-center w-full'>
                             <Spinner aria-label='Medium sized spinner example' size='md' />
                             {frame ? (
                                 <div>

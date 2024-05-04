@@ -250,7 +250,7 @@ function SimulationPage() {
             <Card className='mt-1'>
                 <div className='flex'>
                     <div className='flex'>
-                        <a href='#' onClick={startStopSimulation}>
+                        <a onClick={startStopSimulation} style={{ cursor: 'pointer' }}>
                             {intervalItem ? (
                                 <Icon path={mdiPause} size={1.2} />
                             ) : (
@@ -309,7 +309,7 @@ function SimulationPage() {
                             )}
                             <Tooltip content='Player settings'>
                                 <a
-                                    href='#'
+                                    style={{ cursor: 'pointer' }}
                                     onClick={() => {
                                         setSettingMenu(!settingMenu);
                                         if (intervalItem) {
