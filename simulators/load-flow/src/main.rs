@@ -73,33 +73,32 @@ impl LoadFlowSimulator {
         C2: simulator_communication::component::Component,
     >(
         graph: &Graph,
-    ) -> HashMap<NodeId, NodeId> {
+    ) -> Result<HashMap<NodeId, NodeId>, String> {
         let sensor_nodes = Self::collect_nodes::<C1>(graph);
         let real_nodes = Self::collect_nodes::<C2>(graph);
 
-        assert_eq!(
-            sensor_nodes.len(),
-            real_nodes.len(),
-            "The count of sensor and real nodes must be equal."
-        );
+        if sensor_nodes.len() != real_nodes.len() {
+            return Err("The count of sensor and real nodes must be equal.".to_owned());
+        }
 
-        sensor_nodes
+        let trans = sensor_nodes
             .iter()
             .zip(real_nodes.iter())
             .map(|((sensor_id, _), (real_id, _))| (*sensor_id, *real_id))
-            .collect()
+            .collect();
+        Ok(trans)
     }
 
     /// Main function to create node translation map for the graph.
-    fn create_node_translation_map(graph: &Graph) -> HashMap<NodeId, NodeId> {
-        let load_translations = Self::create_translation::<SensorLoadNode, LoadNode>(graph);
+    fn create_node_translation_map(graph: &Graph) -> Result<HashMap<NodeId, NodeId>, String> {
+        let load_translations = Self::create_translation::<SensorLoadNode, LoadNode>(graph)?;
         let generator_translations =
-            Self::create_translation::<SensorGeneratorNode, GeneratorNode>(graph);
+            Self::create_translation::<SensorGeneratorNode, GeneratorNode>(graph)?;
 
         let mut node_translations = load_translations;
         node_translations.extend(generator_translations);
 
-        node_translations
+        Ok(node_translations)
     }
 }
 
@@ -143,7 +142,9 @@ impl Simulator for LoadFlowSimulator {
         let mut edges = HashMap::new();
 
         // Translate base node id to corresponding load flow analysis node
-        let node_translations = Self::create_node_translation_map(&graph);
+        let Ok(node_translations) = Self::create_node_translation_map(&graph) else {
+            return Err(SimulationError::InvalidInput("The load flow simulation needs a sensor load node for every load node and a sensor generator node for every generator node".to_owned()));
+        };
 
         for (nodeid, _, comp) in graph.get_all_nodes::<SensorLoadNode>().unwrap() {
             let load = BusNode::load(comp.active_power, comp.reactive_power);
