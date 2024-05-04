@@ -15,7 +15,6 @@ import {
     BackendGetSimulators,
 } from '@/api/simulation/crud';
 import CustomJsonEditor, { TypeConverter } from '@/components/CustomJsonEditor';
-import { undefined } from 'zod';
 
 interface CreateSimulationModalProps {
     isModalOpen: boolean;
@@ -105,16 +104,16 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
             //Convert multiple components to multiple edges for simulators, will be converted back in the interface in the MapFrame page.
             Object.entries(item.components || {}).forEach(([keyItem, value]) => {
                 let lineItem = item as LineItem;
-                edges.push(
-                    Edge.create({
-                        id: lineItem.id,
-                        from: lineItem.items[0].id,
-                        // @ts-ignore
-                        to: lineItem.items[1].id,
-                        componentType: keyItem,
-                        componentData: value,
-                    })
-                );
+                if (lineItem && lineItem.items[0] && lineItem.items[1])
+                    edges.push(
+                        Edge.create({
+                            id: lineItem.id,
+                            from: lineItem.items[0].id,
+                            to: lineItem.items[1].id,
+                            componentType: keyItem,
+                            componentData: value,
+                        })
+                    );
             });
             return;
         });
