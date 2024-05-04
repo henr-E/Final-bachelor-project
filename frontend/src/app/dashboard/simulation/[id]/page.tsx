@@ -434,6 +434,7 @@ function SimulationPage() {
                     closeModal={() => {
                         setIsCreateSimulationModalOpen(false);
                     }}
+                    parent={[simulation?.id || 0, simulation?.name || '', currentTime]}
                 ></CreateSimulationModal>
             )}
         </div>

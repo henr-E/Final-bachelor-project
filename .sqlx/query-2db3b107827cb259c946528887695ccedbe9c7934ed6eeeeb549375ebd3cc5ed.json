@@ -32,6 +32,16 @@
         "ordinal": 5,
         "name": "creation_date_time",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "parent_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "parent_frame",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -45,7 +55,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
   "hash": "2db3b107827cb259c946528887695ccedbe9c7934ed6eeeeb549375ebd3cc5ed"
