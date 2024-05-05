@@ -129,10 +129,14 @@ pub mod energy {
         pub total_outgoing_power: f64,
         /// vector of power type and percentage of how much power they account for
         pub energy_production_overview: Vec<ProductionOverview>,
-        /// option for what solver to use
-        pub solver: LoadFlowSolvers,
+        /// input  for what solver to use
+        pub solver_input: LoadFlowSolvers,
         /// returns true if solver converged successfully
         pub solver_converged: bool,
+        /// input: maximum number of iterations
+        pub max_iterations_input: i32,
+        /// input: maximum tolerance for error
+        pub tolerance_input: f64,
     }
     /// Component storing the knowns for a generator node (Active power P and voltage magnitude V)
     #[derive(ComponentPiece, Component)]

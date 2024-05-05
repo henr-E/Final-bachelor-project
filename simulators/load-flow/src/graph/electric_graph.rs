@@ -82,6 +82,8 @@ pub trait Graph {
     fn loads(&self) -> i32;
     /// get mutable access to a node
     fn get_node_mut(&mut self, node_id: usize) -> Option<&mut BusNode>;
+    //reset node with existing id
+    fn reset_node(&mut self, node: BusNode);
 }
 
 impl DefaultGraph {
@@ -221,6 +223,10 @@ impl DefaultGraph {
     fn remove_edge(&mut self, id1: usize, id2: usize) {
         self.edges.remove(&(id1, id2));
     }
+    fn reset_node(&mut self, node: BusNode) {
+        self.nodes.remove(&node.id());
+        self.nodes.insert(node.id(), node);
+    }
 }
 
 impl UndirectedGraph {
@@ -324,6 +330,9 @@ impl Graph for UndirectedGraph {
     fn get_node_mut(&mut self, node_id: usize) -> Option<&mut BusNode> {
         self.default_graph.get_node_mut(node_id)
     }
+    fn reset_node(&mut self, node: BusNode) {
+        self.default_graph.reset_node(node);
+    }
 }
 
 impl Graph for DirectedGraph {
@@ -399,6 +408,9 @@ impl Graph for DirectedGraph {
     // Method to get mutable access to a node by its ID
     fn get_node_mut(&mut self, node_id: usize) -> Option<&mut BusNode> {
         self.default_graph.get_node_mut(node_id)
+    }
+    fn reset_node(&mut self, node: BusNode) {
+        self.default_graph.reset_node(node);
     }
 }
 
