@@ -4,6 +4,8 @@ package sensor.data_fetching;
 
 import "bigdecimal.proto";
 
+import "google/protobuf/empty.proto";
+
 // Service for fetching sensor data from the processed data.
 service SensorDataFetchingService {
     // Fetch sensor data from all sensors.
@@ -14,11 +16,11 @@ service SensorDataFetchingService {
 
     // Fetch sensor data from all sensors in a stream. As new data comes in,
     // new data will be sent.
-    rpc FetchSensorDataAllSensorsStream(AllSensorDataRequest) returns (stream AllSensorDataEntry);
+    rpc FetchSensorDataAllSensorsStream(stream AllSensorDataMessage) returns (stream AllSensorDataEntry);
 
     // Fetch sensor data from a single sensor in a stream. As new data comes
     // in, new data will be sent.
-    rpc FetchSensorDataSingleSensorStream(SingleSensorDataRequest) returns (stream SignalToValuesMap);
+    rpc FetchSensorDataSingleSensorStream(stream SingleSensorDataMessage) returns (stream SignalToValuesMap);
 }
 
 // Maps the sensor signal id to signal values.
@@ -63,16 +65,52 @@ message AllSensorDataEntry {
     map<string, SignalToValuesMap> sensors = 1;
 }
 
-// Request for signal data from all sensors.
+
 message AllSensorDataRequest {
     // Amount of seconds to look back in time and fetch values from.
     uint64 lookback = 1;
 }
 
-// Request for signal data from a single sensor.
+// Request for signal data from all sensors.
+message AllSensorDataMessage {
+    oneof start_or_shutdown {
+        AllSensorDataRequest request = 1;
+        // `nice-grpc-web` has the problem of not closing the websocket
+        // connection properly on the client. This is not a problem with
+        // `tonic` as when using postman, it closes the connection properly
+        // without the need for this signal.
+        // NOTE: We have tried (among other things):
+        //       -  A properly implemented `DropReceiver` that detects the
+        //          connection being closed and stops the thread running the
+        //          infinite loop. The receiver however was never dropped.
+        //       -  Down/Upgrading the `nice-grpc-web` package version.
+        //       -  ...
+        google.protobuf.Empty shutdown = 2;
+    }
+}
+
+
 message SingleSensorDataRequest {
     // Uuid of the sensor to fetch signal values for.
     string sensor_id = 1;
     // Amount of seconds to look back in time and fetch values from.
     uint64 lookback = 2;
+}
+
+// Request for signal data from a single sensor.
+message SingleSensorDataMessage {
+    oneof start_or_shutdown {
+        SingleSensorDataRequest request = 1;
+        // `nice-grpc-web` has the problem of not closing the websocket
+        // connection properly on the client. This is not a problem with
+        // `tonic` as when using postman, it closes the connection properly
+        // without the need for this signal.
+        // NOTE: We have tried (among other things):
+        //       -  A properly implemented `DropReceiver` that detects the
+        //          connection being closed and stops the thread running the
+        //          infinite loop. The receiver however was never dropped.
+        //       -  Down/Upgrading the `nice-grpc-web` package version.
+        //       -  ...
+        google.protobuf.Empty shutdown = 2;
+    }
 }
