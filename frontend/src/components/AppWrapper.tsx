@@ -3,7 +3,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import ToastNotification, { ToastContainer } from '@/components/notification/ToastNotification';
 import { UserFromProvider, UserContext } from '@/store/user';
 import { useContext, useEffect } from 'react';
-import { jwtDecode } from 'jwt-decode';
+import { jwtDecode, InvalidTokenError } from 'jwt-decode';
 import { usePathname, useRouter } from 'next/navigation';
 
 function AppWrapper({ children }: { children: React.ReactNode }) {
@@ -17,13 +17,18 @@ function AppWrapper({ children }: { children: React.ReactNode }) {
             const token = localStorage.getItem('authToken');
 
             if (token) {
-                const decoded = jwtDecode(token) as any;
+                try {
+                    const decoded = jwtDecode(token) as any;
 
-                const user: UserFromProvider = {
-                    username: decoded.username,
-                };
+                    const user: UserFromProvider = {
+                        username: decoded.username,
+                    };
 
-                dispatchUser({ type: 'login', token, user });
+                    dispatchUser({ type: 'login', token, user });
+                } catch (e) {
+                    localStorage.removeItem('authToken');
+                    router.replace('/');
+                }
             } else if (pathName.startsWith('/dashboard')) {
                 router.replace('/');
             }
