@@ -5,52 +5,11 @@ use crate::units::voltage::Voltage;
 use crate::utils::{admittance_matrix, print_matrix};
 use nalgebra::Complex;
 use nalgebra::ComplexField;
-use std::collections::HashMap;
 pub struct GaussSeidel;
 #[allow(dead_code)]
 impl GaussSeidel {
     pub fn new() -> Self {
         GaussSeidel {}
-    }
-}
-/// Check if the voltage of any node is NaN and replace it with a default value.
-fn check_convergence(graph: &mut UndirectedGraph) -> bool {
-    let mut convergence = true;
-    for node in graph.nodes() {
-        if let Some(node) = graph.node(node) {
-            if node.voltage().amplitude.is_nan() || node.voltage().angle.is_nan() {
-                convergence = false;
-                let mut new_node = *node;
-                new_node.set_voltage(Voltage::new(1.0, 0.0));
-                graph.add_node(new_node.id(), new_node);
-            }
-        }
-    }
-    convergence
-}
-/// set voltage magnitude of generator nodes to initial values. This is necessary to prevent the algorithm from changing the voltage of generator nodes.
-/// For maximimization of convergence, the voltage of generator nodes can change during the algorithm but should be reset.
-fn initial_voltages(graph: &mut UndirectedGraph) -> HashMap<usize, Voltage> {
-    let mut voltages: HashMap<usize, Voltage> = HashMap::new();
-    for id in graph.nodes() {
-        if let Some(node) = graph.node(id) {
-            voltages.insert(id, node.voltage());
-        }
-    }
-    voltages
-}
-/// set voltage of node to the value in the hashmap.
-fn set_voltages(graph: &mut UndirectedGraph, voltages: HashMap<usize, Voltage>) {
-    for id in graph.nodes() {
-        if let Some(node) = graph.node(id) {
-            let mut node_update = *node;
-            if let Some(voltage) = voltages.get(&id) {
-                if node.bus_type() == BusType::Generator {
-                    node_update.set_voltage(Voltage::new(voltage.amplitude, node.voltage().angle));
-                    graph.reset_node(node_update);
-                }
-            }
-        }
     }
 }
 
@@ -64,7 +23,7 @@ impl Solver for GaussSeidel {
         let mut iteration: usize = 0;
         let mut converged: bool = false;
         let y_bus = admittance_matrix(graph);
-        let initial_voltages = initial_voltages(graph);
+
         if y_bus.determinant() == Complex::new(0.0, 0.0) {
             print_matrix(y_bus);
             return Err("Singular matrix");
@@ -122,7 +81,6 @@ impl Solver for GaussSeidel {
                     }
 
                     node_update.set_voltage(Voltage::from_complex(v_new));
-                    node_update.set_voltage(Voltage::from_complex(v_new));
                     graph.add_node(id, node_update);
                     if voltage_change > max_voltage_change {
                         max_voltage_change = voltage_change;
@@ -132,14 +90,6 @@ impl Solver for GaussSeidel {
             // Convergence is reached when voltage change falls below tolerance, indicating further updates are negligible .
             converged = max_voltage_change < tolerance;
             iteration += 1;
-        }
-        // If the algorithm converged, set the voltages to the final values.
-        // Make final check for convergence to ensure all nodes have valid voltages.
-        if converged {
-            set_voltages(graph, initial_voltages);
-            converged = check_convergence(graph);
-        } else {
-            check_convergence(graph);
         }
         if converged {
             Ok(())
@@ -163,8 +113,6 @@ mod tests {
         let pq3 = BusNode::generator(0.2, 0.1, PowerType::Battery);
         let pq4 = BusNode::load(0.1, -0.1);
         let pq5 = BusNode::load(0.1, -0.0);
-        let pq6 = BusNode::load(0.1, -0.0);
-        let pq7 = BusNode::generator(0.25, 0.1, PowerType::Hydro);
 
         let l1 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l2 = Transmission::new(LineType::ACSRConductor, 100.0);
@@ -173,9 +121,6 @@ mod tests {
         let l5 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l6 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l7 = Transmission::new(LineType::ACSRConductor, 100.0);
-        let l8 = Transmission::new(LineType::ACSRConductor, 100.0);
-        let l9 = Transmission::new(LineType::ACSRConductor, 100.0);
-        let l10 = Transmission::new(LineType::ACSRConductor, 100.0);
 
         graph.add_node(slack.id(), slack);
         graph.add_node(pq1.id(), pq1);
@@ -183,8 +128,6 @@ mod tests {
         graph.add_node(pq3.id(), pq3);
         graph.add_node(pq4.id(), pq4);
         graph.add_node(pq5.id(), pq5);
-        graph.add_node(pq6.id(), pq6);
-        graph.add_node(pq7.id(), pq7);
 
         graph.add_edge(slack.id(), pq1.id(), l1);
         graph.add_edge(slack.id(), pq2.id(), l2);
@@ -193,12 +136,9 @@ mod tests {
         graph.add_edge(pq3.id(), pq4.id(), l5);
         graph.add_edge(pq4.id(), pq5.id(), l6);
         graph.add_edge(pq5.id(), slack.id(), l7);
-        graph.add_edge(pq5.id(), pq6.id(), l8);
-        graph.add_edge(pq6.id(), pq7.id(), l9);
-        graph.add_edge(pq7.id(), slack.id(), l10);
 
         let solver = GaussSeidel::new();
-        let result = solver.solve(&mut graph, 100, 0.0001);
+        let result = solver.solve(&mut graph, 300, 0.000001);
         assert_eq!(result, Ok(()));
     }
 }

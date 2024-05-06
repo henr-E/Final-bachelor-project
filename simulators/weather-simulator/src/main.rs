@@ -302,7 +302,7 @@ impl Simulator for WeatherSimulator {
             if let Some(temperature_component) =
                 graph.get_global_component_mut::<TemperatureComponent>()
             {
-                temperature_component.current_temp = predictions[1];
+                temperature_component.current_temp = predictions[1] * temperature_component.scalar;
             } else {
                 error!("No temperature component was found.");
             }
@@ -310,7 +310,7 @@ impl Simulator for WeatherSimulator {
             if let Some(irradiance_component) =
                 graph.get_global_component_mut::<IrradianceComponent>()
             {
-                irradiance_component.irradiance = predictions[2];
+                irradiance_component.irradiance = predictions[2] * irradiance_component.scalar;
             } else {
                 error!("No irradiance component was found.");
             }
@@ -318,7 +318,7 @@ impl Simulator for WeatherSimulator {
             if let Some(wind_speed_component) =
                 graph.get_global_component_mut::<WindSpeedComponent>()
             {
-                wind_speed_component.wind_speed = predictions[3];
+                wind_speed_component.wind_speed = predictions[3] * wind_speed_component.scalar;
             } else {
                 error!("No wind speed component was found.");
             }
@@ -326,7 +326,8 @@ impl Simulator for WeatherSimulator {
             if let Some(precipitation_component) =
                 graph.get_global_component_mut::<PrecipitationComponent>()
             {
-                precipitation_component.precipitation = predictions[0];
+                precipitation_component.precipitation =
+                    predictions[0] * precipitation_component.scalar;
             } else {
                 error!("No precipitation component was found.");
             }

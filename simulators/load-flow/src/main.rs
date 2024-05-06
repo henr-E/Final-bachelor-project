@@ -6,7 +6,6 @@ mod utils;
 use crate::graph::edge::Transmission;
 use crate::graph::electric_graph::Graph as sim_graph;
 use crate::graph::electric_graph::UndirectedGraph;
-use component_library::energy::LoadFlowSolvers;
 use component_library::energy::{
     Bases, CableType, GeneratorNode, LoadFlowAnalytics, LoadNode, PowerType, ProductionOverview,
     SensorGeneratorNode, SensorLoadNode, SlackNode, TransmissionEdge,
@@ -136,21 +135,6 @@ impl Simulator for LoadFlowSimulator {
             p_base = bases.p_base;
             base_given = true;
         }
-        let mut gs_solver = false;
-        let mut max_iterations = 200;
-        let mut tolerance = 0.01;
-        if let Some(load_flow_analytics) = graph.get_global_component_mut::<LoadFlowAnalytics>() {
-            gs_solver = load_flow_analytics.solver_input == LoadFlowSolvers::GaussSeidel;
-            max_iterations = load_flow_analytics.max_iterations_input;
-            tolerance = load_flow_analytics.tolerance_input;
-        }
-        // Set default values if input is invalid
-        if max_iterations < 1 {
-            max_iterations = 200;
-        }
-        if tolerance < 1e-6 {
-            tolerance = 0.01;
-        }
 
         // Sbase, Vbase: example: 1.0, 10.0
         let mut g = UndirectedGraph::new(s_base, v_base, p_base);
@@ -204,13 +188,9 @@ impl Simulator for LoadFlowSimulator {
             let (v_base, p_base, s_base) = g.calculate_optimal_bases();
             g.set_bases(v_base, s_base, p_base);
         }
-        let converged = if gs_solver {
-            let solver = solvers::gauss_seidel::GaussSeidel::new();
-            solver.solve(&mut g, max_iterations as usize, tolerance) == Ok(())
-        } else {
-            let solver = solvers::newton_raphson::NewtonRaphson::new();
-            solver.solve(&mut g, max_iterations as usize, tolerance) == Ok(())
-        };
+        //call gauss seidel
+        let solver = solvers::gauss_seidel::GaussSeidel::new();
+        let result = solver.solve(&mut g, 200, 0.001);
         // if no base given, reset all values to original values
         if !base_given {
             g.reset_bases();
@@ -287,7 +267,7 @@ impl Simulator for LoadFlowSimulator {
             load_flow_analytics.total_incoming_power = total_in;
             load_flow_analytics.total_outgoing_power = total_out;
             load_flow_analytics.energy_production_overview = vec_overview.clone();
-            load_flow_analytics.solver_converged = converged;
+            load_flow_analytics.solver_converged = result == Ok(());
         } else {
             debug!("No analytics component found");
         }
