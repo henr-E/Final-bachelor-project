@@ -13,11 +13,7 @@ use argon2::{
 ///
 /// # Returns
 ///
-/// Returns a `Result` containing the hashed password as a string if successful, or an `AuthenticationError::HashingError` if an error occurs
-///
-/// # Errors
-///
-/// `AuthenticationError::HashingError`
+/// Returns a `Result` containing the hashed password as a string
 pub fn hash_password(password: &[u8]) -> String {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
@@ -38,7 +34,7 @@ pub fn hash_password(password: &[u8]) -> String {
 ///
 /// # Returns
 ///
-/// Returns a `Result` containing a boolean value indicating whether the password matches the hashed password or not, or an `AuthenticationError::HashingError` if an error occurs during verification.
+/// Returns a `Result` containing a boolean value indicating whether the password matches the hashed password or not, or an `argon2::password_hash::Error::Password` if an error occurs during verification.
 ///
 /// # Errors
 ///

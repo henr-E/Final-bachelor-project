@@ -1,13 +1,10 @@
-import { Modal, ModalBody, ModalHeader, Label, Button, Textarea } from 'flowbite-react';
+import { Modal, ModalBody, ModalHeader, Label, Button, Table, Checkbox } from 'flowbite-react';
 import { useEffect, useState, useRef } from 'react';
-import Icon from '@mdi/react';
-import { mdiSolarPanel, mdiWindPower, mdiGasBurner } from '@mdi/js';
-import { icon } from 'leaflet';
 import { BackendGetComponent, BackendGetSimulations } from '@/api/simulation/crud';
-import { ComponentStructure } from '@/proto/simulation/simulation';
-import { BackendCreatePreset } from '@/api/twins/crud';
+import { BackendCreatePreset, BackendGetAllPreset } from '@/api/twins/crud';
 import CustomJsonEditor, { TypeConverter } from '@/components/CustomJsonEditor';
 import ToastNotification from '@/components/notification/ToastNotification';
+import { ComponentSpecification } from '@/proto/simulation/simulation';
 
 interface CreateIconsModalProps {
     isModalOpen: boolean;
@@ -29,15 +26,32 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
         new Map()
     );
     const [components, setComponents] = useState('{}');
+    const [allComponentSpec, setAllComponentSpec] = useState<Map<string, ComponentSpecification>>(
+        new Map()
+    );
+    const [ComponentSpecSelected, setComponentSpecSelected] = useState<
+        Map<string, ComponentSpecification>
+    >(new Map());
+    const [isValid, setIsValid] = useState(true);
 
     useEffect(() => {
         const getComponentResponse = async () => {
+            /**
+             * this function create a map with the structure
+             * with the components from the simulation
+             * {component_name: component_info}
+             *
+             * */
             try {
                 const response = await BackendGetComponent();
                 const components = response.components;
+                let updatedComponentSelected = new Map<string, ComponentSpecification>(
+                    allComponentSpec
+                );
                 for (let componentName in components) {
                     if (components.hasOwnProperty(componentName)) {
                         let componentSpec = components[componentName];
+                        updatedComponentSelected.set(componentName, componentSpec);
                         let componentStructure = componentSpec.structure;
                         if (componentSpec.type == 2) continue;
                         else if (componentName !== undefined) {
@@ -47,6 +61,7 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                         }
                     }
                 }
+                setAllComponentSpec(updatedComponentSelected);
             } catch (error) {
                 console.error('Error fetching components:', error);
             }
@@ -61,24 +76,25 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                 ToastNotification('warning', 'Preset must have a name');
                 return;
             }
+            const allPreset = await BackendGetAllPreset();
 
-            let containsEdges = false;
-            let containsNodes = false;
-            Object.keys(JSON.parse(components)).map(item => {
-                if (item.slice(-5) == '_edge') {
-                    containsEdges = true;
-                } else if (item.slice(-5) == '_node') {
-                    containsNodes = true;
+            if (allPreset !== undefined) {
+                for (let i = 0; i < allPreset.length; i++) {
+                    if (name === allPreset[i].name) {
+                        ToastNotification('warning', 'preset' + name + ' already exist');
+                        return;
+                    }
                 }
-            });
-
-            if (containsEdges && containsNodes) {
-                ToastNotification('warning', 'Cannot combine edges and notes in one preset');
-                return;
             }
 
-            //TODO change edge name for line for mapEditor 219, bad idea!!!
-            await BackendCreatePreset(name.concat(containsEdges ? '_edge' : ''), components);
+            let containsEdges = false;
+            for (let [key, item] of ComponentSpecSelected) {
+                if (item.type == 1) {
+                    containsEdges = true;
+                }
+            }
+
+            await BackendCreatePreset(name, components, containsEdges);
             handleCloseModal();
         } catch (error) {
             console.error('Error creating a preset', error);
@@ -88,8 +104,10 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
     const handleNextButtonClick = async () => {
         switch (modalPage) {
             case ModalPage.ICONS: {
-                setModalPage(modalPage + 1);
-                break;
+                if (isValid) {
+                    setModalPage(modalPage + 1);
+                    break;
+                } else return;
             }
             case ModalPage.INFOS: {
                 await createPreset();
@@ -100,7 +118,8 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
 
     const reset = () => {
         setComponents('{}');
-        -setName('');
+        ComponentSpecSelected.clear();
+        setName('');
         if (modalPage === ModalPage.INFOS) {
             setModalPage(modalPage - 1);
         }
@@ -121,10 +140,32 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
     };
 
     useEffect(() => {
-        console.log(JSON.parse(components));
+        let containsEdges = false;
+        let containsNodes = false;
+        for (let [name, spec] of ComponentSpecSelected) {
+            if (spec.type === 1) {
+                containsEdges = true;
+            } else if (spec.type === 0) {
+                containsNodes = true;
+            }
+        }
+        setIsValid(true);
+        if (containsEdges && containsNodes) {
+            ToastNotification('warning', 'Cannot combine edges and notes in one preset');
+            setIsValid(false);
+            return;
+        }
+        if (ComponentSpecSelected.size == 0) {
+            // if no component is selected
+            setIsValid(false);
+        }
     }, [components]);
 
     const handleInfo = (componentName: string) => {
+        /**
+         * this is will process the component_info for creating
+         * a preset.
+         */
         let tempComponents = JSON.parse(components);
 
         if (
@@ -141,8 +182,30 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
         setComponents(JSON.stringify(tempComponents));
     };
 
+    const handleAddingComponents = (name_: string, isChecked: boolean) => {
+        for (let [name, spec] of allComponentSpec) {
+            if (name === name_) {
+                const updatedMap = new Map(ComponentSpecSelected);
+
+                if (isChecked && spec !== undefined) {
+                    // If checkbox is checked and spec is defined, add the component
+                    updatedMap.set(name, spec);
+                } else {
+                    // If checkbox is unchecked, remove the component
+                    updatedMap.delete(name);
+                }
+                // Update the state with the new map
+                setComponentSpecSelected(updatedMap);
+            }
+        }
+    };
+
     const handleChange = (e: string) => {
         setComponents(e);
+    };
+
+    const handleSetName = (name: string) => {
+        setName(name);
     };
 
     return (
@@ -155,29 +218,37 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                 <ModalHeader>Create Icon</ModalHeader>
                 <ModalBody>
                     {modalPage === ModalPage.ICONS && (
-                        <div>
-                            {list_of_component_names.size == 0 && (
-                                <p>No simulators found with components</p>
-                            )}
-                            {Array.from(list_of_component_names.keys()).map((name, index) => (
-                                <div key={name}>
-                                    <Button
-                                        style={{ marginBottom: '20px' }}
-                                        outline={!JSON.parse(components)[name]}
-                                        onClick={() => {
-                                            handleInfo(name);
-                                        }}
-                                        color='indigo'
-                                        theme={{
-                                            color: {
-                                                indigo: 'bg-indigo-600 text-white ring-indigo-600',
-                                            },
-                                        }}
-                                    >
-                                        {name}
-                                    </Button>
-                                </div>
-                            ))}
+                        <div className='overflow-x-auto'>
+                            <Table hoverable>
+                                <Table.Head>
+                                    <Table.HeadCell className='p-4'></Table.HeadCell>
+                                    <Table.HeadCell>COMPONENTS NAME</Table.HeadCell>
+                                </Table.Head>
+                                <Table.Body className='divide-y'>
+                                    {list_of_component_names.size == 0 && (
+                                        <p>No simulators found with components</p>
+                                    )}
+                                    {Array.from(list_of_component_names.keys()).map(
+                                        (name, index) => (
+                                            <Table.Row key={name}>
+                                                <Table.Cell>
+                                                    <Checkbox
+                                                        id='checkbox'
+                                                        checked={components.includes(name)}
+                                                        onChange={event => {
+                                                            const isChecked = event.target.checked;
+                                                            handleInfo(name);
+                                                            handleAddingComponents(name, isChecked);
+                                                        }}
+                                                        className='w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 dark:bg-gray-700'
+                                                    ></Checkbox>
+                                                </Table.Cell>
+                                                <Table.Cell>{name}</Table.Cell>
+                                            </Table.Row>
+                                        )
+                                    )}
+                                </Table.Body>
+                            </Table>
                         </div>
                     )}
                     {modalPage === ModalPage.INFOS && (
@@ -196,7 +267,7 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                                         placeholder='name'
                                         required
                                         maxLength={50}
-                                        onChange={e => setName(e.target.value)}
+                                        onChange={e => handleSetName(e.target.value)}
                                         style={{ marginBottom: '10px' }}
                                     />
                                 </div>

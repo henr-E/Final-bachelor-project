@@ -11,7 +11,6 @@ use std::env;
 // sqlx
 use sqlx::postgres::PgPool;
 
-pub mod error;
 mod hashing;
 mod jwt;
 mod server;

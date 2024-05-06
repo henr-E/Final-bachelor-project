@@ -1,12 +1,13 @@
 'use client';
 import ToastNotification from '@/components/notification/ToastNotification';
-import { buildingObject, TwinServiceDefinition } from '@/proto/twins/twin';
+import { buildingObject, TwinServiceDefinition, presetObject } from '@/proto/twins/twin';
 import { createChannel, createClient } from 'nice-grpc-web';
 import { uiBackendServiceUrl } from '@/api/urls';
 import '@/store/twins/Provider';
 import { SensorCRUDServiceClient, SensorCRUDServiceDefinition } from '@/proto/sensor/sensor-crud';
 import { failureReasonToString } from '@/api/sensor/crud';
 import { SimulationInterfaceServiceDefinition } from '@/proto/simulation/frontend';
+import { Console } from 'console';
 
 export async function BackendCreateTwin(
     name: string,
@@ -97,11 +98,15 @@ export async function BackendUndoDeleteBuilding(buildingId: number): Promise<boo
     }
 }
 
-export async function BackendCreatePreset(presetName: string, presetInfo: string) {
+export async function BackendCreatePreset(
+    presetName: string,
+    presetInfo: string,
+    presetIs_edge: boolean
+) {
     try {
         const channel = createChannel(uiBackendServiceUrl);
         const client = createClient(TwinServiceDefinition, channel);
-        const request = { name: presetName, info: presetInfo };
+        const request: presetObject = { name: presetName, info: presetInfo, isEdge: presetIs_edge };
         const response = await client.createPreset(request);
         return response;
     } catch (error) {

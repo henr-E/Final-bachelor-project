@@ -95,11 +95,13 @@ message getAllPresetResponse {
 message presetObject {
     string name = 1;
     string info = 2;
+    bool is_edge = 3; 
 }
 
 message createPresetRequest {
     string name = 1;
     string info = 2;
+    bool is_edge = 3;
 }
 
 message createPresetResponse {

@@ -10,6 +10,7 @@ import { usePathname } from 'next/navigation';
 import Icon from '@mdi/react';
 import { mdiFullscreen, mdiFullscreenExit } from '@mdi/js';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 
 export default function DashboardLayout({
     children,
@@ -17,24 +18,13 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }>) {
     const [isCreateTwinModalOpen, setIsCreateTwinModalOpen] = useState(false);
-    const [fullscreenContent, setFullscreenContent] = useState(false);
+    const [sidebarVisible, setSidebarVisible] = useState(true);
     const pathname = usePathname();
 
     const CreateTwinModalImport = dynamic<CreateTwinModalProps>(
         () => import('@/components/modals/CreateTwinModal'),
         { ssr: false }
     );
-
-    if (fullscreenContent) {
-        return (
-            <div className='h-screen'>
-                <a href='#' className='fixed' onClick={() => setFullscreenContent(false)}>
-                    <Icon path={mdiFullscreenExit} size={1} className='mr-3' />
-                </a>
-                {children}
-            </div>
-        );
-    }
 
     return (
         <div className='flex flex-col h-screen'>
@@ -44,12 +34,28 @@ export default function DashboardLayout({
                 closeCreateTwinModal={() => setIsCreateTwinModalOpen(false)}
             ></CreateTwinModalImport>
             <div className='flex flex-row grow'>
-                <DashboardSidebar />
+                {sidebarVisible && <DashboardSidebar />}{' '}
                 <div className='px-12 py-3 grow h-full flex flex-col'>
                     <div className='my-4 flex flex-row'>
-                        <a href='#' onClick={() => setFullscreenContent(true)}>
-                            <Icon path={mdiFullscreen} size={1} className='mr-3' />
-                        </a>
+                        <button onClick={() => setSidebarVisible(!sidebarVisible)}>
+                            {sidebarVisible ? (
+                                <Image
+                                    src='/icons/sidebar-close.svg'
+                                    width={18}
+                                    height={18}
+                                    alt='Logo'
+                                    style={{ marginRight: '5px' }}
+                                />
+                            ) : (
+                                <Image
+                                    src='/icons/sidebar-expand.svg'
+                                    width={18}
+                                    height={18}
+                                    alt='Logo'
+                                    style={{ marginRight: '5px' }}
+                                />
+                            )}
+                        </button>
 
                         <Breadcrumb aria-label='Default breadcrumb example'>
                             {pathname
