@@ -19,7 +19,7 @@ export const TypeConverter = (structure: ComponentStructure | undefined): any =>
     } else if (structure?.primitive && structure?.primitive <= 10) {
         return 0;
     } else if (structure?.primitive && structure?.primitive >= 12) {
-        return 0.1;
+        return 1.0;
     } else if (structure?.list) {
         return [TypeConverter(structure?.list)];
     } else if (structure?.struct) {

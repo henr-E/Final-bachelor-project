@@ -51,8 +51,8 @@ impl BusNode {
             id: Self::next_id(),
             active: true,
             bus_type: BusType::Generator,
-            power: Power::new(active_power_pu, 0.001),
-            voltage: Voltage::new(voltage_magnitude_pu, 0.001),
+            power: Power::new(active_power_pu, 0.0),
+            voltage: Voltage::new(voltage_magnitude_pu, 0.0),
             energy_type: power_type,
         }
     }
@@ -63,7 +63,7 @@ impl BusNode {
             active: true,
             bus_type: BusType::Load,
             power: Power::new(active_power_pu.abs(), reactive_power_pu),
-            voltage: Voltage::new(1.0, 0.001),
+            voltage: Voltage::new(0.10, 0.0),
             energy_type: PowerType::Load,
         }
     }
@@ -91,8 +91,8 @@ impl BusNode {
             id: Self::next_id(),
             active: true,
             bus_type: BusType::Slack,
-            voltage: Voltage::new(1.0, 0.001),
-            power: Power::new(0.10, 0.001),
+            voltage: Voltage::new(1.0, 0.10),
+            power: Power::new(0.10, 0.10),
             energy_type: PowerType::Storage,
         }
     }
@@ -145,19 +145,19 @@ mod tests {
         let node = BusNode::generator(1.0, 1.0, PowerType::Fossil);
         assert!(node.active());
         assert_eq!(node.bus_type(), BusType::Generator);
-        assert_eq!(node.power(), Power::new(1.0, 0.001));
-        assert_eq!(node.voltage(), Voltage::new(1.0, 0.001));
+        assert_eq!(node.power(), Power::new(1.0, 0.0));
+        assert_eq!(node.voltage(), Voltage::new(1.0, 0.0));
     }
     #[test]
     fn test_bus_node_generator() {
         let mut node = BusNode::generator(1.0, 1.0, PowerType::Fossil);
         assert!(node.active());
         assert_eq!(node.bus_type(), BusType::Generator);
-        assert_eq!(node.power(), Power::new(1.0, 0.001));
-        assert_eq!(node.voltage(), Voltage::new(1.0, 0.001));
+        assert_eq!(node.power(), Power::new(1.0, 0.0));
+        assert_eq!(node.voltage(), Voltage::new(1.0, 0.0));
         assert_eq!(node.power_type(), PowerType::Fossil);
-        node.set_power(Power::new(2.0, 0.001));
-        assert_eq!(node.power(), Power::new(2.0, 0.001));
+        node.set_power(Power::new(2.0, 0.0));
+        assert_eq!(node.power(), Power::new(2.0, 0.0));
         node.set_active(false);
         assert!(!node.active());
         node.set_active(true);

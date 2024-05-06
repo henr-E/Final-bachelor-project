@@ -266,10 +266,7 @@ function SimulationOverviewPage() {
                                                             className='content-center'
                                                         />
                                                     ) : (
-                                                        <Tooltip
-                                                            content={simulation.statusInfo}
-                                                            className='w-80'
-                                                        >
+                                                        <Tooltip content={simulation.statusInfo}>
                                                             <Icon
                                                                 path={mdiClose}
                                                                 color='red'

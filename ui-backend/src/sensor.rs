@@ -1,10 +1,9 @@
 use chrono::{DateTime, TimeDelta, Utc};
-use futures::poll;
 use num_bigint::{BigInt, Sign};
 use proto::frontend::sensor_data_fetching::{
-    AllSensorData, AllSensorDataEntry, AllSensorDataMessage, AllSensorDataRequest,
-    SensorDataFetchingService, SignalToValuesMap, SignalValue as ProtoSignalValue,
-    SignalValues as ProtoSignalValues, SingleSensorDataMessage, SingleSensorDataRequest,
+    AllSensorData, AllSensorDataEntry, AllSensorDataRequest, SensorDataFetchingService,
+    SignalToValuesMap, SignalValue as ProtoSignalValue, SignalValues as ProtoSignalValues,
+    SingleSensorDataRequest,
 };
 use proto::frontend::{
     get_quantities_and_units_response::{Quantity as ProtoQuantity, Unit as ProtoUnit},
@@ -18,17 +17,17 @@ use sensor_store::signal::SignalValues;
 use sensor_store::{Quantity, Sensor, SensorStore as SensorStoreInner, Unit};
 use sqlx::types::BigDecimal;
 use std::collections::HashSet;
-use std::task::Poll;
 use std::time::Duration;
 use std::{collections::HashMap, pin::Pin, str::FromStr};
 use thiserror::Error;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{Request, Response, Status, Streaming};
+use tonic::{Request, Response, Status};
 use tracing::{debug, error};
 use uuid::Uuid;
 
 const LIVE_DATA_FETCH_INTERVAL: Duration = Duration::from_millis(5000);
+const MAX_THREAD_LIFETIME: u64 = 300;
 
 #[derive(Clone)]
 pub struct SensorStore(SensorStoreInner);
@@ -497,7 +496,7 @@ impl SensorDataFetchingService for SensorStore {
     type FetchSensorDataAllSensorsStreamStream = ReceiverStream<Result<AllSensorDataEntry, Status>>;
     async fn fetch_sensor_data_all_sensors_stream(
         &self,
-        request: Request<Streaming<AllSensorDataMessage>>,
+        request: Request<AllSensorDataRequest>,
     ) -> Result<Response<Self::FetchSensorDataAllSensorsStreamStream>, Status> {
         fn internal_err_format(err: &dyn std::fmt::Display) -> Status {
             Status::internal(format!(
@@ -534,22 +533,8 @@ impl SensorDataFetchingService for SensorStore {
                 })
         }
 
-        use proto::frontend::sensor_data_fetching::all_sensor_data_message::StartOrShutdown;
-        use tokio_stream::StreamExt;
-
         debug!("starting sensor data stream for all sensors");
-        let mut req_stream = request.into_inner();
-
-        // The first message sent over the stream should be a request containing setup parameters.
-        // The second and last one, should be the shutdown signal.
-        let Some(Ok(AllSensorDataMessage {
-            start_or_shutdown: Some(StartOrShutdown::Request(req)),
-        })) = req_stream.next().await
-        else {
-            return Err(Status::invalid_argument(
-                "expected a single start message as the first stream entry",
-            ));
-        };
+        let req = request.into_inner();
 
         let lookback = Duration::from_secs(req.lookback);
         // Avoid reference to self by cloning the inner SensorStore.
@@ -561,22 +546,6 @@ impl SensorDataFetchingService for SensorStore {
             let mut last_timestamp = None;
 
             loop {
-                if let Poll::Ready(Some(Ok(AllSensorDataMessage {
-                    start_or_shutdown: Some(req),
-                }))) = poll!(Box::pin(req_stream.next()))
-                {
-                    match req {
-                        StartOrShutdown::Request(_) => return Err(Status::invalid_argument(
-                            "expected a shutdown signal as the second value sent over the channel",
-                        )),
-                        StartOrShutdown::Shutdown(_) => {
-                            // Shutdown signal received from the client. Close the loop and clean
-                            // up remaining resources.
-                            break;
-                        }
-                    }
-                }
-
                 let sensors = match sensor_store.get_all_sensors().await {
                     Ok(s) => s,
                     Err(e) => {
@@ -632,7 +601,6 @@ impl SensorDataFetchingService for SensorStore {
                 // Get the last timestamp data was successfully fetched at.
                 let last_data_timestamp = last_data_timestamp(&sensor_data);
 
-                tracing::trace!("sending on channel");
                 send_on_channel(
                     &tx,
                     Ok(AllSensorDataEntry {
@@ -648,9 +616,6 @@ impl SensorDataFetchingService for SensorStore {
 
                 tokio::time::sleep(LIVE_DATA_FETCH_INTERVAL).await;
             }
-
-            debug!("Closing down single sensor data stream");
-            Ok(())
         });
 
         Ok(Response::new(ReceiverStream::new(rx)))
@@ -660,7 +625,7 @@ impl SensorDataFetchingService for SensorStore {
         ReceiverStream<Result<SignalToValuesMap, Status>>;
     async fn fetch_sensor_data_single_sensor_stream(
         &self,
-        request: Request<Streaming<SingleSensorDataMessage>>,
+        request: Request<SingleSensorDataRequest>,
     ) -> Result<Response<Self::FetchSensorDataSingleSensorStreamStream>, Status> {
         fn internal_err_format(err: &dyn std::fmt::Display) -> Status {
             Status::internal(format!(
@@ -695,22 +660,8 @@ impl SensorDataFetchingService for SensorStore {
                 })
         }
 
-        use proto::frontend::sensor_data_fetching::single_sensor_data_message::StartOrShutdown;
-        use tokio_stream::StreamExt;
-
         debug!("starting sensor data stream for a single sensor");
-        let mut req_stream = request.into_inner();
-
-        // The first message sent over the stream should be a request containing setup parameters.
-        // The second and last one, should be the shutdown signal.
-        let Some(Ok(SingleSensorDataMessage {
-            start_or_shutdown: Some(StartOrShutdown::Request(req)),
-        })) = req_stream.next().await
-        else {
-            return Err(Status::invalid_argument(
-                "expected a single start message as the first stream entry",
-            ));
-        };
+        let req = request.into_inner();
 
         let lookback = Duration::from_secs(req.lookback);
         let Ok(sensor_id) = Uuid::from_str(&req.sensor_id) else {
@@ -719,6 +670,7 @@ impl SensorDataFetchingService for SensorStore {
         let sensor_store = self.as_inner().clone();
 
         let (tx, rx) = mpsc::channel(4);
+        let start_time = std::time::SystemTime::now();
 
         tokio::spawn(async move {
             // Avoid reference to self by cloning the inner SensorStore.
@@ -737,26 +689,18 @@ impl SensorDataFetchingService for SensorStore {
             let mut last_timestamp = None;
 
             loop {
-                if let Poll::Ready(Some(Ok(SingleSensorDataMessage {
-                    start_or_shutdown: Some(req),
-                }))) = poll!(Box::pin(req_stream.next()))
-                {
-                    match req {
-                        StartOrShutdown::Request(_) => return Err(Status::invalid_argument(
-                            "expected a shutdown signal as the second value sent over the channel",
-                        )),
-                        StartOrShutdown::Shutdown(_) => {
-                            // Shutdown signal received from the client. Close the loop and clean
-                            // up remaining resources.
-                            debug!("Shutdown signal received");
-                            break;
-                        }
-                    }
-                }
-
                 // Get the new lookback based on the last timestamp present in the data last sent.
                 // NOTE: The conversion to seconds and back to duration is because postgresql does
                 // not support higher interval precision.
+                if std::time::SystemTime::now()
+                    .duration_since(start_time)
+                    .unwrap()
+                    .as_secs()
+                    > MAX_THREAD_LIFETIME
+                {
+                    drop(tx);
+                    return Err(Status::internal("E"));
+                }
                 let lookback = match last_timestamp {
                     Some(lt) => {
                         let delta: TimeDelta = Utc::now() - lt;
@@ -794,7 +738,6 @@ impl SensorDataFetchingService for SensorStore {
                 // Get the last timestamp data was successfully fetched at.
                 let last_data_timestamp = last_data_timestamp(&result);
 
-                tracing::trace!("sending on channel");
                 send_on_channel(&tx, Ok(SignalToValuesMap { signals: result })).await?;
 
                 // Update the timestamp the data was last requested at.
@@ -804,9 +747,6 @@ impl SensorDataFetchingService for SensorStore {
 
                 tokio::time::sleep(LIVE_DATA_FETCH_INTERVAL).await;
             }
-
-            debug!("Closing down single sensor data stream");
-            Ok(())
         });
 
         Ok(Response::new(ReceiverStream::new(rx)))
