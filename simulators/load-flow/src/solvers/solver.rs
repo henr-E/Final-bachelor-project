@@ -1,5 +1,4 @@
 use crate::graph::electric_graph::UndirectedGraph;
-
 pub trait Solver {
     fn solve(
         self,
