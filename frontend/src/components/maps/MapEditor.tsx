@@ -88,7 +88,6 @@ function MapEditor({
     const [selectedSensor, setSelectedSensor] = useState<Sensor>();
     const [presets, setPresets] = useState<Array<presetObject | undefined>>([]);
     const [typePreset, setTypePreset] = useState<Array<any>>([]);
-    const [buttonClicked, setButtonClicked] = useState(false);
 
     const getAllPreset = async () => {
         const response = await BackendGetAllPreset();
@@ -135,8 +134,7 @@ function MapEditor({
     function selectNode(index: number) {
         console.log('cursor', currentPresetRef.current);
         console.log(currentPresetRef.current?.name.substring(0, 5));
-        //TODO change check on name, bad idea!!!
-        if (currentPresetRef.current?.name.slice(-5) == '_edge') {
+        if (currentPresetRef.current?.isEdge) {
             addLine(index);
             let item = nodesRef.current.get(index);
             if (item) setSelectedItems([...selectedItemsRef.current, item]);
@@ -175,7 +173,7 @@ function MapEditor({
             return;
         }
         if (selectedItemsRef.current.length == 0) {
-            const lineId = edgesRef.current.length; //TODO
+            const lineId = edgesRef.current.length;
             const newItem: LineItem = {
                 name: 'item: ' + lineId,
                 id: lineId,
@@ -207,8 +205,8 @@ function MapEditor({
      * (currently set item to inactive)
      * @param id index id
      */
-    const removeMapItem = (id: number) => {
-        let removeItem = nodesRef.current.get(id);
+    const removeMapItem = (node: NodeItem | undefined) => {
+        let removeItem = node;
         if (!removeItem) return;
         removeItem.inactive = true; //currently set item to inactive TODO
         setNodes(prevState => ({ ...prevState, id: removeItem }));
@@ -216,8 +214,7 @@ function MapEditor({
 
     const onSelectBuilding = (building: BuildingItem) => {
         setSelectedBuilding(building);
-        //TODO change check on name, bad idea!!!
-        if (!currentPresetRef.current || currentPresetRef.current?.name.slice(-5) == '_edge') {
+        if (!currentPresetRef.current || currentPresetRef.current?.isEdge) {
             if (nodesRef.current.get(building.id)) selectNode(building.id);
             else setSelectedItems([]);
             return;
@@ -325,24 +322,11 @@ function MapEditor({
         setIsCreateIconModalOpen(true);
     };
 
-    const CreatePreset = async (name: string | undefined) => {
-        getAllPreset();
-        {
-            Array.from(presets.values()).map((preset, index) => {
-                if (preset !== undefined && preset.name == name) {
-                    let json_info = JSON.parse(preset.info);
-                    typePreset.push({ [preset.name]: json_info });
-                    return;
-                }
-            });
-        }
-    };
-
     return (
         <>
             <div className='flex h-full grid grid-cols-12'>
                 <div className='h-full col-span-8'>
-                    <div style={{ height: '90%' }}>
+                    <div style={{ height: '90%', width: '100%' }}>
                         <PredictionMapImport
                             twin={twinState.current}
                             nodes={nodes}
@@ -396,35 +380,6 @@ function MapEditor({
                                     </Button>
                                 </div>
                             ))}
-
-                            {/*
-                            <Button
-                                //outline={cursor !== CursorState.PLACE_CONSUMER}
-                                onClick={(_: any) => changePreset(CursorState.PLACE_CONSUMER)}
-                            >
-                                <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
-                                    <Icon path={mdiHomeLightningBoltOutline} size={1.2} />
-                                </span>
-                            </Button>
-                            <Button
-                                outline={currentPreset !== CursorState.PLACE_PRODUCER}
-                                onClick={(_: any) => changePreset(CursorState.PLACE_PRODUCER)}
-                            >
-                                <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
-                                    <Icon path={mdiWindTurbine} size={1.2} />
-                                </span>
-                            </Button>
-                        </div>
-                        <div className='bg-white grid-cols-12 gap-4 p-2 my-1 rounded-md flex'>
-                            <Button
-                                //outline={cursor !== CursorState.CONNECT_ITEMS}
-                                onClick={() => getEdge(presets)}
-                            >
-                                <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
-                                    <Icon path={mdiTransitConnectionHorizontal} size={1.2} />
-                                </span>
-                            </Button>
-                        */}
                         </div>
                     </div>
                 </div>

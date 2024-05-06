@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO preset (name, info) VALUES ($1,$2) RETURNING id",
+  "query": "INSERT INTO preset (name, info, is_edge) VALUES ($1,$2,$3) RETURNING id",
   "describe": {
     "columns": [
       {
@@ -12,12 +12,13 @@
     "parameters": {
       "Left": [
         "Text",
-        "Text"
+        "Text",
+        "Bool"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "71f809aa1834d3de8a10ad4017ea8eb49df4c2e803f13913083e79fd7fbe6895"
+  "hash": "aed017a06ac88f95d1caf52ccff8e4dea459630927a2a0682a4ee7332123bf18"
 }

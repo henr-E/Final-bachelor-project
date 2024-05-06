@@ -17,12 +17,18 @@
         "ordinal": 2,
         "name": "info",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "is_edge",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": []
     },
     "nullable": [
+      false,
       false,
       false,
       false

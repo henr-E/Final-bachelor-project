@@ -550,6 +550,7 @@ impl TwinService for MyTwinService {
         let inner = request.into_inner();
         let name: String = inner.name;
         let info: String = inner.info;
+        let is_edge: bool = inner.is_edge;
         let transaction = self
             .pool
             .begin()
@@ -557,9 +558,10 @@ impl TwinService for MyTwinService {
             .map_err(|e| Status::internal(e.to_string()))?;
 
         let preset_id = sqlx::query!(
-            "INSERT INTO preset (name, info) VALUES ($1,$2) RETURNING id",
+            "INSERT INTO preset (name, info, is_edge) VALUES ($1,$2,$3) RETURNING id",
             name,
             info,
+            is_edge
         )
         .fetch_one(&self.pool)
         .await
@@ -607,6 +609,7 @@ impl TwinService for MyTwinService {
             presets.push(PresetObject {
                 name: item.name,
                 info: item.info,
+                is_edge: item.is_edge,
             });
         }
 

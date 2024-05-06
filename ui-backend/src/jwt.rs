@@ -38,11 +38,11 @@ pub type Jwt = String;
 ///
 /// # Returns
 ///
-/// Returns a 'Result' containing the token if succes, or an 'AuthenticationError::InvalidToken if an error occurs
+/// Returns a 'Result' containing the token if succes, or an 'ErrorKind::InvalidToken if an error occurs
 ///
 /// # Errors
 ///
-/// 'AuthenticationError::InvalidToken'
+/// 'ErrorKind::InvalidToken'
 
 pub fn create_jwt(username: &str) -> Result<Jwt, ErrorKind> {
     let secret = secrets::secret("JWT_SECRET").expect("failed to create secret");
