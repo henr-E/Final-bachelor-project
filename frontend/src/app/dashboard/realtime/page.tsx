@@ -12,6 +12,7 @@ import { SensorDataFetchingServiceDefinition } from '@/proto/sensor/data-fetchin
 import { LiveDataSingleSensor } from '@/api/sensor/dataFetching';
 import { getFirstQuantity } from '@/lib/util';
 import { useRouter } from 'next/router';
+import { isAbortError } from 'abort-controller-x';
 
 const PredictionMapImport = dynamic<PredictionMapProps>(
     () => import('@/components/maps/PredictionMap'),
@@ -46,19 +47,35 @@ function RealTimePage() {
     }, []);
 
     useEffect(() => {
+        const abortController = new AbortController();
         if (twinState.current) {
             twinState.current.sensors.forEach(async sensor => {
-                const stream = LiveDataSingleSensor(sensor.id);
+                const stream = LiveDataSingleSensor(sensor.id, abortController.signal);
 
-                for await (const val of stream) {
-                    console.log(
-                        `DISPATCHED set_most_recent_value USING VALUES: ${sensor.id} ${val.signalId} ${val.value}`
-                    );
-                    dispatchSensor({ type: 'set_most_recent_value', sensorId: sensor.id, ...val });
+                try {
+                    for await (const val of stream) {
+                        console.log(
+                            `DISPATCHED set_most_recent_value USING VALUES: ${sensor.id} ${val.signalId} ${val.value}`
+                        );
+                        dispatchSensor({
+                            type: 'set_most_recent_value',
+                            sensorId: sensor.id,
+                            ...val,
+                        });
+                    }
+                } catch (err) {
+                    if (!isAbortError(err)) {
+                        throw err;
+                    }
                 }
-                console.debug('succeeded');
             });
         }
+
+        return () => {
+            console.debug('Closing sensor data streams.');
+            abortController.abort();
+            console.debug('Streams closed.');
+        };
     }, [twinState, twinState.current?.sensors, dispatchSensor]);
 
     if (!twinState.current) {

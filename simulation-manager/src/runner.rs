@@ -285,7 +285,11 @@ impl Runner {
                     .update_status(
                         simulation_id,
                         StatusEnum::Failed,
-                        Some(&format!("Simulator returned error during setup: {err}")),
+                        Some(&format!(
+                            "Simulator returned error during setup: {} ({})",
+                            err.message(),
+                            err.code()
+                        )),
                     )
                     .await
                     .context("status was not updated")?;
@@ -429,7 +433,11 @@ impl Runner {
                             .update_status(
                                 simulation_id,
                                 StatusEnum::Failed,
-                                Some(&format!("Simulator returned error during timestep: {err}")),
+                                Some(&format!(
+                                    "Simulator returned error during timestep: {} ({})",
+                                    err.message(),
+                                    err.code()
+                                )),
                             )
                             .await
                             .context("status was not updated")?;
