@@ -73,6 +73,16 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
         fetchSimulators().then();
     }, []);
 
+    useEffect(() => {
+        setName(propItems.title || '');
+        setStartDate(propItems.startDate || new Date(Date.now()));
+        setEndDate(propItems.endDate || new Date(Date.now()));
+        setStartTime(propItems.startTime || '');
+        setEndTime(propItems.endTime || '');
+        setTimeStepDelta(propItems.timeStepDelta || 0);
+        setGlobalComponents(propItems.globalComponents || '{}');
+    }, [propItems]);
+
     const GenerateSimulation = async () => {
         const startTimeSplit = startTime.split(':');
         let startDateTime = startDate;
