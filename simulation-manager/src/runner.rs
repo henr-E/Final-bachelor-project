@@ -92,9 +92,9 @@ impl Runner {
         loop {
             let top = self
                 .db
-                .dequeue()
+                .get_next_simulation()
                 .await
-                .context("could not dequeue simulation")?;
+                .context("could not get next simulation")?;
             if let Some(simulation_id) = top {
                 self.db
                     .begin_transaction()
