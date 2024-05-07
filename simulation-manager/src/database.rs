@@ -219,33 +219,18 @@ impl SimulationsDB {
         };
         Ok(sim)
     }
-    /// Add a simulation to the queue table.
-    pub async fn enqueue(&mut self, simulation_id: i32) -> Result<i32> {
-        query!(
-            "INSERT INTO queue (simulation_id) VALUES($1) RETURNING id",
-            simulation_id
-        )
-        .fetch_one(self.connection().await?)
-        .await
-        .map_err(|e| anyhow!(e))
-        .map(|s| s.id)
-    }
 
-    /// Pop the first simulation from the queue table.
-    pub async fn dequeue(&mut self) -> Result<Option<i32>> {
-        let simulation_id = query!("SELECT simulation_id FROM queue ORDER BY id ASC")
-            .fetch_optional(self.connection().await?)
-            .await?
-            .map(|s| s.simulation_id);
-        if let Some(id) = simulation_id {
-            query!("DELETE FROM queue WHERE simulation_id = $1", id)
-                .execute(self.connection().await?)
-                .await
-                .map_err(|e| anyhow!(e))?;
-            Ok(Some(id))
-        } else {
-            Ok(None)
-        }
+    /// Get the first pending simulation from the simulation database.
+    pub async fn get_next_simulation(&mut self) -> Result<Option<i32>> {
+        let status: StatusEnum = StatusEnum::from_string("Pending");
+        let simulation_id = query!(
+            "SELECT id FROM simulations WHERE status = $1 ORDER BY id ASC LIMIT 1",
+            status as _
+        )
+        .fetch_optional(self.connection().await?)
+        .await?
+        .map(|s| s.id);
+        Ok(simulation_id)
     }
 
     /// Add a node to the nodes table and its components to the node_components table.
@@ -586,9 +571,9 @@ mod database_test {
             .unwrap();
         db.enqueue(id_1).await.unwrap();
         db.enqueue(id_2).await.unwrap();
-        let q1 = db.dequeue().await.unwrap();
-        let q2 = db.dequeue().await.unwrap();
-        let q3 = db.dequeue().await.unwrap();
+        let q1 = db.get_next_simulation().await.unwrap();
+        let q2 = db.get_next_simulation().await.unwrap();
+        let q3 = db.get_next_simulation().await.unwrap();
         assert_eq!(q1, Some(id_1));
         assert_eq!(q2, Some(id_2));
         assert_eq!(q3, None);

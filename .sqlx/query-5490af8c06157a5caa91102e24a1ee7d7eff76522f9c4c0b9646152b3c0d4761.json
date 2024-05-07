@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM simulations WHERE status = $1 ORDER BY id ASC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "enum_status",
+            "kind": {
+              "Enum": [
+                "Pending",
+                "Computing",
+                "Finished",
+                "Failed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5490af8c06157a5caa91102e24a1ee7d7eff76522f9c4c0b9646152b3c0d4761"
+}

@@ -165,13 +165,6 @@ impl SimulationManager for Manager {
                 ))
             })?;
 
-        //place simulation id in queue
-        db.enqueue(simulation_index).await.map_err(|err| {
-            Status::internal(format!(
-                "push_simulation could not enqueue the new simulation with message: {:?}",
-                err.to_string()
-            ))
-        })?;
         // Store graph in database
         for node in nodes {
             db.add_node(node, simulation_index, 0)
