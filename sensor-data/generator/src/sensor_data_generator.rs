@@ -11,7 +11,7 @@ use sensor_store::SensorStore;
 use crate::measurements::MeasurementsGenerator;
 use crate::virtual_sensor::VirtualSensor;
 
-/// Instances of this struct can be used to (fake) generate sensor data for multiple sensors at once.
+/// Instances of this struct can be used to generate (fake) sensor data for multiple sensors at once.
 pub struct SensorDataGenerator<'a> {
     /// A vector containing zero or more sensors.
     virtual_sensors: Vec<VirtualSensor<'a>>,

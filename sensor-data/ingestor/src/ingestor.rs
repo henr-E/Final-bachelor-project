@@ -53,7 +53,7 @@ impl DataIngestService for DataIngestor {
                 ));
             };
 
-            // Transform blobs of data into a more manageable binary JSON format. The contents of
+            // Transform blobs of data into a more manageable binary JSON format. The content of
             // the data has not been cleaned.
             debug!("converting sensor data to archival format");
             // Convert the protobuf FileFormat field into the
@@ -188,7 +188,6 @@ impl DataIngestService for DataIngestor {
                 // TODO: `bson` does not support the `tokio::io::BufWriter`, but can write directly to
                 // the `std::io::BufWriter`. Should we use the latter then to avoid the string
                 // allocation?
-                // TODO: Convert this to use `to_vec` when sprint review is over.
                 file.write_all(
                     &bson::to_vec(&sensor_data_bson).expect("Failed to convert to bytes array."),
                 )

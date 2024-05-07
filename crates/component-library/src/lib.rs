@@ -45,14 +45,18 @@ pub mod global {
     #[derive(ComponentPiece, Component)]
     #[component(name = "global_temperature", ty = "global")]
     pub struct TemperatureComponent {
-        //This is the current temperature in degrees (celsius)
+        // Current temperature in degrees (celsius)
         pub current_temp: f64,
+        // Scalar for the temperature
+        pub scalar: f64,
     }
     #[derive(ComponentPiece, Component)]
     #[component(name = "global_precipitation", ty = "global")]
     pub struct PrecipitationComponent {
         // Precipitation (millimeters per hour)
         pub precipitation: f64,
+        // Scalar for the precipitation
+        pub scalar: f64,
     }
 
     #[derive(ComponentPiece, Component)]
@@ -60,6 +64,8 @@ pub mod global {
     pub struct WindSpeedComponent {
         // Wind speed (meters per second)
         pub wind_speed: f64,
+        // Scalar for the wind speed
+        pub scalar: f64,
     }
 
     #[derive(ComponentPiece, Component)]
@@ -74,13 +80,17 @@ pub mod global {
     pub struct IrradianceComponent {
         // Irradiance (watts per square metre)
         pub irradiance: f64,
+        // Scalar for the irradiance
+        pub scalar: f64,
     }
 
     #[derive(ComponentPiece, Component)]
     #[component(name = "global_illuminance", ty = "global")]
     pub struct IlluminanceComponent {
-        //This is the current illuminance in lux
+        // This is the current illuminance in lux
         pub current_illuminance: f64,
+        // Scalar for the illuminance
+        pub scalar: f64,
     }
 
     #[derive(ComponentPiece, Component)]
