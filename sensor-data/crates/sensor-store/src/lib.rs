@@ -1,5 +1,7 @@
 #![doc = include_str!("../README.md")]
 
+use std::collections::HashMap;
+
 use futures::stream::Stream;
 use sqlx::{Error as SqlxError, PgPool, Postgres, Transaction};
 use uuid::Uuid;
@@ -265,6 +267,18 @@ impl SensorStore {
         });
 
         Ok(sensors)
+    }
+
+    /// Get the total amount of values for a signal.
+    pub async fn get_sensor_signal_value_count(&self) -> Result<HashMap<Uuid, u64>, Error> {
+        let mut hashmap = HashMap::new();
+        let sensor_counts = sqlx::query!("SELECT ss.sensor_id, COUNT(*) FROM sensor_values AS sv NATURAL JOIN sensor_signals AS ss GROUP BY ss.sensor_id")
+        .fetch_all(&self.db_pool)
+        .await?;
+        sensor_counts.into_iter().for_each(|s| {
+            hashmap.insert(s.sensor_id, s.count.unwrap_or_default() as u64);
+        });
+        Ok(hashmap)
     }
 
     async fn add_signals_to_builder<'a>(
