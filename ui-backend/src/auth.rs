@@ -1,13 +1,36 @@
 use crate::hashing::{hash_password, verify_password};
-use crate::jwt::create_jwt;
-use sqlx::PgPool;
-use uuid::{NoContext, Timestamp, Uuid};
-
+use crate::jwt::{create_jwt, verify_jwt};
 use proto::frontend::{
     login_response, register_response, AuthenticationService, LoginError, LoginRequest,
     LoginResponse, RegisterError, RegisterRequest, RegisterResponse, User,
 };
+use sqlx::PgPool;
+use tonic::metadata::AsciiMetadataValue;
 use tonic::{Request, Response, Status};
+use uuid::{NoContext, Timestamp, Uuid};
+
+///Interceptor that checks if user is authenticated (must placed as layer for every service that needs user auth)
+pub fn auth_interceptor(request: Request<()>) -> Result<Request<()>, Status> {
+    if valid_credentials(&request) {
+        Ok(request)
+    } else {
+        Err(Status::unauthenticated("invalid credentials"))
+    }
+}
+
+fn valid_credentials(request: &Request<()>) -> bool {
+    let binding = AsciiMetadataValue::from_static("");
+
+    let token = request
+        .metadata()
+        .get("authorization-token")
+        .unwrap_or(&binding)
+        .to_str()
+        .unwrap_or("");
+    //verify token
+    let username = verify_jwt(token).ok();
+    username.is_some()
+}
 
 pub struct MyAuthenticationService {
     pool: PgPool,

@@ -4,6 +4,7 @@ import {
     SensorDataFetchingServiceDefinition,
     SingleSensorDataMessage,
 } from '@/proto/sensor/data-fetching';
+import { clientAuthLayer } from '@/api/protecteRequestFactory';
 
 export async function* LiveDataSingleSensor(
     sensorId: string,
@@ -14,7 +15,7 @@ export async function* LiveDataSingleSensor(
         serverUrl = window.location.origin;
     }
     const channel: Channel | undefined = createChannel(serverUrl, WebsocketTransport());
-    const client = createClient(SensorDataFetchingServiceDefinition, channel);
+    const client = clientAuthLayer.create(SensorDataFetchingServiceDefinition, channel);
 
     const stream = async function* (
         signal: AbortSignal | undefined

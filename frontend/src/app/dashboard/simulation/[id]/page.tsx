@@ -32,6 +32,7 @@ import MapFrame, { FrameToMapInformation } from '@/components/maps/MapFrame';
 import ToastNotification from '@/components/notification/ToastNotification';
 import CreateSimulationModal from '@/components/modals/CreateSimulationModal';
 import { BackendGetSimulationDetails } from '@/api/simulation/crud';
+import { clientAuthLayer } from '@/api/protecteRequestFactory';
 
 const PredictionMap = dynamic<PredictionMapProps>(() => import('@/components/maps/PredictionMap'), {
     ssr: false,
@@ -115,7 +116,7 @@ function SimulationPage() {
                 serverUrl = window.location.origin;
             }
             const channel = createChannel(serverUrl, WebsocketTransport());
-            const client = createClient(SimulationInterfaceServiceDefinition, channel);
+            const client = clientAuthLayer.create(SimulationInterfaceServiceDefinition, channel);
 
             for await (const response of client.getSimulationFrames(framePlayer())) {
                 if (!response.request) return;
