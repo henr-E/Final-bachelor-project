@@ -15,7 +15,8 @@ use component_library::energy::{
     PowerType, ProductionOverview, SensorGeneratorNode, SensorLoadNode,
 };
 use component_library::global::{
-    IrradianceComponent, SupplyAndDemandAnalytics, TimeComponent, WindSpeedComponent,
+    IrradianceComponent, SupplyAndDemandAnalytics, TemperatureComponent, TimeComponent,
+    WindSpeedComponent,
 };
 use component_library::Building;
 use predictions::VAR;
@@ -65,6 +66,19 @@ async fn main() -> ExitCode {
 
     info!("Server exited successfully.");
     ExitCode::SUCCESS
+}
+fn last_load_state(graph: &Graph) -> Option<Vec<f64>> {
+    Some(vec![
+        graph
+            .get_global_component::<TemperatureComponent>()?
+            .current_temp,
+        graph
+            .get_global_component::<IrradianceComponent>()?
+            .irradiance,
+        graph
+            .get_global_component::<WindSpeedComponent>()?
+            .wind_speed,
+    ])
 }
 
 async fn make_model(
@@ -197,44 +211,6 @@ fn get_predictions_for_node(
     }
 }
 
-// fn producer_energy_prediction(
-//     component: &ProducerNode,
-//     rng: &mut ThreadRng,
-//     delta_time: Duration,
-//     wind_speed: f64,
-//     irradiance: f64,
-// ) -> f64 {
-//     match component.power_type {
-//         PowerType::Nuclear => {
-//             let efficiency = rng.gen_range(0.99..=1.00);
-//             component.energy_production * efficiency * delta_time.as_secs_f64() / 3600.0
-//         }
-//         PowerType::Solar => {
-//             let capacity = component.capacity;
-//             capacity * irradiance * delta_time.as_secs_f64() / 3600.0 * 0.2
-//         }
-//         PowerType::Wind => {
-//             // https://thundersaidenergy.com/downloads/wind-power-impacts-of-larger-turbines/
-//             // c_p = efficiency percentage. Theoretical maximum * small error factor.
-//             let mut rng = rand::thread_rng();
-//             let efficiency = rng.gen_range(0.98..=1.00);
-//             let c_p = 0.593 * efficiency;
-//             // rho = air_density, kg / m^3. source: wikipedia
-//             let rho = 1.204;
-//             // length of a single blade in meters. range of average lengths.
-//             let blade_length: f64 = rng.gen_range(35.0..45.0);
-//             0.5 * c_p * rho * PI * blade_length.powi(2) * wind_speed.powi(3)
-//         }
-//         _ => {
-//             //TODO: this code was present previously and thus kept for now
-//             let current_capacity = component.capacity;
-//             let delta_capacity =
-//                 rand::thread_rng().gen_range(-50.0..50.0) * delta_time.as_secs() as f64;
-//             (current_capacity + delta_capacity).clamp(1000.0, 2000.0)
-//         }
-//     }
-// }
-
 fn make_generator_predictions(
     node_id: NodeId,
     component: &mut SensorGeneratorNode,
@@ -299,6 +275,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             .add_required_component::<SensorLoadNode>()
             .add_required_component::<SensorGeneratorNode>()
             .add_optional_component::<WindSpeedComponent>()
+            .add_optional_component::<TemperatureComponent>()
             .add_optional_component::<IrradianceComponent>()
             .add_output_component::<SensorLoadNode>()
             .add_output_component::<SensorGeneratorNode>()
@@ -309,6 +286,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         info!("Started new energy simulator.");
 
         let mut sensor_values_power_per_building = HashMap::new();
+        let mut final_sensor_value_power_per_building = HashMap::new();
         // store sensor values per building for power consumption
 
         // try to connect with sensor database
@@ -321,7 +299,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         };
 
         // loop over consumer nodes
-        for (node_id, _, _) in graph.get_all_nodes::<SensorLoadNode>().unwrap() {
+        for (node_id, _, component) in graph.get_all_nodes::<SensorLoadNode>().unwrap() {
             let Some(building_component) = graph.get_node_component::<Building>(node_id) else {
                 error!("Building component not found for consumer node with id {node_id:?}.");
                 continue;
@@ -330,6 +308,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             // get building id from consumer node
             let building_id = building_component.building_id;
             debug!("building_id = {building_id}.");
+            final_sensor_value_power_per_building.insert(building_id, component.active_power);
             // retrieve corresponding sensor
             match sensor_store.get_sensor_for_building(building_id).await {
                 Ok(sensor) => {
@@ -423,10 +402,27 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         average_dataset(&mut global_sensor_temperatures, AVERAGE_AMT);
         average_dataset(&mut global_sensor_irradiance, AVERAGE_AMT);
 
+        let mut frontend_defined_final_state: bool = false;
+        if let Some(last_state) = last_load_state(&graph) {
+            frontend_defined_final_state = true;
+            global_sensor_temperatures.push(last_state[0]);
+            global_sensor_irradiance.push(last_state[1]);
+            global_sensor_wind_speed.push(last_state[2]);
+        }
+
         // make models for all buildings.
         let mut models = HashMap::new();
         for (building_id, mut energy_data) in sensor_values_power_per_building.into_iter() {
             average_dataset(&mut energy_data, AVERAGE_AMT);
+
+            if frontend_defined_final_state {
+                // SAFETY: Unwrap is safe because we already looped over these building_ids.
+                let last_state = final_sensor_value_power_per_building
+                    .get(&building_id)
+                    .unwrap();
+                energy_data.push(*last_state);
+            }
+
             if let Some(model) = make_model(
                 building_id,
                 &energy_data,
