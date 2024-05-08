@@ -9,6 +9,7 @@ import {
 } from '@/proto/sensor/sensor-crud';
 import { QuantityWithUnits } from '@/store/sensor';
 import ToastNotification from '@/components/notification/ToastNotification';
+import { clientAuthLayer } from '@/api/protecteRequestFactory';
 
 export function failureReasonToString(reason: CrudFailureReason): string {
     switch (reason) {
@@ -31,7 +32,10 @@ export function failureReasonToString(reason: CrudFailureReason): string {
 
 export async function BackendGetQuantityWithUnits(): Promise<Record<string, QuantityWithUnits>> {
     const channel = createChannel(uiBackendServiceUrl);
-    const client: SensorCRUDServiceClient = createClient(SensorCRUDServiceDefinition, channel);
+    const client: SensorCRUDServiceClient = clientAuthLayer.create(
+        SensorCRUDServiceDefinition,
+        channel
+    );
 
     let quantitiesWithUnits: Record<string, QuantityWithUnits> = {};
     try {
@@ -67,7 +71,10 @@ export async function BackendGetQuantityWithUnits(): Promise<Record<string, Quan
 
 export async function BackendGetSensors(twinId: number): Promise<Sensor[]> {
     const channel = createChannel(uiBackendServiceUrl);
-    const client: SensorCRUDServiceClient = createClient(SensorCRUDServiceDefinition, channel);
+    const client: SensorCRUDServiceClient = clientAuthLayer.create(
+        SensorCRUDServiceDefinition,
+        channel
+    );
 
     let sensors: Sensor[] = [];
     try {
@@ -109,7 +116,10 @@ export async function BackendGetSensors(twinId: number): Promise<Sensor[]> {
 
 export async function BackendCreateSensor(sensor: Sensor): Promise<boolean> {
     const channel = createChannel(uiBackendServiceUrl);
-    const client: SensorCRUDServiceClient = createClient(SensorCRUDServiceDefinition, channel);
+    const client: SensorCRUDServiceClient = clientAuthLayer.create(
+        SensorCRUDServiceDefinition,
+        channel
+    );
 
     let success = true;
     try {
@@ -137,7 +147,10 @@ export async function BackendCreateSensor(sensor: Sensor): Promise<boolean> {
 
 export async function BackendDeleteSensor(sensor_id: string): Promise<boolean> {
     const channel = createChannel(uiBackendServiceUrl);
-    const client: SensorCRUDServiceClient = createClient(SensorCRUDServiceDefinition, channel);
+    const client: SensorCRUDServiceClient = clientAuthLayer.create(
+        SensorCRUDServiceDefinition,
+        channel
+    );
 
     let success = true;
     try {
@@ -160,7 +173,10 @@ export async function BackendDeleteSensor(sensor_id: string): Promise<boolean> {
 
 export async function updateSensor(sensor: Sensor): Promise<boolean> {
     const channel = createChannel(uiBackendServiceUrl);
-    const client: SensorCRUDServiceClient = createClient(SensorCRUDServiceDefinition, channel);
+    const client: SensorCRUDServiceClient = clientAuthLayer.create(
+        SensorCRUDServiceDefinition,
+        channel
+    );
 
     try {
         const response = await client.updateSensor({ uuid: sensor.id, sensor: { ...sensor } });

@@ -34,6 +34,7 @@ import Script from 'next/script';
 import Icon from '@mdi/react';
 import { s } from 'hastscript';
 import '@/css/leaflet.css';
+import { clientAuthLayer } from '@/api/protecteRequestFactory';
 
 export interface PredictionMapProps {
     twin: TwinFromProvider;
@@ -143,7 +144,7 @@ export function PredictionMap({
                 if (twinState.current) {
                     ToastNotification('success', 'Your twin is being loaded.');
                     const channel = createChannel(uiBackendServiceUrl);
-                    const client = createClient(TwinServiceDefinition, channel);
+                    const client = clientAuthLayer.create(TwinServiceDefinition, channel);
                     const request = { id: twinState.current.id };
 
                     const response = await client.getBuildings(request);

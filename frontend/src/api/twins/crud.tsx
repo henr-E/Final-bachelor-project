@@ -1,13 +1,13 @@
 'use client';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { buildingObject, TwinServiceDefinition, presetObject } from '@/proto/twins/twin';
-import { createChannel, createClient } from 'nice-grpc-web';
+import { ClientError, createChannel, createClient, Status } from 'nice-grpc-web';
 import { uiBackendServiceUrl } from '@/api/urls';
 import '@/store/twins/Provider';
 import { SensorCRUDServiceClient, SensorCRUDServiceDefinition } from '@/proto/sensor/sensor-crud';
 import { failureReasonToString } from '@/api/sensor/crud';
 import { SimulationInterfaceServiceDefinition } from '@/proto/simulation/frontend';
-import { Console } from 'console';
+import { clientAuthLayer } from '@/api/protecteRequestFactory';
 
 export async function BackendCreateTwin(
     name: string,
@@ -16,7 +16,8 @@ export async function BackendCreateTwin(
     radius: number
 ) {
     const channel = createChannel(uiBackendServiceUrl);
-    const client = createClient(TwinServiceDefinition, channel);
+
+    const client = clientAuthLayer.create(TwinServiceDefinition, channel);
 
     const request = { name: name, latitude: latitude, longitude: longitude, radius: radius };
 
@@ -31,10 +32,13 @@ export async function BackendCreateTwin(
 
 export async function BackendGetTwins() {
     const channel = createChannel(uiBackendServiceUrl);
-    const client = createClient(TwinServiceDefinition, channel);
+    const client = clientAuthLayer.create(TwinServiceDefinition, channel);
     try {
         return await client.getAllTwins({});
     } catch (error) {
+        if (error instanceof ClientError && Status[error.code] == 'UNAUTHENTICATED') {
+            return false;
+        }
         ToastNotification('error', 'Failed to fetch all twins');
         console.error('Failed to fetch all twins:', error);
         return;
@@ -44,7 +48,7 @@ export async function BackendGetTwins() {
 export async function BackendDeleteTwin(twinId: number): Promise<boolean> {
     try {
         const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(TwinServiceDefinition, channel);
+        const client = clientAuthLayer.create(TwinServiceDefinition, channel);
         const request = { id: twinId };
         await client.deleteTwin(request);
         return true;
@@ -59,7 +63,7 @@ export async function BackendGetBuildings(twinId: number) {
     try {
         ToastNotification('success', 'Your twin is being loaded.');
         const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(TwinServiceDefinition, channel);
+        const client = clientAuthLayer.create(TwinServiceDefinition, channel);
         const request = { id: twinId };
 
         return await client.getBuildings(request);
@@ -73,7 +77,7 @@ export async function BackendGetBuildings(twinId: number) {
 export async function BackendDeleteBuilding(buildingId: number): Promise<boolean> {
     try {
         const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(TwinServiceDefinition, channel);
+        const client = clientAuthLayer.create(TwinServiceDefinition, channel);
         const request = { id: buildingId };
         await client.deleteBuilding(request);
         return true;
@@ -87,7 +91,7 @@ export async function BackendDeleteBuilding(buildingId: number): Promise<boolean
 export async function BackendUndoDeleteBuilding(buildingId: number): Promise<boolean> {
     try {
         const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(TwinServiceDefinition, channel);
+        const client = clientAuthLayer.create(TwinServiceDefinition, channel);
         const request = { id: buildingId };
         await client.undoDeleteBuilding(request);
         return true;
@@ -105,7 +109,7 @@ export async function BackendCreatePreset(
 ) {
     try {
         const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(TwinServiceDefinition, channel);
+        const client = clientAuthLayer.create(TwinServiceDefinition, channel);
         const request: presetObject = { name: presetName, info: presetInfo, isEdge: presetIs_edge };
         const response = await client.createPreset(request);
         return response;
@@ -119,7 +123,7 @@ export async function BackendCreatePreset(
 export async function BackendGetAllPreset() {
     try {
         const channel = createChannel(uiBackendServiceUrl);
-        const client = createClient(TwinServiceDefinition, channel);
+        const client = clientAuthLayer.create(TwinServiceDefinition, channel);
         const response = await client.getAllPreset({});
         return response.preset;
     } catch (error) {

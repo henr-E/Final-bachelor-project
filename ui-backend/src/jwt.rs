@@ -1,6 +1,9 @@
 use chrono::{Days, Utc};
 use jsonwebtoken::errors::ErrorKind;
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use jsonwebtoken::{
+    decode, encode, errors::Error as JwtError, Algorithm, DecodingKey, EncodingKey, Header,
+    Validation,
+};
 use serde::{Deserialize, Serialize};
 
 const JWT_EXPIRATION_TIME: Days = Days::new(30);
@@ -45,7 +48,7 @@ pub type Jwt = String;
 /// 'ErrorKind::InvalidToken'
 
 pub fn create_jwt(username: &str) -> Result<Jwt, ErrorKind> {
-    let secret = secrets::secret("JWT_SECRET").expect("failed to create secret");
+    let secret = secrets::secret("JWT_SECRET").expect("failed to read secret");
 
     let claims = Claims::new(username);
 
@@ -58,4 +61,20 @@ pub fn create_jwt(username: &str) -> Result<Jwt, ErrorKind> {
         Err(_err) => Err(ErrorKind::InvalidToken),
     };
     token
+}
+
+pub fn verify_jwt(token: &str) -> Result<String, JwtError> {
+    // Decode token
+    let decoding_key = DecodingKey::from_secret(
+        secrets::secret("JWT_SECRET")
+            .expect("failed to read secret")
+            .as_ref(),
+    );
+    let validation = Validation::new(Algorithm::HS256);
+    let decoded_token = decode::<Claims>(token, &decoding_key, &validation)?;
+
+    // Extract username from claims
+    let username = decoded_token.claims.username;
+
+    Ok(username)
 }

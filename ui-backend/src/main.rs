@@ -3,20 +3,23 @@ use proto::frontend::{
     sensor_data_fetching::SensorDataFetchingServiceServer, AuthenticationServiceServer,
     SensorCrudServiceServer, SimulationInterfaceServiceServer, TwinServiceServer,
 };
+
 use tonic::transport::Server;
 
-use server::MyAuthenticationService;
+use auth::MyAuthenticationService;
 use std::env;
 
 // sqlx
 use sqlx::postgres::PgPool;
 
+mod auth;
 mod hashing;
 mod jwt;
-mod server;
 mod simulation_service;
+use crate::auth::auth_interceptor;
 use crate::sensor::SensorStore;
 use tracing::info;
+
 mod sensor;
 mod twin;
 
@@ -38,20 +41,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .expect("A valid bind address");
 
     let simulation_service = SimulationService::new(pool.clone()).await;
-    let simulation_service_server =
-        SimulationInterfaceServiceServer::new(simulation_service.clone());
+    let simulation_service_server = SimulationInterfaceServiceServer::with_interceptor(
+        simulation_service.clone(),
+        auth_interceptor,
+    );
 
     let sensor_crud_service = SensorStore::new().await;
-    let sensor_crud_service_server = SensorCrudServiceServer::new(sensor_crud_service.clone());
+    let sensor_crud_service_server =
+        SensorCrudServiceServer::with_interceptor(sensor_crud_service.clone(), auth_interceptor);
 
-    let sensor_data_fetching_service =
-        SensorDataFetchingServiceServer::new(sensor_crud_service.clone());
+    let sensor_data_fetching_service = SensorDataFetchingServiceServer::with_interceptor(
+        sensor_crud_service.clone(),
+        auth_interceptor,
+    );
 
-    let twin_service = TwinServiceServer::new(twin::MyTwinService::new(
-        pool.clone(),
-        simulation_service,
-        sensor_crud_service,
-    ));
+    let twin_service = TwinServiceServer::with_interceptor(
+        twin::MyTwinService::new(pool.clone(), simulation_service, sensor_crud_service),
+        auth_interceptor,
+    );
+
     let authentication_service =
         AuthenticationServiceServer::new(MyAuthenticationService::new(pool.clone()));
 
