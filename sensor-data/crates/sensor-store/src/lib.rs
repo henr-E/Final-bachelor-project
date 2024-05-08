@@ -235,6 +235,7 @@ impl SensorStore {
         Ok(sensors)
     }
 
+    /// Retrieves all global sensors. Global sensors have a building_id equal to 'NULL'.
     pub async fn get_all_global_sensors(
         &self,
     ) -> Result<impl Stream<Item = Result<Sensor, Error>>, Error> {

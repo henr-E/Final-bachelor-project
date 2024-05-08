@@ -26,6 +26,7 @@ predictions = { path = "crates/predictions" }
 secrets = { path = "crates/secrets" }
 sensor-store = { path = "sensor-data/crates/sensor-store" }
 simulator-communication = { path = "crates/simulator-communication" }
+simulator-utilities = { path = "crates/simulator-utilities" }
 walk-dir-tree = { path = "crates/walk-dir-tree" }
 
 [profile.release-small]

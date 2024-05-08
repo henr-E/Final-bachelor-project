@@ -2,9 +2,6 @@ use std::{env, net::SocketAddr, process::ExitCode};
 
 use futures::stream::StreamExt;
 use itertools::izip;
-use rand_distr::num_traits::ToPrimitive;
-use sqlx::types::BigDecimal;
-use thiserror::Error;
 use tracing::{debug, error, info, Level};
 
 use component_library::global::{
@@ -16,53 +13,7 @@ use sensor_store::{Quantity, Sensor, SensorStore};
 use simulator_communication::{
     simulator::SimulationError, ComponentsInfo, Graph, Server, Simulator,
 };
-
-/// Errors that can occur
-#[derive(Debug, Error)]
-pub enum WeatherError {
-    #[error("Unable to convert a vector of BigDecimal values to a vector of f64 values.")]
-    FailedConversion(),
-}
-
-/// Convert a vector of BigDecimal values to a vector of f64 values
-fn big_decimals_to_floats(values: Vec<BigDecimal>) -> Result<Vec<f64>, WeatherError> {
-    let floats: Result<Vec<f64>, WeatherError> = values
-        .into_iter()
-        .map(|bd| bd.to_f64().ok_or(WeatherError::FailedConversion()))
-        .collect();
-    floats
-}
-
-async fn get_sensor_data_for_quantity_and_sensor(
-    sensor_store: &SensorStore,
-    sensor: &Sensor<'_>,
-    quantity: Quantity,
-) -> Option<Vec<f64>> {
-    let values_as_big_decimals = match sensor
-        .signal_values_for_quantity(sensor_store, quantity)
-        .await
-    {
-        Ok(values_as_big_decimal) => values_as_big_decimal,
-        Err(err) => {
-            error!("Error retrieving the signal values: {}", err);
-            return None;
-        }
-    };
-    let values_as_floats = match big_decimals_to_floats(values_as_big_decimals) {
-        Ok(values_as_floats) => values_as_floats,
-        Err(err) => {
-            error!(
-                "Failed to convert vector of big decimal values to vector of float values.: {}",
-                err
-            );
-            return None;
-        }
-    };
-    if values_as_floats.is_empty() {
-        return None;
-    }
-    Some(values_as_floats)
-}
+use simulator_utilities::sensor::values_for_quantity_as_f64;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -165,63 +116,37 @@ impl Simulator for WeatherSimulator {
         let mut global_sensors_wind_direction = Vec::new();
         for sensor in &global_sensors {
             // retrieve corresponding sensor temperature values (if any)
-            match get_sensor_data_for_quantity_and_sensor(
-                &sensor_store,
-                sensor,
-                Quantity::Temperature,
-            )
-            .await
-            {
-                None => {}
-                Some(sensor_data_temperature) => {
+            match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::Temperature).await {
+                Err(_) => {}
+                Ok(sensor_data_temperature) => {
                     global_sensors_temperatures = sensor_data_temperature;
                 }
             }
             // retrieve corresponding sensor irradiance values (if any)
-            match get_sensor_data_for_quantity_and_sensor(
-                &sensor_store,
-                sensor,
-                Quantity::Irradiance,
-            )
-            .await
-            {
-                None => {}
-                Some(sensor_data_irradiance) => {
+            match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::Irradiance).await {
+                Err(_) => {}
+                Ok(sensor_data_irradiance) => {
                     global_sensors_irradiance = sensor_data_irradiance;
                 }
             }
             // retrieve corresponding sensor wind speed values (if any)
-            match get_sensor_data_for_quantity_and_sensor(
-                &sensor_store,
-                sensor,
-                Quantity::WindSpeed,
-            )
-            .await
-            {
-                None => {}
-                Some(sensor_data_wind_speed) => {
+            match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::WindSpeed).await {
+                Err(_) => {}
+                Ok(sensor_data_wind_speed) => {
                     global_sensors_wind_speed = sensor_data_wind_speed;
                 }
             }
             // retrieve corresponding sensor rainfall values (if any)
-            match get_sensor_data_for_quantity_and_sensor(&sensor_store, sensor, Quantity::Rainfall)
-                .await
-            {
-                None => {}
-                Some(sensor_data_precipitation) => {
+            match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::Rainfall).await {
+                Err(_) => {}
+                Ok(sensor_data_precipitation) => {
                     global_sensors_precipitation = sensor_data_precipitation;
                 }
             }
             // retrieve corresponding sensor wind direction values (if any)
-            match get_sensor_data_for_quantity_and_sensor(
-                &sensor_store,
-                sensor,
-                Quantity::WindDirection,
-            )
-            .await
-            {
-                None => {}
-                Some(sensor_data_wind_direction) => {
+            match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::WindDirection).await {
+                Err(_) => {}
+                Ok(sensor_data_wind_direction) => {
                     global_sensors_wind_direction = sensor_data_wind_direction;
                 }
             }
