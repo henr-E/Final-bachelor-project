@@ -1,20 +1,25 @@
+use prost_types::value::Kind;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use sqlx::PgPool;
 use tokio::sync::{mpsc, Mutex};
 use tokio_stream::StreamExt;
+use tonic::transport::Channel;
 use tonic::{Request, Response, Status};
 
 use crate::connector::SimulatorsInfo;
+use crate::database::StatusEnum::Failed;
 use crate::database::{SimulationsDB, StatusEnum};
+use proto::simulation::component_structure::ComponentStructure;
 use proto::simulation::simulation_manager::DeleteSimulationRequest as DeleteSimulationRequestManager;
-use proto::simulation::simulator::IoConfigRequest;
+use proto::simulation::simulator::{IoConfigRequest, SimulatorClient};
 use proto::simulation::{
     simulation_manager::{
         ComponentsInfo, PushSimulationRequest, SimulationData, SimulationFrame,
         SimulationFrameRequest, SimulationId, SimulationManager, SimulatorInfo, Simulators,
     },
-    Graph, State,
+    ComponentPrimitive, ComponentSpecification, Graph, State,
 };
 
 /// The Manager handles incoming requests from the frontend. It can return all known component types
@@ -43,6 +48,126 @@ impl Manager {
             simulators,
             db,
             notif_sender,
+        }
+    }
+
+    async fn get_selected_simulators(
+        &self,
+        simulation_id: i32,
+    ) -> anyhow::Result<Vec<SimulatorClient<Channel>>> {
+        let simulators = self.simulators.lock().await;
+        let mut db = self.db.lock().await;
+
+        // get only selected simulators
+        let selection = db
+            .get_selected_simulators(simulation_id)
+            .await?
+            .unwrap_or(Vec::new());
+        let selected = simulators
+            .iter()
+            .filter(|sim| selection.contains(&sim.name))
+            .map(|sim| sim.simulator.clone())
+            .collect::<Vec<_>>();
+        drop(simulators);
+        drop(db);
+        Ok(selected)
+    }
+
+    async fn get_selected_components(&self, id: i32) -> Result<ComponentsInfo, Status> {
+        let mut components: ComponentsInfo = ComponentsInfo::default();
+
+        // clone simulator vec and drop mutex
+        let mut simulators = self
+            .get_selected_simulators(id)
+            .await
+            .map_err(|err| Status::internal(err.to_string()))?;
+
+        for server in simulators.iter_mut() {
+            let request = tonic::Request::new(IoConfigRequest {});
+            let response = server.get_io_config(request).await?.into_inner();
+            let response_components = response.components;
+            for (key, value) in response_components {
+                components.components.insert(key, value);
+            }
+        }
+        Ok(components)
+    }
+
+    /// Unpacks ComponentStructure from ComponentSpecification given name and map of specifications for all components
+    fn get_component_structure(
+        components: &HashMap<String, ComponentSpecification>,
+        component_name: &String,
+    ) -> Option<ComponentStructure> {
+        let component_spec = match components.get(component_name) {
+            None => return None,
+            Some(component) => component,
+        };
+        let component_structure = component_spec.clone().structure?.component_structure?;
+        Some(component_structure)
+    }
+
+    /// Compares simulation.proto ComponentStructure to protobuf Value Kind
+    fn compare_component_structure(expected: ComponentStructure, actual: Kind) -> bool {
+        match (actual, expected) {
+            (Kind::ListValue(a), ComponentStructure::List(e)) => {
+                for value in a.values {
+                    let Some(actual_structure) = value.kind else {
+                        return false;
+                    };
+                    let Some(expected_structure) = e.component_structure.clone() else {
+                        return false;
+                    };
+                    if !Manager::compare_component_structure(expected_structure, actual_structure) {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Kind::StructValue(a), ComponentStructure::Struct(e)) => {
+                for (item_name, actual_item_value) in a.fields {
+                    let Some(actual_item_kind) = actual_item_value.kind else {
+                        return false;
+                    };
+                    let Some(expected_item_value) = e.data.get(&item_name) else {
+                        return false;
+                    };
+                    let Some(expected_item_structure) =
+                        expected_item_value.clone().component_structure
+                    else {
+                        return false;
+                    };
+                    if !Manager::compare_component_structure(
+                        expected_item_structure,
+                        actual_item_kind,
+                    ) {
+                        return false;
+                    }
+                }
+                true
+            }
+            (a, ComponentStructure::Primitive(e)) => {
+                let Ok(e): Result<ComponentPrimitive, _> = (e).try_into() else {
+                    return false;
+                };
+                matches!(
+                    (a, e),
+                    (Kind::NumberValue(_), ComponentPrimitive::F32)
+                        | (Kind::NumberValue(_), ComponentPrimitive::F64)
+                        | (Kind::NumberValue(_), ComponentPrimitive::U8)
+                        | (Kind::NumberValue(_), ComponentPrimitive::U16)
+                        | (Kind::NumberValue(_), ComponentPrimitive::U32)
+                        | (Kind::NumberValue(_), ComponentPrimitive::U64)
+                        | (Kind::NumberValue(_), ComponentPrimitive::U128)
+                        | (Kind::NumberValue(_), ComponentPrimitive::I8)
+                        | (Kind::NumberValue(_), ComponentPrimitive::I16)
+                        | (Kind::NumberValue(_), ComponentPrimitive::I32)
+                        | (Kind::NumberValue(_), ComponentPrimitive::I64)
+                        | (Kind::NumberValue(_), ComponentPrimitive::I128)
+                        | (Kind::StringValue(_), ComponentPrimitive::String)
+                        | (Kind::BoolValue(_), ComponentPrimitive::Bool)
+                )
+            }
+            _ => false,
         }
     }
 }
@@ -114,8 +239,11 @@ impl SimulationManager for Manager {
     ///
     /// The manager starts by decomposing the request into the needed components to populate the database
     /// with the simulations initial state.
-    /// It then proceeds by adding the simulation to the database and pushing the simulation id into
-    /// the queue. It then places every needed component into the database at timestep 0.
+    /// It then proceeds by adding the simulation to the database. Then the manager checks if the
+    /// needed components are present in the database and if their values have the correct structure.
+    /// If this is not the case the simulation will automatically be set to Failed.
+    /// If all the required components are present and valid the manager will queue the simulation.
+    /// It then places every needed component into the database at timestep 0.
     /// This is all done using a transaction so that it can be committed in one go.
     /// After this the manager will use the asynchronous channel to notify the runner that a new
     /// simulation has been queued.
@@ -164,6 +292,156 @@ impl SimulationManager for Manager {
                     err.to_string()
                 ))
             })?;
+        db.commit()
+            .await
+            .map_err(|err| Status::internal(err.to_string()))?;
+        drop(db);
+
+        // check if all components have valid structure
+        let components = self
+            .get_selected_components(simulation_index)
+            .await?
+            .components;
+        db = self.db.lock().await;
+        db.begin_transaction()
+            .await
+            .map_err(|err| Status::internal(err.to_string()))?;
+
+        // check if all required node components are valid
+        for node in &nodes {
+            for (component_name, component_value) in &node.components {
+                // get expected component structure from io_config
+                let expected_structure =
+                    match Manager::get_component_structure(&components, component_name) {
+                        None => {
+                            break;
+                        }
+                        Some(s) => s,
+                    };
+
+                // get actual structure
+                let actual_structure = match component_value.clone().kind {
+                    None => {
+                        db.update_status(
+                            simulation_index,
+                            Failed,
+                            "Component value has no Kind".into(),
+                        )
+                        .await
+                        .map_err(|err| Status::internal(err.to_string()))?;
+                        db.commit()
+                            .await
+                            .map_err(|err| Status::internal(err.to_string()))?;
+                        return Ok(Response::new(()));
+                    }
+                    Some(s) => s,
+                };
+
+                // compare
+                if !Manager::compare_component_structure(expected_structure, actual_structure) {
+                    db.update_status(simulation_index, Failed, "Provided node component structures do not match structures expected by simulators".into()).await.map_err(|err| Status::internal(err.to_string()))?;
+                    db.commit()
+                        .await
+                        .map_err(|err| Status::internal(err.to_string()))?;
+                    return Ok(Response::new(()));
+                }
+            }
+        }
+
+        // check if all required edge components are valid
+        for edge in &edges {
+            // get edge component name and value
+            let component_name = &edge.component_type;
+            let component_value = &edge.component_data;
+
+            // get expected structure
+            let expected_structure =
+                match Manager::get_component_structure(&components, component_name) {
+                    None => {
+                        continue;
+                    }
+                    Some(s) => s,
+                };
+
+            // get actual structure
+            let actual_value = match component_value.clone() {
+                None => {
+                    db.update_status(simulation_index, Failed, "Component has no value".into())
+                        .await
+                        .map_err(|err| Status::internal(err.to_string()))?;
+                    db.commit()
+                        .await
+                        .map_err(|err| Status::internal(err.to_string()))?;
+                    return Ok(Response::new(()));
+                }
+                Some(s) => s,
+            };
+
+            let actual_structure = match actual_value.clone().kind {
+                None => {
+                    db.update_status(
+                        simulation_index,
+                        Failed,
+                        "Component value has no Kind".into(),
+                    )
+                    .await
+                    .map_err(|err| Status::internal(err.to_string()))?;
+                    db.commit()
+                        .await
+                        .map_err(|err| Status::internal(err.to_string()))?;
+                    return Ok(Response::new(()));
+                }
+                Some(s) => s,
+            };
+
+            // compare
+            if !Manager::compare_component_structure(expected_structure, actual_structure) {
+                db.update_status(simulation_index, Failed, "Provided edge component structures do not match structures expected by simulators".into()).await.map_err(|err| Status::internal(err.to_string()))?;
+                db.commit()
+                    .await
+                    .map_err(|err| Status::internal(err.to_string()))?;
+                return Ok(Response::new(()));
+            }
+        }
+
+        // check if all global components are valid
+        for (component_name, component_value) in &global.clone() {
+            // get expected structure
+            let expected_structure =
+                match Manager::get_component_structure(&components, component_name) {
+                    None => {
+                        continue;
+                    }
+                    Some(s) => s,
+                };
+
+            // get actual structure
+            let actual_structure = match component_value.clone().kind {
+                None => {
+                    db.update_status(
+                        simulation_index,
+                        Failed,
+                        "Component value has no Kind".into(),
+                    )
+                    .await
+                    .map_err(|err| Status::internal(err.to_string()))?;
+                    db.commit()
+                        .await
+                        .map_err(|err| Status::internal(err.to_string()))?;
+                    return Ok(Response::new(()));
+                }
+                Some(s) => s,
+            };
+
+            // compare
+            if !Manager::compare_component_structure(expected_structure, actual_structure) {
+                db.update_status(simulation_index, Failed, "Provided global component structures do not match structures expected by simulators".into()).await.map_err(|err| Status::internal(err.to_string()))?;
+                db.commit()
+                    .await
+                    .map_err(|err| Status::internal(err.to_string()))?;
+                return Ok(Response::new(()));
+            }
+        }
 
         //place simulation id in queue
         db.enqueue(simulation_index).await.map_err(|err| {
