@@ -65,11 +65,13 @@ function renderSensorTable({
                         <span>{new Date().toLocaleDateString()}</span>
                     </td>
                     <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
-                        0
-                    </td>
-                    <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
                         <a href='#'>
-                            {sensor.latitude},{sensor.longitude}
+                            {global && 'global'}
+                            {!global && (
+                                <div>
+                                    {sensor.latitude},{sensor.longitude}
+                                </div>
+                            )}
                         </a>
                     </td>
                     <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
@@ -218,9 +220,6 @@ function SensorPage() {
                                             </th>
                                             <th scope='col' className='p-3 px-3'>
                                                 Last Updated
-                                            </th>
-                                            <th scope='col' className='p-3 px-3'>
-                                                Entries
                                             </th>
                                             <th scope='col' className='p-3 px-3'>
                                                 Location
