@@ -283,6 +283,8 @@ function UpdateSensorModal({
                 ...aliases,
                 [id]: `${quantity.repr}-N`,
             });
+        } else {
+            ToastNotification('warning', 'Quantity already exists.');
         }
     };
 
