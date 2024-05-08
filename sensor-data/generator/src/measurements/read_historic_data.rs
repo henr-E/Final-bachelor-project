@@ -1,4 +1,5 @@
 //! Module that provides functionality to retrieve historic data values (assets/sensor-data/historic-data)
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fs::File;
 
@@ -52,7 +53,7 @@ impl HistoricDataRecord {
 /// A structure for retrieving historical values from assets/sensor-data/historic-data.
 pub(super) struct HistoricDataReader {
     /// Historic data for one or more houses every hour. Contains weather data and energy consumption data.
-    historic_data: Vec<Vec<HistoricDataRecord>>,
+    historic_data: BTreeMap<u32, Vec<Vec<HistoricDataRecord>>>,
     /// Used for randomizing the data.
     rng: ThreadRng,
     /// Used to keep track of the last file loaded into memory, to prevent unnecessary reloading.
@@ -67,7 +68,7 @@ impl HistoricDataReader {
     /// Constructor for [HistoricDataReader].
     pub(super) fn new() -> Self {
         Self {
-            historic_data: vec![Vec::new(); 24],
+            historic_data: BTreeMap::new(),
             rng: thread_rng(),
             last_loaded: String::new(),
             min_nr_houses_per_hour: 1,
@@ -78,11 +79,11 @@ impl HistoricDataReader {
     /// Determine if self.historic_data contains at least one entry for every hour.
     fn historic_data_is_complete(&self) -> bool {
         // Check if historic_data contains at least 24 inner vectors (one or every hour)
-        if self.historic_data.len() < 24 {
+        if self.historic_data.is_empty() {
             return false;
         }
         // Check if at least one record is present for each hour
-        for historic_data_hourly in &self.historic_data {
+        for historic_data_hourly in self.historic_data.values() {
             if historic_data_hourly.is_empty() {
                 return false;
             }
@@ -92,16 +93,15 @@ impl HistoricDataReader {
 
     /// Load the historic data into self.historic_data
     fn load_parquet(&mut self, month: u32, day: u32) -> Result<(), Box<dyn Error>> {
-        // Determine file name corresponding to the provided month and day
-        let file_name = format!("2013-{:02}-{:02}.parquet", month, day);
         // If the file is already loaded into memory, don't load it again.
-        if self.last_loaded == file_name {
+        if self.historic_data.contains_key(&month) {
             return Ok(());
         }
+        // Determine file name corresponding to the provided month and day
+        let file_name = format!("2013-{:02}-{:02}.parquet", month, day);
 
         // Clear all inner vectors
-        self.historic_data.clear();
-        self.historic_data = vec![Vec::new(); 24];
+        self.historic_data.insert(month, vec![Vec::new(); 24]);
 
         // Construct file path
         let mut file_path = match navigate_to_assets_sensor_data_directory() {
@@ -144,7 +144,8 @@ impl HistoricDataReader {
                         precipitation,
                         irradiance,
                     };
-                    self.historic_data[hour as usize].push(weather_data_record);
+                    self.historic_data.get_mut(&month).unwrap()[hour as usize]
+                        .push(weather_data_record);
                 }
                 Err(err) => {
                     // The row could not be parsed.
@@ -165,6 +166,8 @@ impl HistoricDataReader {
         // initialize the min_nr_houses and current_house (later used for round-robin)
         self.min_nr_houses_per_hour = self
             .historic_data
+            .get(&month)
+            .unwrap()
             .iter()
             .map(|inner_vec| inner_vec.len())
             .min()
@@ -202,7 +205,7 @@ impl HistoricDataReader {
             Err(_) => {
                 // if the parquet file is incomplete or can not be loaded, clear the data and return None
                 self.historic_data.clear();
-                self.historic_data = vec![Vec::new(); 24];
+                self.historic_data = BTreeMap::new();
                 return None;
             }
         }
@@ -211,9 +214,12 @@ impl HistoricDataReader {
         self.current_house = (self.current_house + 1) % self.min_nr_houses_per_hour;
 
         // retrieve the corresponding historic value.
-        let value = self.historic_data[hour as usize][next_house as usize]
-            .get_value(quantity)
-            .ok()?;
+        let value = match self.historic_data.get(&month) {
+            Some(item) => item[hour as usize][next_house as usize]
+                .get_value(quantity)
+                .ok()?,
+            None => return None,
+        };
         // randomize (if variance greater than 0).
         let randomized_value = randomize_value(&mut self.rng, value, variance);
         Some(randomized_value)

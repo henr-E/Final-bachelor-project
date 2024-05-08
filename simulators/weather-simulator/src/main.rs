@@ -1,8 +1,15 @@
-use std::{env, net::SocketAddr, process::ExitCode};
+use std::{
+    collections::HashMap,
+    env,
+    io::{Error, ErrorKind},
+    net::SocketAddr,
+    process::ExitCode,
+};
 
-use futures::stream::StreamExt;
+use chrono::NaiveDateTime;
+use futures::StreamExt;
 use itertools::izip;
-use tracing::{debug, error, info, Level};
+use tracing::{debug, error, info};
 
 use component_library::global::{
     IrradianceComponent, PrecipitationComponent, TemperatureComponent, TimeComponent,
@@ -13,14 +20,15 @@ use sensor_store::{Quantity, Sensor, SensorStore};
 use simulator_communication::{
     simulator::SimulationError, ComponentsInfo, Graph, Server, Simulator,
 };
-use simulator_utilities::sensor::values_for_quantity_as_f64;
+use simulator_utilities::sensor::{average_dataset, values_for_quantity_as_f64};
+
+// 6 * 10 = 60 entries, representing 10 minutes of data.
+const AVERAGE_AMT: usize = 6 * 10;
 
 #[tokio::main]
 async fn main() -> ExitCode {
     _ = dotenvy::dotenv();
-    tracing_subscriber::fmt()
-        .with_max_level(Level::DEBUG)
-        .init();
+    tracing_subscriber::fmt().init();
 
     let listen_addr = match env::var("WEATHER_SIMULATOR_ADDR")
         .unwrap_or("127.0.0.1:8103".to_string())
@@ -53,7 +61,9 @@ async fn main() -> ExitCode {
 }
 
 pub struct WeatherSimulator {
-    model: Option<VAR>,
+    model: VAR,
+    start_time: Option<NaiveDateTime>,
+    cache: HashMap<i64, Vec<f64>>,
 }
 
 impl Simulator for WeatherSimulator {
@@ -81,7 +91,7 @@ impl Simulator for WeatherSimulator {
             Ok(sensor_store) => sensor_store,
             Err(err) => {
                 error!("Database connection failed: {}", err);
-                return Ok(Self { model: None });
+                return Err(SimulationError::Internal(Box::new(err)));
             }
         };
         // Retrieve all global sensors
@@ -171,8 +181,13 @@ impl Simulator for WeatherSimulator {
             "Amount of global_sensors_wind_direction = {}.",
             global_sensors_wind_direction.len()
         );
+        // average values of dataset.
+        average_dataset(&mut global_sensors_temperatures, AVERAGE_AMT);
+        average_dataset(&mut global_sensors_irradiance, AVERAGE_AMT);
+        average_dataset(&mut global_sensors_wind_speed, AVERAGE_AMT);
+        average_dataset(&mut global_sensors_precipitation, AVERAGE_AMT);
+        average_dataset(&mut global_sensors_wind_direction, AVERAGE_AMT);
 
-        let mut data: Vec<f64> = Vec::new();
         let min_length = global_sensors_precipitation
             .len()
             .min(global_sensors_temperatures.len())
@@ -187,6 +202,8 @@ impl Simulator for WeatherSimulator {
         global_sensors_precipitation.drain(..global_sensors_precipitation.len() - min_length);
         global_sensors_wind_direction.drain(..global_sensors_wind_direction.len() - min_length);
 
+        // making total dataset.
+        let mut data: Vec<f64> = Vec::with_capacity(min_length);
         for (&temperature, &irradiance, &wind_speed, &precipitation, &wind_direction) in izip!(
             &global_sensors_temperatures,
             &global_sensors_irradiance,
@@ -202,27 +219,57 @@ impl Simulator for WeatherSimulator {
                 wind_direction,
             ]);
         }
-        info!("Training model with {} rows", data.len() / 5);
         if data.is_empty() {
             debug!("Data is empty!");
-            return Ok(Self { model: None });
+            return Err(SimulationError::Internal(Box::new(Error::new(
+                ErrorKind::InvalidData,
+                "There is not enough training data available to train the prediction model.",
+            ))));
         }
-        let model = VAR::new(data, 5);
-        info!("Finished model training.");
-        debug!("model training succeeded = {}", model.is_some());
-        Ok(Self { model })
+
+        info!("Training model with {} rows", data.len() / 5);
+        match VAR::new(data, 5) {
+            Some(model) => {
+                info!("Finished model training. Order = {}", model.get_order());
+                Ok(Self {
+                    model,
+                    cache: HashMap::new(),
+                    start_time: None,
+                })
+            }
+            None => Err(SimulationError::Internal(Box::new(Error::new(
+                ErrorKind::Other,
+                "Failed to train prediction model.",
+            )))),
+        }
     }
 
     async fn do_timestep(&mut self, mut graph: Graph) -> Result<Graph, SimulationError> {
-        info!("Doing timestep!");
-        if let Some(_time_component) = graph.get_global_component::<TimeComponent>() {
-            let predictions = match self.model.as_mut() {
+        if let Some(time_component) = graph.get_global_component::<TimeComponent>() {
+            if self.start_time.is_none() {
+                self.start_time = Some(time_component.0);
+            }
+            let pred_n = (time_component.0.and_utc().timestamp()
+                - self.start_time.unwrap().and_utc().timestamp())
+                / (10 * AVERAGE_AMT) as i64;
+
+            let predictions = match self.cache.get(&pred_n) {
+                Some(p) => p,
                 None => {
-                    error!("Failed to create prediction model.");
-                    return Ok(graph);
+                    let last = self.cache.keys().copied().max().unwrap_or_default();
+
+                    // make sure that the unwrap below never panics.
+                    if last == 0 {
+                        self.cache.insert(0, self.model.get_next_prediction());
+                    }
+                    let preds = self.model.get_next_predictions((pred_n - last) as usize);
+                    for (ith, pred) in preds.iter().enumerate() {
+                        self.cache.insert(last + ith as i64 + 1, pred.to_vec());
+                    }
+                    self.cache.get(&pred_n).unwrap()
                 }
-                Some(model) => model.get_next_prediction(),
             };
+            // let predictions = self.model.get_next_prediction();
 
             if let Some(temperature_component) =
                 graph.get_global_component_mut::<TemperatureComponent>()

@@ -1,6 +1,8 @@
 //! Module that contains functionality to generate sensor data for multiple virtual sensors at once.
 //! Also contains functionality to construct virtual sensors based on the sensors registered in the database.
 
+use std::time::Duration;
+
 use futures::stream::StreamExt;
 use tracing::error;
 
@@ -10,6 +12,8 @@ use sensor_store::SensorStore;
 
 use crate::measurements::MeasurementsGenerator;
 use crate::virtual_sensor::VirtualSensor;
+
+pub const VIRTUAL_SENSOR_GENERATION_INTERVAL: Duration = Duration::from_secs(3600);
 
 /// Instances of this struct can be used to generate (fake) sensor data for multiple sensors at once.
 pub struct SensorDataGenerator<'a> {
@@ -23,6 +27,10 @@ impl<'a> SensorDataGenerator<'a> {
         Self {
             virtual_sensors: Vec::new(),
         }
+    }
+
+    pub fn from(virtual_sensors: Vec<VirtualSensor<'a>>) -> Self {
+        Self { virtual_sensors }
     }
 
     /// Construct virtual sensors based on the sensors registered in the database and stores them in self.virtual_sensors.
@@ -43,7 +51,7 @@ impl<'a> SensorDataGenerator<'a> {
                                 // Create a SensorWrapper object with the retrieved sensor and interval
                                 let virtual_sensor = VirtualSensor::new(
                                     sensor,
-                                    3600,
+                                    VIRTUAL_SENSOR_GENERATION_INTERVAL.as_secs(),
                                     FileFormat::Json(JsonFileFormat {}),
                                 );
                                 virtual_sensors.push(virtual_sensor);

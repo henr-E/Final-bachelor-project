@@ -13,6 +13,7 @@ use crate::{
 };
 
 /// Represents a sensor with associated [`Signals`].
+#[derive(Clone)]
 pub struct Sensor<'a> {
     /// Id of the sensor as registered in the database.
     pub id: Uuid,

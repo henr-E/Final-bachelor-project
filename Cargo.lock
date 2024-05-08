@@ -915,6 +915,7 @@ dependencies = [
 name = "energy-supply-and-demand-simulator"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "component-library",
  "dotenvy",
  "futures",
@@ -4292,6 +4293,7 @@ checksum = "af190c94f2773fdb3729c55b007a722abb5384da03bc0986df4c289bf5567e96"
 name = "weather-simulator"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "component-library",
  "dotenvy",
  "futures",

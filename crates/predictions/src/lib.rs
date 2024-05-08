@@ -1,11 +1,14 @@
 use linfa_linalg::svd::SVD;
 use ndarray::{self, s, Array1, Array2};
-// use ndarray_inverse::Inverse;
+use ndarray_inverse::Inverse;
 use serde::{Deserialize, Serialize};
 use std::{cmp, f64::consts::PI, io, path::Path};
 
 /// how much training data should be used. 0 < factor < 1
-const TRAIN_DATA_SPLIT_SIZE: f64 = 0.9;
+const TRAIN_DATA_SPLIT_SIZE: f64 = 0.95;
+// usually order ends up ~60.
+const MIN_ORDER: usize = 45;
+const MAX_ORDER: usize = 128;
 
 // calculates the inverse of the S vector, where S
 // contains all singular values of a given matrix.
@@ -18,25 +21,17 @@ fn inverse_s(matrix: Array1<f64>) -> Array2<f64> {
     });
     Array2::from_diag(&matrix)
 }
+fn moore_penrose_inv(matrix: &Array2<f64>) -> Option<Array2<f64>> {
+    match matrix.t().dot(matrix).lu_inv() {
+        Some(valid_inverse) => Some(valid_inverse.dot(matrix)),
+        None => matrix
+            .dot(&matrix.t())
+            .lu_inv()
+            .map(|valid_inverse| matrix.t().dot(&valid_inverse)),
+    }
+}
 
-/// Calculate the pseudo inverse of a given matrix.
-///
-/// The method used to use the SVD(U, S, V') of the matrix.
-/// inverse = V * S' * U'.
-///
-/// The method now calculates the Moore–Penrose inverse(for linearly independent columns).
-/// https://en.wikipedia.org/wiki/Moore%E2%80%93Penrose_inverse#The_QR_method
-fn pseudo_inverse(matrix: Array2<f64>) -> Option<Array2<f64>> {
-    // let moore_pensore_inverse = match matrix.t().dot(&matrix).inv() {
-    //     Some(valid_inverse) => Some(valid_inverse.dot(&matrix)),
-    //     None => matrix
-    //         .dot(&matrix.t())
-    //         .inv()
-    //         .map(|valid_inverse| matrix.t().dot(&valid_inverse)),
-    // };
-    // match moore_pensore_inverse {
-    //     Some(inverse) => Some(inverse),
-    //     None => {
+fn svd_inv(matrix: Array2<f64>) -> Option<Array2<f64>> {
     let svd = matrix.svd(true, true).ok()?;
     let u = svd.0?;
     let s = svd.1;
@@ -44,8 +39,21 @@ fn pseudo_inverse(matrix: Array2<f64>) -> Option<Array2<f64>> {
     let s = inverse_s(s);
     let binding = v_t.t().dot(&s.t()).dot(&u.t());
     Some(binding)
-    // }
-    // }
+}
+
+/// Calculate the pseudo inverse of a given matrix.
+///
+/// The method used to use the SVD(U, S, V') of the matrix.
+/// inverse = V * S' * U'.
+///
+/// The method first tries to calculates the Moore–Penrose inverse(for linearly independent columns).
+/// https://en.wikipedia.org/wiki/Moore%E2%80%93Penrose_inverse#The_QR_method
+fn pseudo_inverse(matrix: Array2<f64>) -> Option<Array2<f64>> {
+    let item = moore_penrose_inv(&matrix);
+    if item.is_some() {
+        return item;
+    }
+    svd_inv(matrix)
 }
 
 fn first_order_differencing(input_data: &Array2<f64>) -> Array2<f64> {
@@ -133,7 +141,7 @@ fn fit_model(input_data: &Array2<f64>, order: usize) -> Option<VAR> {
 fn test_split(input_data: &Array2<f64>, factor: f64) -> (Array2<f64>, Array2<f64>) {
     let amt_data = input_data.nrows() as f64;
     let amt_training: usize = (amt_data * factor) as usize;
-    let amt_training = cmp::max(amt_training, (amt_data - 80.) as usize);
+    let amt_training = cmp::max(amt_training, (amt_data - 40.) as usize);
     (
         input_data.slice(s![..amt_training, ..]).into_owned(),
         input_data.slice(s![amt_training.., ..]).into_owned(),
@@ -184,13 +192,13 @@ impl VAR {
             Array2::from_shape_vec((data.len() / amt_variables, amt_variables), data).ok()?;
         let variables = input_data.ncols();
         let (train_data, test_data) = test_split(&input_data, TRAIN_DATA_SPLIT_SIZE);
-        let mut best_order = 4;
+        let mut best_order = MIN_ORDER;
         let mut best_score = f64::MAX;
         // try `order` between 4 and 74.
         // testing `order` has a O(mn^2) for svd, O(n^3) for each matrix multiplication.
         // thus testing larger `order` values will unlikely be fruitful.
-        let max_possible_order = std::cmp::min(75, train_data.shape()[0] - 1);
-        for order in (4..max_possible_order).step_by(2) {
+        let max_possible_order = std::cmp::min(MAX_ORDER, train_data.shape()[0] - 1);
+        for order in MIN_ORDER..max_possible_order {
             let mut model = fit_model(&train_data, order)?;
             let predictions = model.predict_n(test_data.nrows());
             let sse = sse(&predictions, &test_data);
@@ -207,6 +215,9 @@ impl VAR {
         let bytes = std::fs::read(path).ok()?;
         let var: VAR = bincode::deserialize(&bytes).ok()?;
         Some(var)
+    }
+    pub fn get_order(&self) -> usize {
+        self.order
     }
     /// Deserialize an auto regressor from a given [`Path`].
     pub fn to_file(&self, path: &Path) -> io::Result<()> {

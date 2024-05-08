@@ -8,7 +8,7 @@ pub mod sensor {
 
     use sensor_store::{Quantity, Sensor, SensorStore};
 
-    /// Retrieve all values for the ['Signal'] matching the specified ['Quantity'] and the id of the provided ['Sensor'].
+    /// Retrieve all values for the `Signal` matching the specified [`Quantity`] and the id of the provided [`Sensor`].
     ///
     /// Retrieves all entries in sensor_values.value where sensor_values.sensor_signal_id refers to a
     /// sensor_signals object corresponding with the provided quantity and the id of the provided sensor.
@@ -16,7 +16,7 @@ pub mod sensor {
     ///
     /// # Errors
     ///
-    /// Returns an error if no ['Signal'] corresponds to the provided ['Quantity'].
+    /// Returns an error if no `Signal` corresponds to the provided [`Quantity`].
     async fn values_for_quantity(
         sensor_store: &SensorStore,
         sensor: &Sensor<'_>,
@@ -39,8 +39,19 @@ pub mod sensor {
             sensor.name.to_string(),
         ))
     }
+    /// Averages a dataset.
+    ///
+    /// This function will make chunks of `average_amt` and average them.
+    /// The function is used because the dataset from the generator is quite sparse, since it only
+    /// generates unique datapoints per hour, while the generator pushes it a lot more frequently.
+    pub fn average_dataset(dataset: &mut Vec<f64>, average_amt: usize) {
+        *dataset = dataset
+            .chunks(average_amt)
+            .map(|chunk| chunk.iter().sum::<f64>() / chunk.len() as f64)
+            .collect();
+    }
 
-    /// Retrieve all values  as f64's for the ['Signal'] matching the specified ['Quantity'] and the id of the provided ['Sensor'].
+    /// Retrieve all values  as f64's for the `Signal` matching the specified [`Quantity`] and the id of the provided [`Sensor`].
     ///
     /// Retrieves all entries in sensor_values.value as f64's where sensor_values.sensor_signal_id refers to a
     /// sensor_signals object corresponding with the provided quantity and the id of the provided sensor.
@@ -48,7 +59,7 @@ pub mod sensor {
     ///
     /// # Errors
     ///
-    /// Returns an error if no ['Signal'] corresponds to the provided ['Quantity'] or the values can not be represented
+    /// Returns an error if no `Signal` corresponds to the provided [`Quantity`] or the values can not be represented
     /// as f64.
     pub async fn values_for_quantity_as_f64(
         sensor_store: &SensorStore,

@@ -2,12 +2,14 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::hash::{Hash, Hasher};
+use std::io::{Error, ErrorKind};
 use std::{env, net::SocketAddr, process::ExitCode, time::Duration};
 
+use chrono::NaiveDateTime;
 use futures::stream::StreamExt;
 use itertools::izip;
 use rand::prelude::*;
-use tracing::{debug, error, info, Level};
+use tracing::{debug, error, info};
 
 use component_library::energy::{
     PowerType, ProductionOverview, SensorGeneratorNode, SensorLoadNode,
@@ -21,14 +23,15 @@ use sensor_store::{Quantity, Sensor, SensorStore};
 use simulator_communication::graph::NodeId;
 use simulator_communication::simulator::SimulationError;
 use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
-use simulator_utilities::sensor::values_for_quantity_as_f64;
+use simulator_utilities::sensor::{average_dataset, values_for_quantity_as_f64};
+
+// 6 * 10 = 60 entries, representing 10 minutes of data.
+const AVERAGE_AMT: usize = 6 * 10;
 
 #[tokio::main]
 async fn main() -> ExitCode {
     dotenvy::dotenv().ok();
-    tracing_subscriber::fmt()
-        .with_max_level(Level::DEBUG)
-        .init();
+    tracing_subscriber::fmt().init();
 
     let listen_addr = match env::var("ENERGY_SUPPLY_AND_DEMAND_SIMULATOR_ADDR")
         .unwrap_or("0.0.0.0:8102".to_string())
@@ -64,11 +67,224 @@ async fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
+async fn make_model(
+    building_id: i32,
+    energy_data: &[f64],
+    temperature_data: &[f64],
+    irradiance_data: &[f64],
+    wind_speed_data: &[f64],
+) -> Option<VAR> {
+    // This clone is required because we want to use as much data as
+    // possible for training.
+    let mut energy_data = energy_data.to_owned();
+    let mut temperature_data = temperature_data.to_owned();
+    let mut irradiance_data = irradiance_data.to_owned();
+    let mut wind_speed_data = wind_speed_data.to_owned();
+
+    let mut data: Vec<f64> = Vec::new();
+    // keep `min_length` amount of last sensor_values.
+    let min_length = energy_data
+        .len()
+        .min(temperature_data.len())
+        .min(irradiance_data.len())
+        .min(wind_speed_data.len());
+
+    debug!("minimum lenght of data = {min_length}.");
+
+    if min_length == 0 {
+        return None;
+    }
+
+    // NOTE: clone due to independent amount of data per sensor.
+    energy_data.drain(..energy_data.len() - min_length);
+    temperature_data.drain(..temperature_data.len() - min_length);
+    irradiance_data.drain(..irradiance_data.len() - min_length);
+    wind_speed_data.drain(..wind_speed_data.len() - min_length);
+
+    for (&energy, &temperature, &irradiance, &wind_speed) in izip!(
+        &energy_data,
+        &temperature_data,
+        &irradiance_data,
+        &wind_speed_data
+    ) {
+        data.append(&mut vec![energy, temperature, irradiance, wind_speed]);
+    }
+    if data.is_empty() {
+        debug!("data was empty for building_id = {building_id}.");
+        return None;
+    }
+    info!("Training model with {} rows.", data.len() / 5);
+    let var_model = match tokio::task::spawn_blocking(|| VAR::new(data, 4)).await {
+        Err(err) => {
+            error!("trainer thread crashed: {err}");
+            return None;
+        }
+        Ok(Some(var)) => var,
+        Ok(None) => {
+            debug!("Model training failed for building_id = {building_id}.");
+            return None;
+        }
+    };
+    Some(var_model)
+}
+
+fn get_predictions(
+    models: &mut HashMap<i32, VAR>,
+    building_id: i32,
+    last_pred_time: i64,
+    pred_n: i64,
+) -> Option<Vec<Vec<f64>>> {
+    let model = match models.get_mut(&building_id) {
+        Some(model) => model,
+        None => {
+            debug!(
+                "NO model found for building_id = {}! Skipping prediction step.",
+                building_id
+            );
+            return None;
+        }
+    };
+    // pred_n should always be larger or equal to last_pred_time.
+    Some(model.get_next_predictions((pred_n - last_pred_time) as usize))
+}
+
+fn get_predictions_for_node(
+    graph: &mut Graph,
+    models: &mut HashMap<i32, VAR>,
+    node_id: NodeId,
+    pred_n: i64,
+    building_prod_cache: &mut HashMap<(i32, i64), Vec<f64>>,
+) -> Option<Vec<f64>> {
+    // The energy field is always the first element of the prediction model's result.
+    let Some(building_component) = graph.get_node_component::<Building>(node_id) else {
+        debug!(
+            "Could not find building component for node_id = {:?}.",
+            node_id
+        );
+        return None;
+    };
+
+    // get building id from consumer node
+    let building_id = building_component.building_id;
+    if building_prod_cache.contains_key(&(building_id, pred_n)) {
+        return building_prod_cache.get(&(building_id, pred_n)).cloned();
+    }
+    let last_building_n = building_prod_cache
+        .keys()
+        .filter(|(k_building_id, _)| *k_building_id == building_id)
+        .map(|(_, time)| *time)
+        .max()
+        .unwrap_or_default();
+    if last_building_n == 0 {
+        building_prod_cache.insert(
+            (building_id, 0),
+            get_predictions(models, building_id, 0, 1)?[0].to_vec(),
+        );
+    }
+    debug!("generating predictions for building_id = {}.", building_id);
+    match get_predictions(models, building_id, last_building_n, pred_n) {
+        Some(p) => {
+            // NOTE: building id's shouldn't overlap.
+            for (ith, pred) in p.iter().enumerate() {
+                building_prod_cache.insert(
+                    (building_id, last_building_n + ith as i64 + 1),
+                    pred.clone(),
+                );
+            }
+            building_prod_cache.get(&(building_id, pred_n)).cloned()
+        }
+        None => None,
+    }
+}
+
+// fn producer_energy_prediction(
+//     component: &ProducerNode,
+//     rng: &mut ThreadRng,
+//     delta_time: Duration,
+//     wind_speed: f64,
+//     irradiance: f64,
+// ) -> f64 {
+//     match component.power_type {
+//         PowerType::Nuclear => {
+//             let efficiency = rng.gen_range(0.99..=1.00);
+//             component.energy_production * efficiency * delta_time.as_secs_f64() / 3600.0
+//         }
+//         PowerType::Solar => {
+//             let capacity = component.capacity;
+//             capacity * irradiance * delta_time.as_secs_f64() / 3600.0 * 0.2
+//         }
+//         PowerType::Wind => {
+//             // https://thundersaidenergy.com/downloads/wind-power-impacts-of-larger-turbines/
+//             // c_p = efficiency percentage. Theoretical maximum * small error factor.
+//             let mut rng = rand::thread_rng();
+//             let efficiency = rng.gen_range(0.98..=1.00);
+//             let c_p = 0.593 * efficiency;
+//             // rho = air_density, kg / m^3. source: wikipedia
+//             let rho = 1.204;
+//             // length of a single blade in meters. range of average lengths.
+//             let blade_length: f64 = rng.gen_range(35.0..45.0);
+//             0.5 * c_p * rho * PI * blade_length.powi(2) * wind_speed.powi(3)
+//         }
+//         _ => {
+//             //TODO: this code was present previously and thus kept for now
+//             let current_capacity = component.capacity;
+//             let delta_capacity =
+//                 rand::thread_rng().gen_range(-50.0..50.0) * delta_time.as_secs() as f64;
+//             (current_capacity + delta_capacity).clamp(1000.0, 2000.0)
+//         }
+//     }
+// }
+
+fn make_generator_predictions(
+    node_id: NodeId,
+    component: &mut SensorGeneratorNode,
+    delta_time: Duration,
+    current_irradiance: f64,
+    current_wind_speed: f64,
+) {
+    match &component.power_type {
+        PowerType::Nuclear => {
+            let mut rng = rand::thread_rng();
+            let efficiency = rng.gen_range(0.99..=1.00);
+            component.active_power =
+                component.active_power * efficiency * delta_time.as_secs_f64() / 3600.0;
+        }
+        PowerType::Solar => {
+            // Hash the node id as a pseudo way to give every house random but contestant solar panel area
+            let mut h = DefaultHasher::new();
+            node_id.hash(&mut h);
+            let solar_panel_area = h.finish() % 10 + 2;
+
+            component.active_power = solar_panel_area as f64 * current_irradiance;
+        }
+        PowerType::Wind => {
+            // https://thundersaidenergy.com/downloads/wind-power-impacts-of-larger-turbines/
+            // c_p = efficiency percentage. Theoretical maximum * small error factor.
+            let mut rng = rand::thread_rng();
+            let efficiency = rng.gen_range(0.98..=1.00);
+            let c_p = 0.593 * efficiency;
+            // rho = air_density, kg / m^3. source: wikipedia
+            let rho = 1.204;
+            // length of a single blade in meters. range of average lengths.
+            let blade_length: f64 = rng.gen_range(35.0..45.0);
+            component.active_power =
+                0.5 * c_p * rho * PI * blade_length.powi(2) * current_wind_speed.powi(3);
+        }
+        _ => {
+            let delta_capacity =
+                rand::thread_rng().gen_range(-50.0..50.0) * delta_time.as_secs() as f64;
+            component.active_power = (component.active_power + delta_capacity).clamp(1000.0, 2000.0)
+        }
+    }
+}
+
 ///Simulator that gives a random demand and supply to a consumer and producer node respectively every time step
 pub struct EnergySupplyAndDemandSimulator {
+    start_time: Option<NaiveDateTime>,
     delta_time: Duration,
     /// Contains sensor data for energy consumption (in Watts) per building
     models: HashMap<i32, VAR>,
+    cache: HashMap<(i32, i64), Vec<f64>>,
 }
 
 impl Simulator for EnergySupplyAndDemandSimulator {
@@ -99,11 +315,8 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         let sensor_store = match SensorStore::new().await {
             Ok(sensor_store) => sensor_store,
             Err(err) => {
-                error!("Database connection failed: {}.", err);
-                return Ok(Self {
-                    delta_time,
-                    models: HashMap::new(),
-                });
+                error!("Database connection failed: {}", err);
+                return Err(SimulationError::Internal(Box::new(err)));
             }
         };
 
@@ -174,10 +387,9 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             // retrieve corresponding sensor temperature values (if any)
             match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::Temperature).await {
                 Err(_) => {
-                    return Ok(Self {
-                        delta_time,
-                        models: HashMap::new(),
-                    })
+                    return Err(SimulationError::InvalidInput(
+                        "No global sensor with temperature signal found.".to_string(),
+                    ))
                 }
                 Ok(sensor_data_temperature) => {
                     global_sensor_temperatures = sensor_data_temperature;
@@ -186,10 +398,9 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             // retrieve corresponding sensor irradiance values (if any)
             match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::Irradiance).await {
                 Err(_) => {
-                    return Ok(Self {
-                        delta_time,
-                        models: HashMap::new(),
-                    })
+                    return Err(SimulationError::InvalidInput(
+                        "No global sensor with irradiance signal found.".to_string(),
+                    ));
                 }
                 Ok(sensor_data_irradiance) => {
                     global_sensor_irradiance = sensor_data_irradiance;
@@ -198,86 +409,63 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             // retrieve corresponding sensor wind speed values (if any)
             match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::WindSpeed).await {
                 Err(_) => {
-                    return Ok(Self {
-                        delta_time,
-                        models: HashMap::new(),
-                    })
+                    return Err(SimulationError::InvalidInput(
+                        "No global sensor with wind speed signal found.".to_string(),
+                    ));
                 }
                 Ok(sensor_data_wind_speed) => {
                     global_sensor_wind_speed = sensor_data_wind_speed;
                 }
             }
         }
+        // make averages over large dataset.
+        average_dataset(&mut global_sensor_wind_speed, AVERAGE_AMT);
+        average_dataset(&mut global_sensor_temperatures, AVERAGE_AMT);
+        average_dataset(&mut global_sensor_irradiance, AVERAGE_AMT);
+
         // make models for all buildings.
         let mut models = HashMap::new();
         for (building_id, mut energy_data) in sensor_values_power_per_building.into_iter() {
-            let mut global_sensor_temperatures = global_sensor_temperatures.clone();
-            let mut global_sensor_irradiance = global_sensor_irradiance.clone();
-            let mut global_sensor_wind_speed = global_sensor_wind_speed.clone();
-
-            let mut data: Vec<f64> = Vec::new();
-            // keep `min_length` amount of last sensor_values.
-            let min_length = energy_data
-                .len()
-                .min(global_sensor_temperatures.len())
-                .min(global_sensor_irradiance.len())
-                .min(global_sensor_wind_speed.len());
-
-            debug!("minimum length of data = {min_length}.");
-
-            if min_length == 0 {
-                continue;
-            }
-
-            // NOTE: clone due to independent amount of data per sensor.
-            energy_data.drain(..energy_data.len() - min_length);
-            global_sensor_temperatures.drain(..global_sensor_temperatures.len() - min_length);
-            global_sensor_irradiance.drain(..global_sensor_irradiance.len() - min_length);
-            global_sensor_wind_speed.drain(..global_sensor_wind_speed.len() - min_length);
-
-            for (&energy, &temperature, &irradiance, &wind_speed) in izip!(
+            average_dataset(&mut energy_data, AVERAGE_AMT);
+            if let Some(model) = make_model(
+                building_id,
                 &energy_data,
                 &global_sensor_temperatures,
                 &global_sensor_irradiance,
-                &global_sensor_wind_speed
-            ) {
-                data.append(&mut vec![energy, temperature, irradiance, wind_speed]);
-            }
-            if data.is_empty() {
-                debug!("data was empty for building_id = {building_id}.");
-                continue;
-            }
-            info!("Training model with {} rows.", data.len() / 5);
-            models.insert(
-                building_id,
-                match tokio::task::spawn_blocking(|| VAR::new(data, 4)).await {
-                    Err(err) => {
-                        error!("trainer thread crashed: {err}");
-                        return Ok(Self {
-                            delta_time,
-                            models: HashMap::new(),
-                        });
-                    }
-                    Ok(Some(var)) => var,
-                    Ok(None) => {
-                        debug!("Model training failed for building_id = {building_id}.");
-                        return Ok(Self {
-                            delta_time,
-                            models: HashMap::new(),
-                        });
-                    }
-                },
-            );
+                &global_sensor_wind_speed,
+            )
+            .await
+            {
+                info!("Finished model training. Order = {}", model.get_order());
+                models.insert(building_id, model);
+            };
         }
         info!("Finished model training.");
         debug!("building_id's with models: {:?}.", models.keys());
-        Ok(Self { delta_time, models })
+        if models.is_empty() {
+            return Err(SimulationError::Internal(Box::new(Error::new(
+                ErrorKind::Other,
+                "No models have been trained.",
+            ))));
+        }
+        Ok(Self {
+            delta_time,
+            models,
+            start_time: None,
+            cache: HashMap::new(),
+        })
     }
 
     async fn do_timestep(&mut self, mut graph: Graph) -> Result<Graph, SimulationError> {
-        info!("Doing timestep!");
-        //TODO: NO UNWRAPS AND EXPECTS
-        if let Some(_time_component) = graph.get_global_component::<TimeComponent>() {
+        if let Some(time_component) = graph.get_global_component::<TimeComponent>() {
+            if self.start_time.is_none() {
+                self.start_time = Some(time_component.0);
+            }
+            let pred_n = (time_component.0.and_utc().timestamp()
+                - self.start_time.unwrap().and_utc().timestamp())
+                / (10 * AVERAGE_AMT) as i64;
+
+            let mut rng = rand::thread_rng();
             let consumer_nodes: Vec<NodeId> = graph
                 .get_all_nodes::<SensorLoadNode>()
                 .unwrap()
@@ -288,41 +476,26 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                 consumer_nodes.len()
             );
 
+            // If a consumer node and load node share a building, use cached result.
             for node_id in consumer_nodes {
-                let Some(building_component) = graph.get_node_component::<Building>(node_id) else {
-                    debug!(
-                        "Could not find building component for node_id = {:?}.",
-                        node_id
-                    );
-                    continue;
+                let prediction = match get_predictions_for_node(
+                    &mut graph,
+                    &mut self.models,
+                    node_id,
+                    pred_n,
+                    &mut self.cache,
+                ) {
+                    Some(p) => p,
+                    None => continue,
                 };
-
-                // get building id from consumer node
-                let building_id = building_component.building_id;
-                debug!("generating predictions for building_id = {}.", building_id);
                 // SAFETY: this unwrap is safe because node ids got fetched earlier by using the consumer node as component type
                 let component = graph
                     .get_node_component_mut::<SensorLoadNode>(node_id)
                     .unwrap();
-
-                //TODO: use time component and building id to make prediction for consumer node
-                // This is naive for now, we expect that the next timedelta is 10s.
-                // if no model is found for the building_id, skip the consumer.
-                let model = match self.models.get_mut(&building_id) {
-                    Some(model) => model,
-                    None => {
-                        debug!(
-                            "NO model found for building_id = {}! Skipping prediction step.",
-                            building_id
-                        );
-                        continue;
-                    }
-                };
-                let prediction = model.get_next_prediction();
-                // The energy field is always the first element of the prediction model's result.
                 debug!("predicted {}.", prediction[0]);
                 component.active_power = prediction[0];
-                component.reactive_power = 0.02 * component.active_power;
+                component.reactive_power = rng.gen_range(1000.0..=200_000.0);
+                // component.reactive_power = 0.02 * component.active_power;
             }
 
             let current_irradiance: f64 = match graph.get_global_component::<IrradianceComponent>()
@@ -340,52 +513,21 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                     "predicting producer node type = {:?}.",
                     component.power_type
                 );
-
-                match &component.power_type {
-                    PowerType::Nuclear => {
-                        let mut rng = rand::thread_rng();
-                        let efficiency = rng.gen_range(0.99..=1.00);
-                        component.active_power =
-                            component.active_power * efficiency * self.delta_time.as_secs_f64()
-                                / 3600.0;
-                    }
-                    PowerType::Solar => {
-                        // Hash the node id as a pseudo way to give every house random but contestant solar panel area
-                        let mut h = DefaultHasher::new();
-                        id.hash(&mut h);
-                        let solar_panel_area = h.finish() % 10 + 2;
-
-                        component.active_power = solar_panel_area as f64 * current_irradiance;
-                    }
-                    PowerType::Wind => {
-                        // https://thundersaidenergy.com/downloads/wind-power-impacts-of-larger-turbines/
-                        // c_p = efficiency percentage. Theoretical maximum * small error factor.
-                        let mut rng = rand::thread_rng();
-                        let efficiency = rng.gen_range(0.98..=1.00);
-                        let c_p = 0.593 * efficiency;
-                        // rho = air_density, kg / m^3. source: wikipedia
-                        let rho = 1.204;
-                        // length of a single blade in meters. range of average lengths.
-                        let blade_length: f64 = rng.gen_range(35.0..45.0);
-                        component.active_power = 0.5
-                            * c_p
-                            * rho
-                            * PI
-                            * blade_length.powi(2)
-                            * current_wind_speed.powi(3);
-                    }
-                    _ => {
-                        //TODO: this code was present previously and thus kept for now
-                        let delta_capacity = rand::thread_rng().gen_range(-50.0..50.0)
-                            * self.delta_time.as_secs() as f64;
-                        component.active_power =
-                            (component.active_power + delta_capacity).clamp(1000.0, 2000.0)
-                    }
-                }
+                make_generator_predictions(
+                    id,
+                    component,
+                    self.delta_time,
+                    current_irradiance,
+                    current_wind_speed,
+                );
             }
         } else {
             error!("No time component was found.");
         };
+
+        // ****
+        // Analytics
+        // ****
 
         let mut num_consumer_nodes = 0;
         let mut num_producer_nodes = 0;
@@ -445,5 +587,22 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             debug!("No analytics component found");
         }
         Ok(graph)
+    }
+}
+#[cfg(test)]
+mod tests {
+    use crate::average_dataset;
+
+    #[test]
+    fn average_dataset_test() {
+        let dataset_expected = vec![7.0, 11.0];
+        let mut dataset = vec![4.0, 5.0, 6.0, 8.0, 9.0, 10.0, 11.0];
+        average_dataset(&mut dataset, 6);
+        assert_eq!(dataset_expected, dataset);
+
+        let dataset_expected = vec![5.75, 10.0];
+        let mut dataset = vec![4.0, 5.0, 6.0, 8.0, 9.0, 10.0, 11.0];
+        average_dataset(&mut dataset, 4);
+        assert_eq!(dataset_expected, dataset);
     }
 }
