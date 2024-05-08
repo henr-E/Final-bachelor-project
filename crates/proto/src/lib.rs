@@ -62,7 +62,7 @@ pub mod sensor_data_ingest {
 pub mod simulation {
     pub use proto_simulation::*;
 
-    mod proto_simulation {
+    pub mod proto_simulation {
         tonic::include_proto!("simulation.simulation");
     }
 
