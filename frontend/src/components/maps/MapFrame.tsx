@@ -110,6 +110,20 @@ function MapFrame({ frame, frameNr }: MapFrameProps) {
         return sortedComponents;
     }, [frame?.state?.globalComponents]);
 
+    const sortedComponents = useMemo(() => {
+        if (!clickedItem?.components) return null;
+
+        const sortedKeys = Object.keys(clickedItem?.components).sort();
+        const sortedComponents: { [p: string]: any } | undefined = {};
+
+        sortedKeys.forEach(key => {
+            if (!clickedItem?.components) return;
+            sortedComponents[key] = clickedItem?.components[key];
+        });
+
+        return sortedComponents;
+    }, [clickedItem?.components]);
+
     useEffect(() => {
         nodesRef.current = nodes;
         edgesRef.current = edges;
@@ -128,6 +142,15 @@ function MapFrame({ frame, frameNr }: MapFrameProps) {
 
         if (!mapItems[1]) return;
         setEdges(mapItems[1]);
+
+        if (!clickedItem) {
+            return;
+        }
+
+        //if node
+        if ('location' in clickedItem) setClickedItem(nodesRef.current.get(clickedItem.id));
+        //id edge
+        else if ('items' in clickedItem) setClickedItem(edgesRef.current[clickedItem.id]);
     }, [frame]);
 
     if (!twinState.current) {
@@ -139,7 +162,6 @@ function MapFrame({ frame, frameNr }: MapFrameProps) {
     };
 
     const showEdge = (id: number) => {
-        console.log('edges');
         setClickedItem(edgesRef.current[id]);
     };
 
@@ -169,7 +191,7 @@ function MapFrame({ frame, frameNr }: MapFrameProps) {
                         <Card className='overflow-x-scroll'>
                             <h1>Vars of selected component</h1>
                             {frame && clickedItem?.components && (
-                                <JsonToTable json={clickedItem?.components} />
+                                <JsonToTable json={sortedComponents} />
                             )}
                         </Card>
                     </div>
