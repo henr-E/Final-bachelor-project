@@ -25,6 +25,28 @@ use simulator_utilities::sensor::{average_dataset, values_for_quantity_as_f64};
 // 6 * 10 = 60 entries, representing 10 minutes of data.
 const AVERAGE_AMT: usize = 6 * 10;
 
+// construct final state from a graph.
+// if one of the components is not there, skip.
+fn last_global_state(graph: &Graph) -> Option<Vec<f64>> {
+    Some(vec![
+        graph
+            .get_global_component::<PrecipitationComponent>()?
+            .precipitation,
+        graph
+            .get_global_component::<TemperatureComponent>()?
+            .current_temp,
+        graph
+            .get_global_component::<IrradianceComponent>()?
+            .irradiance,
+        graph
+            .get_global_component::<WindSpeedComponent>()?
+            .wind_speed,
+        graph
+            .get_global_component::<WindDirectionComponent>()?
+            .wind_direction,
+    ])
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     _ = dotenvy::dotenv();
@@ -84,7 +106,7 @@ impl Simulator for WeatherSimulator {
             .add_output_component::<IrradianceComponent>()
     }
 
-    async fn new(_delta_time: std::time::Duration, _graph: Graph) -> Result<Self, SimulationError> {
+    async fn new(_delta_time: std::time::Duration, graph: Graph) -> Result<Self, SimulationError> {
         info!("Started new weather simulator.");
         // try to connect with sensor database
         let sensor_store = match SensorStore::new().await {
@@ -219,6 +241,10 @@ impl Simulator for WeatherSimulator {
                 wind_direction,
             ]);
         }
+        if let Some(last_state) = last_global_state(&graph) {
+            data.extend(last_state);
+        }
+        info!("Training model with {} rows", data.len() / 5);
         if data.is_empty() {
             debug!("Data is empty!");
             return Err(SimulationError::Internal(Box::new(Error::new(
