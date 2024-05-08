@@ -26,21 +26,24 @@ impl Power {
         }
     }
 
-    /// Returns the apparent power (S) in volt-amperes (VA)
+    /// Returns the apparent power (S) in volt-amperes (VA) (S = sqrt(P^2 + Q^2) )
     pub fn apparent(&self) -> f64 {
         (self.active.powi(2) + self.reactive.powi(2)).sqrt()
     }
+
     #[allow(dead_code)]
-    /// Calculates and returns the power factor.
+    /// Calculates and returns the power factor. (Pf = P/S)
     pub fn power_factor(&self) -> f64 {
         self.active / self.apparent()
     }
+
     #[allow(dead_code)]
     /// Calculates and returns the phase angle in radians.
     pub fn phase_angle(&self) -> f64 {
         self.reactive.atan2(self.active)
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

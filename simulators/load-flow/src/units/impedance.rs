@@ -23,6 +23,7 @@ impl Impedance {
     pub fn to_complex(self) -> Complex<f64> {
         Complex::new(self.resistance, self.reactance)
     }
+
     #[allow(dead_code)]
     /// Creates an Impedance instance from a complex number (Z = R + jX).
     pub fn from_complex(complex: Complex<f64>) -> Self {

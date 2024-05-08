@@ -10,6 +10,7 @@ pub struct Admittance {
     /// Susceptance (B) in siemens (S), indicating the imaginary part of admittance storing and releasing energy.
     pub susceptance: f64,
 }
+
 #[allow(dead_code)]
 impl Admittance {
     /// Creates a new instance of `Admittance` with given conductance and susceptance.
@@ -33,6 +34,7 @@ impl Admittance {
         }
     }
 
+    /// Creates a new instance of `Admittance` from and `Impedance` object (Y = 1/Z)
     pub fn from_impedance(impedance: Impedance) -> Self {
         Self::from_complex(impedance.to_complex().recip())
     }
@@ -41,6 +43,7 @@ impl Admittance {
 impl std::ops::Add for Admittance {
     type Output = Self;
 
+    /// Performs the `+` operation
     fn add(self, other: Self) -> Self {
         Admittance {
             conductance: self.conductance + other.conductance,
@@ -48,6 +51,7 @@ impl std::ops::Add for Admittance {
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

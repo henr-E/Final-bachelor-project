@@ -1,10 +1,9 @@
 use crate::graph::electric_graph::{Graph, UndirectedGraph};
-use crate::graph::node::BusType;
+use crate::graph::node::{BusNode, BusType};
 use crate::solvers::solver::Solver;
 use crate::units::voltage::Voltage;
-use crate::utils::{admittance_matrix, print_matrix};
-use nalgebra::Complex;
-use nalgebra::ComplexField;
+use crate::utils::{admittance_matrix, check_convergence};
+use nalgebra::{Complex, ComplexField, DMatrix};
 use std::collections::HashMap;
 pub struct GaussSeidel;
 #[allow(dead_code)]
@@ -13,22 +12,23 @@ impl GaussSeidel {
         GaussSeidel {}
     }
 }
-/// Check if the voltage of any node is NaN and replace it with a default value.
-fn check_convergence(graph: &mut UndirectedGraph) -> bool {
-    let mut convergence = true;
-    for node in graph.nodes() {
-        if let Some(node) = graph.node(node) {
-            if node.voltage().amplitude.is_nan() || node.voltage().angle.is_nan() {
-                convergence = false;
-                let mut new_node = *node;
-                new_node.set_voltage(Voltage::new(1.0, 0.0));
-                graph.add_node(new_node.id(), new_node);
-            }
+fn zero_diagonal_elements(y_bus: &DMatrix<Complex<f64>>) -> bool {
+    for i in 0..y_bus.nrows() {
+        let z = y_bus[(i, i)];
+        // Check if the complex number is zero (both real and imaginary parts are zero)
+        let is_zero = z == Complex::new(0.0, 0.0);
+        // Check if either the real or imaginary part is NaN
+        let has_nan = z.re.is_nan() || z.im.is_nan();
+        // Check if the modulus (magnitude) of the complex number is zero
+        let is_modulus_zero = z.norm() == 0.0;
+        // Return true if the complex number is zero, has NaN, or has zero modulus
+        if is_zero || has_nan || is_modulus_zero {
+            return true;
         }
     }
-    convergence
+    false
 }
-/// set voltage magnitude of generator nodes to initial values. This is necessary to prevent the algorithm from changing the voltage of generator nodes.
+/// Set voltage magnitude of generator nodes to initial values. This is necessary to prevent the algorithm from changing the voltage of generator nodes.
 /// For maximimization of convergence, the voltage of generator nodes can change during the algorithm but should be reset.
 fn initial_voltages(graph: &mut UndirectedGraph) -> HashMap<usize, Voltage> {
     let mut voltages: HashMap<usize, Voltage> = HashMap::new();
@@ -39,7 +39,7 @@ fn initial_voltages(graph: &mut UndirectedGraph) -> HashMap<usize, Voltage> {
     }
     voltages
 }
-/// set voltage of node to the value in the hashmap.
+/// Set voltage of node to the value in the hashmap.
 fn set_voltages(graph: &mut UndirectedGraph, voltages: HashMap<usize, Voltage>) {
     for id in graph.nodes() {
         if let Some(node) = graph.node(id) {
@@ -54,6 +54,49 @@ fn set_voltages(graph: &mut UndirectedGraph, voltages: HashMap<usize, Voltage>) 
     }
 }
 
+impl GaussSeidel {
+    /// Calculates the total current flowing into a specific node from all its connected neighbors.
+    /// This is computed as the sum of the products of the neighboring node voltages and the respective admittances.
+    fn total_current(
+        &self,
+        graph: &UndirectedGraph,
+        id: usize,
+        y_bus: &DMatrix<Complex<f64>>,
+        i: usize,
+    ) -> Complex<f64> {
+        let mut vy_sum = Complex::new(0.0, 0.0); // Sum of currents
+        for neighbor_id in graph.neighbors(id) {
+            if let Some(neighbor) = graph.node(neighbor_id) {
+                let k = neighbor_id % graph.node_count(); // Index for y_bus matrix.
+                let y_ik = y_bus[(i, k)]; // Admittance between bus i and bus k
+                let v_k = neighbor.voltage().to_complex();
+                vy_sum += v_k * y_ik; // V*Y = I
+            }
+        }
+        vy_sum
+    }
+
+    /// Calculates the new voltage at a node using the Gauss-Seidel iteration method.
+    /// It takes into account the node's self-admittance, the calculated total current from neighbors, and the node's own power.
+    fn calculate_node_voltage(
+        &self,
+        graph: &UndirectedGraph,
+        id: usize,
+        node: &BusNode,
+        y_bus: &DMatrix<Complex<f64>>,
+    ) -> Complex<f64> {
+        let i = id % graph.node_count(); // Ensure we are within the bounds of our y_bus matrix.
+        let v_old = node.voltage().to_complex();
+        let vy_sum = self.total_current(graph, id, y_bus, i);
+        let y_ii = y_bus[(i, i)]; // Self admittance.
+        let s_i = node.power().to_complex();
+
+        // Compute the new voltage using the Gauss-Seidel update formula.
+        // Conjugate of complex number: a + bi -> a - bi
+        y_ii.recip() * ((s_i.conj() / v_old.conj()) - vy_sum)
+    }
+}
+
 impl Solver for GaussSeidel {
     fn solve(
         self,
@@ -64,16 +107,14 @@ impl Solver for GaussSeidel {
         let mut iteration: usize = 0;
         let mut converged: bool = false;
         let y_bus = admittance_matrix(graph);
-        let initial_voltages = initial_voltages(graph);
-        if y_bus.determinant() == Complex::new(0.0, 0.0) {
-            print_matrix(y_bus);
-            return Err("Singular matrix");
+        if zero_diagonal_elements(&y_bus) {
+            return Err("Zero diagonal elements in admittance matrix. This means a node is not connected to any other node in the graph.");
         }
+        let initial_voltages = initial_voltages(graph);
         while !converged && iteration < max_iterations {
             let mut max_voltage_change = 0.0;
 
             for id in graph.nodes() {
-                let i = id % graph.node_count(); // ID is a static counter
                 if let Some(node) = graph.node(id) {
                     if node.is_slack() {
                         // Slack stays constant during Gauss-Seidel
@@ -82,31 +123,13 @@ impl Solver for GaussSeidel {
 
                     let v_old = node.voltage().to_complex();
 
-                    // Total current
-                    let mut vy_sum: Complex<f64> = Complex::new(0.0, 0.0);
-
-                    for neighbor_id in graph.neighbors(id) {
-                        if let Some(neighbor) = graph.node(neighbor_id) {
-                            let k = neighbor_id % graph.node_count();
-
-                            // y_ik represents the admittance between node i and its neighbor k.
-                            let y_ik = y_bus[(i, k)];
-                            let v_k = neighbor.voltage().to_complex();
-
-                            vy_sum += v_k * y_ik;
-                        }
-                    }
-
-                    let y_ii = y_bus[(i, i)];
-
-                    let s_i = node.power().to_complex();
                     // Update the voltage with the current values
-                    // Conjugate of complex number: a + bi -> a - bi
-                    let v_new = y_ii.recip() * ((s_i.conj() / v_old.conj()) - vy_sum);
+                    let v_new = self.calculate_node_voltage(graph, id, node, &y_bus);
 
                     // Calculate the magnitude of voltage change; complex numbers lack order, so we use norm for comparison.
                     let voltage_change = (v_new - v_old).norm();
 
+                    // Update node based on its type
                     let mut node_update = *node;
                     match node.bus_type() {
                         BusType::Generator => {
@@ -121,7 +144,6 @@ impl Solver for GaussSeidel {
                         _ => {}
                     }
 
-                    node_update.set_voltage(Voltage::from_complex(v_new));
                     node_update.set_voltage(Voltage::from_complex(v_new));
                     graph.add_node(id, node_update);
                     if voltage_change > max_voltage_change {
@@ -154,17 +176,16 @@ mod tests {
     use super::*;
     use crate::graph::edge::{LineType, Transmission};
     use crate::graph::node::{BusNode, PowerType};
-    #[test]
-    fn test_gauss_seidel() {
+    fn test_graph_1() -> UndirectedGraph {
         let mut graph = UndirectedGraph::new(1.0, 10.0, 1.0);
-        let slack = BusNode::slack();
-        let pq1 = BusNode::load(0.25, 0.1);
-        let pq2 = BusNode::generator(0.2, 0.1, PowerType::Battery);
-        let pq3 = BusNode::generator(0.2, 0.1, PowerType::Battery);
-        let pq4 = BusNode::load(0.1, -0.1);
-        let pq5 = BusNode::load(0.1, -0.0);
-        let pq6 = BusNode::load(0.1, -0.0);
-        let pq7 = BusNode::generator(0.25, 0.1, PowerType::Hydro);
+        let slack = BusNode::slack(graph.get_new_id());
+        let pq1 = BusNode::load(graph.get_new_id(), 0.25, 0.1);
+        let pq2 = BusNode::generator(graph.get_new_id(), 0.2, 0.1, PowerType::Battery);
+        let pq3 = BusNode::generator(graph.get_new_id(), 0.2, 0.1, PowerType::Battery);
+        let pq4 = BusNode::load(graph.get_new_id(), 0.1, 0.1);
+        let pq5 = BusNode::load(graph.get_new_id(), 0.1, 0.01);
+        let pq6 = BusNode::load(graph.get_new_id(), 0.1, 0.01);
+        let pq7 = BusNode::generator(graph.get_new_id(), 0.25, 0.1, PowerType::Hydro);
 
         let l1 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l2 = Transmission::new(LineType::ACSRConductor, 100.0);
@@ -177,14 +198,14 @@ mod tests {
         let l9 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l10 = Transmission::new(LineType::ACSRConductor, 100.0);
 
-        graph.add_node(slack.id(), slack);
         graph.add_node(pq1.id(), pq1);
-        graph.add_node(pq2.id(), pq2);
-        graph.add_node(pq3.id(), pq3);
         graph.add_node(pq4.id(), pq4);
         graph.add_node(pq5.id(), pq5);
         graph.add_node(pq6.id(), pq6);
+        graph.add_node(pq2.id(), pq2);
+        graph.add_node(pq3.id(), pq3);
         graph.add_node(pq7.id(), pq7);
+        graph.add_node(slack.id(), slack);
 
         graph.add_edge(slack.id(), pq1.id(), l1);
         graph.add_edge(slack.id(), pq2.id(), l2);
@@ -196,9 +217,70 @@ mod tests {
         graph.add_edge(pq5.id(), pq6.id(), l8);
         graph.add_edge(pq6.id(), pq7.id(), l9);
         graph.add_edge(pq7.id(), slack.id(), l10);
+        graph
+    }
+    fn test_graph_2() -> UndirectedGraph {
+        let mut graph = UndirectedGraph::new(1.0, 10.0, 1.0);
+        let slack = BusNode::slack(graph.get_new_id());
+        let pq1 = BusNode::load(graph.get_new_id(), 0.25, 0.1);
+        let pq2 = BusNode::generator(graph.get_new_id(), 2.2, 2.1, PowerType::Battery);
 
+        let l1 = Transmission::new(LineType::ACSRConductor, 100.0);
+        let l2 = Transmission::new(LineType::AAACConductor, 100.0);
+        let l3 = Transmission::new(LineType::ACSRConductor, 100.0);
+
+        graph.add_node(slack.id(), slack);
+        graph.add_node(pq1.id(), pq1);
+        graph.add_node(pq2.id(), pq2);
+
+        graph.add_edge(slack.id(), pq1.id(), l1);
+        graph.add_edge(slack.id(), pq2.id(), l2);
+        graph.add_edge(pq1.id(), pq2.id(), l3);
+        graph
+    }
+    fn test_graph_3() -> UndirectedGraph {
+        let mut graph = UndirectedGraph::new(1.0, 10.0, 1.0);
+        let slack = BusNode::slack(graph.get_new_id());
+        let pq1 = BusNode::load(graph.get_new_id(), 0.25, 0.1);
+
+        let l1 = Transmission::new(LineType::ACSRConductor, 100.0);
+
+        graph.add_node(slack.id(), slack);
+        graph.add_node(pq1.id(), pq1);
+
+        graph.add_edge(slack.id(), pq1.id(), l1);
+        graph
+    }
+    #[test]
+    fn test_gauss_seidel() {
+        let mut graph = test_graph_1();
         let solver = GaussSeidel::new();
         let result = solver.solve(&mut graph, 100, 0.0001);
         assert_eq!(result, Ok(()));
+        let mut graph = test_graph_2();
+        let solver2 = GaussSeidel::new();
+        let result2 = solver2.solve(&mut graph, 100, 0.0001);
+        assert_eq!(result2, Ok(()));
+        let mut graph = test_graph_3();
+        let solver3 = GaussSeidel::new();
+        let result3 = solver3.solve(&mut graph, 100, 0.0001);
+        assert_eq!(result3, Ok(()));
+    }
+    #[test]
+    fn test_zero_diagonal_elements() {
+        let mut graph = test_graph_1();
+        let y_bus = admittance_matrix(&mut graph);
+        assert!(!zero_diagonal_elements(&y_bus));
+        let y_bus = DMatrix::from_row_slice(
+            2,
+            2,
+            &[
+                Complex::new(0.0, 0.0),
+                Complex::new(0.0, 0.0),
+                Complex::new(0.0, 0.0),
+                Complex::new(0.0, 0.0),
+            ],
+        );
+        assert!(zero_diagonal_elements(&y_bus));
     }
 }

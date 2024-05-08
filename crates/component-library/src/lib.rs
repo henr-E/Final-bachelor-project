@@ -147,6 +147,8 @@ pub mod energy {
         pub max_iterations_input: i32,
         /// input: maximum tolerance for error
         pub tolerance_input: f64,
+        /// output: error message if solver did not converge
+        pub error_message: String,
     }
     /// Component storing the knowns for a generator node (Active power P and voltage magnitude V)
     #[derive(ComponentPiece, Component)]
@@ -164,19 +166,6 @@ pub mod energy {
         pub active_power: f64,
         pub reactive_power: f64,
     }
-
-    /// Per unit values are expressed relative to a chosen base value for each quantity.
-    #[derive(ComponentPiece, Component)]
-    #[component(name = "energy_bases", ty = "global")]
-    pub struct Bases {
-        /// Base apparent power. Often expressed in volt-amperes (VA) or megavolt-amperes (MVA)
-        pub s_base: f64,
-        // Base voltage. Often expressed in volts (V) or kilovolts (kV)
-        pub v_base: f64,
-        // Base active power. Often expressed in watts (W) or megawatts (MW)
-        pub p_base: f64,
-    }
-
     /// Represents a node in the energy system that's demanding power, with properties like voltage amplitude, voltage angle, active power, and reactive power.
     #[derive(ComponentPiece, Component)]
     #[component(name = "energy_load_node", ty = "node")]
