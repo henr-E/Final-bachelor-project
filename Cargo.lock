@@ -921,11 +921,9 @@ dependencies = [
  "itertools",
  "predictions",
  "rand",
- "rand_distr",
  "sensor-store",
  "simulator-communication",
- "sqlx",
- "thiserror",
+ "simulator-utilities",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -3209,6 +3207,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "simulator-utilities"
+version = "0.1.0"
+dependencies = [
+ "bigdecimal 0.4.3",
+ "sensor-store",
+ "sqlx",
+ "thiserror",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4290,11 +4298,9 @@ dependencies = [
  "itertools",
  "noise",
  "predictions",
- "rand_distr",
  "sensor-store",
  "simulator-communication",
- "sqlx",
- "thiserror",
+ "simulator-utilities",
  "tokio",
  "tracing",
  "tracing-subscriber",

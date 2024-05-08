@@ -102,29 +102,6 @@ impl<'a> Sensor<'a> {
 
         Ok(result)
     }
-
-    /// For every [`Signal`] of the [`Sensor`] associated with the specified quantity, get all [`SignalValues`]
-    ///
-    /// NOTE: This function assumes that the `sensor_signal_id` (from the database) is unique over
-    /// all sensors.
-    pub async fn signal_values_for_quantity<'s>(
-        &'s self,
-        sensor_store: &SensorStore,
-        quantity: Quantity,
-    ) -> Result<Vec<BigDecimal>, Error> {
-        let result: Vec<BigDecimal> = Vec::new();
-        for signal in self.signals.iter() {
-            if signal.quantity == quantity {
-                let signal_values = signal.values(sensor_store).await?;
-                return Ok(signal_values
-                    .values
-                    .iter()
-                    .map(|v| v.value.clone())
-                    .collect());
-            }
-        }
-        Ok(result)
-    }
 }
 
 /// Represents a sensor while it is being built from entries in the database.

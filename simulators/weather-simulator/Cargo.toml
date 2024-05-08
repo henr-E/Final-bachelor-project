@@ -11,12 +11,10 @@ dotenvy = "0.15.7"
 noise = "0.9.0"
 predictions = { workspace = true }
 simulator-communication.workspace = true
+simulator-utilities.workspace = true
 tokio = { version = "1.36.0", features = ["rt", "rt-multi-thread", "tracing", "macros"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-rand_distr = "0.4.3"
 sensor-store = { workspace = true }
-thiserror = "1.0.57"
-sqlx = { version = "0.7.4", features = ["bigdecimal", "uuid"] }
 futures = { version = "0.3.30", features = ["executor"] }
 itertools = "0.12.1"

@@ -4,15 +4,9 @@ use std::f64::consts::PI;
 use std::hash::{Hash, Hasher};
 use std::{env, net::SocketAddr, process::ExitCode, time::Duration};
 
-use component_library::Building;
 use futures::stream::StreamExt;
 use itertools::izip;
 use rand::prelude::*;
-use rand_distr::num_traits::ToPrimitive;
-use simulator_communication::graph::NodeId;
-use simulator_communication::simulator::SimulationError;
-use sqlx::types::BigDecimal;
-use thiserror::Error;
 use tracing::{debug, error, info, Level};
 
 use component_library::energy::{
@@ -21,59 +15,13 @@ use component_library::energy::{
 use component_library::global::{
     IrradianceComponent, SupplyAndDemandAnalytics, TimeComponent, WindSpeedComponent,
 };
+use component_library::Building;
 use predictions::VAR;
 use sensor_store::{Quantity, Sensor, SensorStore};
+use simulator_communication::graph::NodeId;
+use simulator_communication::simulator::SimulationError;
 use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
-
-/// Errors that can occur
-#[derive(Debug, Error)]
-pub enum EnergySupplyAndDemandError {
-    #[error("Unable to convert a vector of BigDecimal values to a vector of f64 values.")]
-    FailedConversion(),
-}
-
-/// Convert a vector of BigDecimal values to a vector of f64 values
-fn big_decimals_to_floats(values: Vec<BigDecimal>) -> Result<Vec<f64>, EnergySupplyAndDemandError> {
-    let floats: Result<Vec<f64>, EnergySupplyAndDemandError> = values
-        .into_iter()
-        .map(|bd| {
-            bd.to_f64()
-                .ok_or(EnergySupplyAndDemandError::FailedConversion())
-        })
-        .collect();
-    floats
-}
-
-async fn get_sensor_data_for_quantity_and_sensor(
-    sensor_store: &SensorStore,
-    sensor: &Sensor<'_>,
-    quantity: Quantity,
-) -> Option<Vec<f64>> {
-    let values_as_big_decimals = match sensor
-        .signal_values_for_quantity(sensor_store, quantity)
-        .await
-    {
-        Ok(values_as_big_decimal) => values_as_big_decimal,
-        Err(err) => {
-            error!("Error retrieving the signal values: {}", err);
-            return None;
-        }
-    };
-    let values_as_floats = match big_decimals_to_floats(values_as_big_decimals) {
-        Ok(values_as_floats) => values_as_floats,
-        Err(err) => {
-            error!(
-                "Failed to convert vector of big decimal values to vector of float values.: {}",
-                err
-            );
-            return None;
-        }
-    };
-    if values_as_floats.is_empty() {
-        return None;
-    }
-    Some(values_as_floats)
-}
+use simulator_utilities::sensor::values_for_quantity_as_f64;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -173,22 +121,20 @@ impl Simulator for EnergySupplyAndDemandSimulator {
             match sensor_store.get_sensor_for_building(building_id).await {
                 Ok(sensor) => {
                     // retrieve corresponding sensor power values (if any)
-                    match get_sensor_data_for_quantity_and_sensor(
-                        &sensor_store,
-                        &sensor,
-                        Quantity::Power,
-                    )
-                    .await
+                    match values_for_quantity_as_f64(&sensor_store, &sensor, Quantity::Power).await
                     {
-                        None => {}
-                        Some(sensor_data_power) => {
+                        Err(_) => {}
+                        Ok(sensor_data_power) => {
                             debug!(
                                 "amt power data for building = {:?}, first = {:?}, last = {:?}.",
                                 sensor_data_power.len(),
                                 sensor_data_power.first(),
                                 sensor_data_power.last()
                             );
-                            sensor_values_power_per_building.insert(building_id, sensor_data_power);
+                            if !sensor_data_power.is_empty() {
+                                sensor_values_power_per_building
+                                    .insert(building_id, sensor_data_power);
+                            }
                         }
                     }
                 }
@@ -226,56 +172,38 @@ impl Simulator for EnergySupplyAndDemandSimulator {
         debug!("amt global sensors: {}.", global_sensors.len());
         for sensor in &global_sensors {
             // retrieve corresponding sensor temperature values (if any)
-            match get_sensor_data_for_quantity_and_sensor(
-                &sensor_store,
-                sensor,
-                Quantity::Temperature,
-            )
-            .await
-            {
-                None => {
+            match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::Temperature).await {
+                Err(_) => {
                     return Ok(Self {
                         delta_time,
                         models: HashMap::new(),
                     })
                 }
-                Some(sensor_data_temperature) => {
+                Ok(sensor_data_temperature) => {
                     global_sensor_temperatures = sensor_data_temperature;
                 }
             }
             // retrieve corresponding sensor irradiance values (if any)
-            match get_sensor_data_for_quantity_and_sensor(
-                &sensor_store,
-                sensor,
-                Quantity::Irradiance,
-            )
-            .await
-            {
-                None => {
+            match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::Irradiance).await {
+                Err(_) => {
                     return Ok(Self {
                         delta_time,
                         models: HashMap::new(),
                     })
                 }
-                Some(sensor_data_irradiance) => {
+                Ok(sensor_data_irradiance) => {
                     global_sensor_irradiance = sensor_data_irradiance;
                 }
             }
             // retrieve corresponding sensor wind speed values (if any)
-            match get_sensor_data_for_quantity_and_sensor(
-                &sensor_store,
-                sensor,
-                Quantity::WindSpeed,
-            )
-            .await
-            {
-                None => {
+            match values_for_quantity_as_f64(&sensor_store, sensor, Quantity::WindSpeed).await {
+                Err(_) => {
                     return Ok(Self {
                         delta_time,
                         models: HashMap::new(),
                     })
                 }
-                Some(sensor_data_wind_speed) => {
+                Ok(sensor_data_wind_speed) => {
                     global_sensor_wind_speed = sensor_data_wind_speed;
                 }
             }
@@ -295,7 +223,7 @@ impl Simulator for EnergySupplyAndDemandSimulator {
                 .min(global_sensor_irradiance.len())
                 .min(global_sensor_wind_speed.len());
 
-            debug!("minimum lenght of data = {min_length}.");
+            debug!("minimum length of data = {min_length}.");
 
             if min_length == 0 {
                 continue;
