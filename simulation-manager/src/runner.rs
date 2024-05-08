@@ -16,7 +16,7 @@ use tonic::transport::Channel;
 // proto
 use crate::connector::SimulatorsInfo;
 use crate::database::{SimulationsDB, StatusEnum};
-use crate::database_buffer::Transport;
+use crate::database_buffer::{StateTransport, StatusTransport, Transport};
 use proto::simulation::simulator::{
     simulator_client::SimulatorClient, InitialState, IoConfigRequest,
 };
@@ -142,13 +142,16 @@ impl Runner {
                     };
                     if let Err(err) = do_simulation.await {
                         error!("Simulation `{simulation_id}` failed: {err:?}");
-                        self.db
-                            .update_status(
-                                simulation_id,
-                                StatusEnum::Failed,
-                                Some(format!("An internal error occurred when running the simulation: {err:#}").as_str(),),
-                            )
-                            .await
+                        // Send to buffer so it does not get overwritten by status updates in the buffer.
+                        let status = StatusTransport {
+                            simulation_id,
+                            status: StatusEnum::Failed,
+                            status_info: format!(
+                                "An internal error occurred when running the simulation: {err:#}"
+                            ),
+                        };
+                        self.state_sender
+                            .send(Transport::Status(status))
                             .context("could not update status after failed simulation")?;
                     }
                 }
@@ -314,6 +317,8 @@ impl Runner {
     /// time waiting on the database. The async channel has an unbounded queue of messages so the
     /// runner can keep queueing finished timeframes if it takes a long time for the database buffer
     /// to process them.
+    /// Status updates will also be send to the buffer as it is possible for the simulation
+    /// to be marked as complete while the buffer is still writing to the database.
     /// In the case that a simulator does not return all components the components that weren't sent
     /// back will be duplicated into the next timestep so that they are available in the next tick
     async fn start_simulation(&mut self, simulation_id: i32) -> anyhow::Result<()> {
@@ -361,7 +366,7 @@ impl Runner {
             // separate enum is made for this as we want to handle this separately from other
             // error types.
             enum TimestepResult {
-                Ok(Transport),
+                Ok(StateTransport),
                 Aborted(tonic::Status),
             }
 
@@ -412,7 +417,7 @@ impl Runner {
                             .context("no output state found")?;
 
                         // place results into Transport struct
-                        anyhow::Ok(TimestepResult::Ok(Transport {
+                        anyhow::Ok(TimestepResult::Ok(StateTransport {
                             simulation_id,
                             iteration: i + 1,
                             state: output_state,
@@ -429,17 +434,18 @@ impl Runner {
                 let result = match result {
                     TimestepResult::Ok(v) => v,
                     TimestepResult::Aborted(err) => {
-                        self.db
-                            .update_status(
-                                simulation_id,
-                                StatusEnum::Failed,
-                                Some(&format!(
-                                    "Simulator returned error during timestep: {} ({})",
-                                    err.message(),
-                                    err.code()
-                                )),
-                            )
-                            .await
+                        // Send to buffer to not get overwritten
+                        let status = StatusTransport {
+                            simulation_id,
+                            status: StatusEnum::Failed,
+                            status_info: format!(
+                                "Simulator returned error during timestep: {} ({})",
+                                err.message(),
+                                err.code()
+                            ),
+                        };
+                        self.state_sender
+                            .send(Transport::Status(status))
                             .context("status was not updated")?;
                         // Return ok here as the error has already been handled. Returning an error
                         // would override the status again.
@@ -488,12 +494,12 @@ impl Runner {
             }
 
             // create transport and send to database buffer
-            let transport = Transport {
+            let transport = StateTransport {
                 simulation_id,
                 iteration: i + 1,
                 state: new_state.clone(),
             };
-            self.state_sender.send(transport)?;
+            self.state_sender.send(Transport::State(transport))?;
             let status = match i {
                 i if i == iterations - 1 => StatusEnum::Finished,
                 i if i < iterations - 1 => StatusEnum::Computing,
@@ -505,9 +511,14 @@ impl Runner {
                 StatusEnum::Failed => "To many iterations were performed",
                 _ => "",
             };
-            self.db
-                .update_status(simulation_id, status, Some(info))
-                .await
+            // send status to buffer so it will not set the simulation to a status it is not in while buffer is being processed
+            let status_transport = StatusTransport {
+                simulation_id,
+                status,
+                status_info: info.to_string(),
+            };
+            self.state_sender
+                .send(Transport::Status(status_transport))
                 .context("error updating status")?;
             // set previous state to new state
             prev = new_state.clone();
