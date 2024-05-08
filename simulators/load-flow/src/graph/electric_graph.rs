@@ -1,6 +1,6 @@
 use crate::graph::edge::Transmission;
 use crate::graph::node::BusNode;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use super::node::BusType;
 
@@ -15,11 +15,12 @@ pub struct DirectedGraph {
 }
 #[derive(Clone, Debug)]
 struct DefaultGraph {
-    nodes: HashMap<usize, BusNode>,
-    edges: HashMap<(usize, usize), Transmission>,
+    nodes: BTreeMap<usize, BusNode>,
+    edges: BTreeMap<(usize, usize), Transmission>,
     v_base: f64,
     s_base: f64,
     p_base: f64,
+    count: i32,
 }
 
 /// Trait for easy swap between a directed and undirected graph
@@ -53,55 +54,73 @@ pub trait Graph {
 
     /// Return all node ids
     fn nodes(&self) -> Vec<usize>;
+
     /// Return all bus nodes
     fn busnodes(&self) -> Vec<&BusNode>;
+
     /// Return all id pairs of edges
     fn edges(&self) -> Vec<(usize, usize)>;
 
     /// Get total count of nodes
     fn node_count(&self) -> usize;
+
     /// Get base impedance
     fn z_base(&self) -> f64 {
         self.v_base() * self.v_base() / self.s_base()
     }
     /// Get base power
     fn s_base(&self) -> f64;
+
     /// Get base voltage
     fn v_base(&self) -> f64;
-    /// calculate optimal bases for the system
+
+    /// Calculate optimal bases for the system
     fn calculate_optimal_bases(&self) -> (f64, f64, f64);
-    /// set bases for the system
+
+    /// Set bases for the system
     fn set_bases(&mut self, v_base: f64, s_base: f64, p_base: f64);
-    /// reset all nodes to original values
+
+    /// Reset all nodes to original values
     fn reset_bases(&mut self);
-    /// get number of generator nodes
+
+    /// Get number of generator nodes
     fn generators(&self) -> i32;
-    /// get number of slack nodes
+
+    /// Get number of slack nodes
     fn slacks(&self) -> i32;
-    /// get number of load nodes
+
+    /// Get number of load nodes
     fn loads(&self) -> i32;
-    /// get mutable access to a node
+
+    /// Get mutable access to a node
     fn get_node_mut(&mut self, node_id: usize) -> Option<&mut BusNode>;
-    //reset node with existing id
+
+    /// Reset node with existing id
     fn reset_node(&mut self, node: BusNode);
+
+    /// Get new id for a node (incremental) and return it
+    fn get_new_id(&mut self) -> usize;
 }
 
 impl DefaultGraph {
     pub fn new(s_base: f64, v_base: f64, p_base: f64) -> Self {
         DefaultGraph {
-            nodes: HashMap::new(),
-            edges: HashMap::new(),
+            nodes: BTreeMap::new(),
+            edges: BTreeMap::new(),
             v_base,
             s_base,
             p_base,
+            count: -1,
         }
     }
     fn busnodes(&self) -> Vec<&BusNode> {
         self.nodes.values().collect()
     }
+
     fn add_node(&mut self, id: usize, node: BusNode) {
         self.nodes.insert(id, node);
     }
+
     fn reset_bases(&mut self) {
         // Collect all the node IDs in a separate vector
         let node_ids: Vec<usize> = self.nodes.keys().cloned().collect();
@@ -120,11 +139,12 @@ impl DefaultGraph {
         self.v_base = 1.0;
         self.p_base = 1.0;
     }
+
     fn set_bases(&mut self, v_base: f64, s_base: f64, p_base: f64) {
         self.v_base = v_base;
         self.s_base = s_base;
         self.p_base = p_base;
-        //set all nodes to p.u values
+        // Set all nodes to p.u values
         for i in self.nodes() {
             if let Some(node) = self.node(i) {
                 let mut new_node = *node;
@@ -133,10 +153,12 @@ impl DefaultGraph {
             }
         }
     }
+
     // Method to get mutable access to a node by its ID
     fn get_node_mut(&mut self, node_id: usize) -> Option<&mut BusNode> {
         self.nodes.get_mut(&node_id)
     }
+
     fn calculate_optimal_bases(&self) -> (f64, f64, f64) {
         let mut v_base = 0.0;
         let mut s_base = 0.0;
@@ -145,22 +167,31 @@ impl DefaultGraph {
                 if node.bus_type() == BusType::Slack {
                     continue;
                 }
-                if node.voltage().amplitude > v_base {
-                    v_base = node.voltage().amplitude;
+                if node.voltage().amplitude.abs() > v_base {
+                    v_base = node.voltage().amplitude.abs();
                 }
-                if node.power().active > s_base {
-                    s_base = node.power().active;
+                if node.power().active.abs() > s_base {
+                    s_base = node.power().active.abs();
                 }
             }
         }
+        if v_base == 0.0 {
+            v_base = 1.0;
+        }
+        if s_base == 0.0 {
+            s_base = 1.0;
+        }
         (v_base, s_base, s_base)
     }
+
     fn node(&self, id: usize) -> Option<&BusNode> {
         self.nodes.get(&id)
     }
+
     fn nodes(&self) -> Vec<usize> {
         self.nodes.keys().cloned().collect()
     }
+
     fn edges(&self) -> Vec<(usize, usize)> {
         self.edges.keys().cloned().collect()
     }
@@ -168,36 +199,44 @@ impl DefaultGraph {
     fn node_count(&self) -> usize {
         self.nodes.len()
     }
+
     fn s_base(&self) -> f64 {
         self.s_base
     }
+
     fn v_base(&self) -> f64 {
         self.v_base
     }
+
     fn generators(&self) -> i32 {
         self.nodes
             .values()
             .filter(|node| node.bus_type() == BusType::Generator)
             .count() as i32
     }
+
     fn loads(&self) -> i32 {
         self.nodes
             .values()
             .filter(|node| node.bus_type() == BusType::Load)
             .count() as i32
     }
+
     fn slacks(&self) -> i32 {
         self.nodes
             .values()
             .filter(|node| node.bus_type() == BusType::Slack)
             .count() as i32
     }
+
     fn add_edge(&mut self, id1: usize, id2: usize, edge: Transmission) {
         self.edges.insert((id1, id2), edge);
     }
+
     fn edge(&self, id1: usize, id2: usize) -> Option<&Transmission> {
         self.edges.get(&(id1, id2))
     }
+
     fn parents(&self, id: usize) -> Vec<usize> {
         self.edges
             .iter()
@@ -211,21 +250,37 @@ impl DefaultGraph {
             .filter_map(|((from, to), _)| if *from == id { Some(*to) } else { None })
             .collect()
     }
+
     fn neighbors(&self, id: usize) -> Vec<usize> {
-        let mut neighbors = self.parents(id);
-        neighbors.extend(self.children(id));
+        let mut neighbors: Vec<usize> = Vec::new();
+        for edge in self.edges.keys() {
+            let (from, to) = edge;
+            if *from == id {
+                neighbors.push(*to);
+            }
+            if *to == id {
+                neighbors.push(*from);
+            }
+        }
         neighbors
     }
+
     fn remove_node(&mut self, id: usize) {
         self.nodes.remove(&id);
         self.edges.retain(|(from, to), _| *from != id && *to != id);
     }
+
     fn remove_edge(&mut self, id1: usize, id2: usize) {
         self.edges.remove(&(id1, id2));
     }
+
     fn reset_node(&mut self, node: BusNode) {
         self.nodes.remove(&node.id());
         self.nodes.insert(node.id(), node);
+    }
+    fn get_count(&mut self) -> usize {
+        self.count += 1;
+        self.count as usize
     }
 }
 
@@ -265,6 +320,7 @@ impl Graph for UndirectedGraph {
     }
 
     fn edge(&self, id1: usize, id2: usize) -> Option<&Transmission> {
+        // Ensure that the lower ID always comes first
         if id1 <= id2 {
             self.default_graph.edge(id1, id2)
         } else {
@@ -279,21 +335,27 @@ impl Graph for UndirectedGraph {
     fn children(&self, id: usize) -> Vec<usize> {
         self.default_graph.children(id)
     }
+
     fn neighbors(&self, id: usize) -> Vec<usize> {
         self.default_graph.neighbors(id)
     }
+
     fn remove_node(&mut self, id: usize) {
         self.default_graph.remove_node(id);
     }
+
     fn remove_edge(&mut self, id1: usize, id2: usize) {
         self.default_graph.remove_edge(id1, id2);
     }
+
     fn nodes(&self) -> Vec<usize> {
         self.default_graph.nodes()
     }
+
     fn busnodes(&self) -> Vec<&BusNode> {
         self.default_graph.busnodes()
     }
+
     fn edges(&self) -> Vec<(usize, usize)> {
         self.default_graph.edges()
     }
@@ -301,18 +363,23 @@ impl Graph for UndirectedGraph {
     fn node_count(&self) -> usize {
         self.default_graph.node_count()
     }
+
     fn s_base(&self) -> f64 {
         self.default_graph.s_base()
     }
+
     fn v_base(&self) -> f64 {
         self.default_graph.v_base()
     }
+
     fn calculate_optimal_bases(&self) -> (f64, f64, f64) {
         self.default_graph.calculate_optimal_bases()
     }
+
     fn set_bases(&mut self, v_base: f64, s_base: f64, p_base: f64) {
         self.default_graph.set_bases(v_base, s_base, p_base);
     }
+
     fn reset_bases(&mut self) {
         self.default_graph.reset_bases();
     }
@@ -320,9 +387,11 @@ impl Graph for UndirectedGraph {
     fn generators(&self) -> i32 {
         self.default_graph.generators()
     }
+
     fn slacks(&self) -> i32 {
         self.default_graph.slacks()
     }
+
     fn loads(&self) -> i32 {
         self.default_graph.loads()
     }
@@ -330,8 +399,12 @@ impl Graph for UndirectedGraph {
     fn get_node_mut(&mut self, node_id: usize) -> Option<&mut BusNode> {
         self.default_graph.get_node_mut(node_id)
     }
+
     fn reset_node(&mut self, node: BusNode) {
         self.default_graph.reset_node(node);
+    }
+    fn get_new_id(&mut self) -> usize {
+        self.default_graph.get_count()
     }
 }
 
@@ -355,24 +428,31 @@ impl Graph for DirectedGraph {
     fn parents(&self, id: usize) -> Vec<usize> {
         self.default_graph.parents(id)
     }
+
     fn children(&self, id: usize) -> Vec<usize> {
         self.default_graph.children(id)
     }
+
     fn neighbors(&self, id: usize) -> Vec<usize> {
         self.default_graph.neighbors(id)
     }
+
     fn remove_node(&mut self, id: usize) {
         self.default_graph.remove_node(id);
     }
+
     fn remove_edge(&mut self, from_id1: usize, to_id2: usize) {
         self.default_graph.remove_edge(from_id1, to_id2);
     }
+
     fn nodes(&self) -> Vec<usize> {
         self.default_graph.nodes()
     }
+
     fn busnodes(&self) -> Vec<&BusNode> {
         self.default_graph.busnodes()
     }
+
     fn edges(&self) -> Vec<(usize, usize)> {
         self.default_graph.edges()
     }
@@ -380,21 +460,27 @@ impl Graph for DirectedGraph {
     fn node_count(&self) -> usize {
         self.default_graph.node_count()
     }
+
     fn s_base(&self) -> f64 {
         self.default_graph.s_base()
     }
+
     fn v_base(&self) -> f64 {
         self.default_graph.v_base()
     }
+
     fn calculate_optimal_bases(&self) -> (f64, f64, f64) {
         self.default_graph.calculate_optimal_bases()
     }
+
     fn set_bases(&mut self, v_base: f64, s_base: f64, p_base: f64) {
         self.default_graph.set_bases(v_base, s_base, p_base);
     }
+
     fn reset_bases(&mut self) {
         self.default_graph.reset_bases();
     }
+
     fn generators(&self) -> i32 {
         self.default_graph.generators()
     }
@@ -402,15 +488,20 @@ impl Graph for DirectedGraph {
     fn slacks(&self) -> i32 {
         self.default_graph.slacks()
     }
+
     fn loads(&self) -> i32 {
         self.default_graph.loads()
     }
-    // Method to get mutable access to a node by its ID
+
     fn get_node_mut(&mut self, node_id: usize) -> Option<&mut BusNode> {
         self.default_graph.get_node_mut(node_id)
     }
+
     fn reset_node(&mut self, node: BusNode) {
         self.default_graph.reset_node(node);
+    }
+    fn get_new_id(&mut self) -> usize {
+        self.default_graph.get_count()
     }
 }
 
@@ -425,14 +516,15 @@ mod tests {
     use crate::units::voltage::Voltage;
 
     pub fn create_test_graph() -> UndirectedGraph {
-        let id0 = BusNode::generator(100.0, 100.0, PowerType::Battery);
+        let mut graph = UndirectedGraph::new(10.0, 1.0, 1.0);
+        let id0 = BusNode::generator(graph.get_new_id(), 100.0, 100.0, PowerType::Battery);
 
-        let id1 = BusNode::generator(200.0, 200.0, PowerType::Fossil);
+        let id1 = BusNode::generator(graph.get_new_id(), 200.0, 200.0, PowerType::Fossil);
 
-        let id2 = BusNode::load(300.0, 0.0);
+        let id2 = BusNode::load(graph.get_new_id(), 300.0, 0.0);
         let l1 = Transmission::new(LineType::ACSRConductor, 200.0);
         let l2 = Transmission::new(LineType::ACSRConductor, 200.0);
-        let mut graph = UndirectedGraph::new(10.0, 1.0, 1.0);
+
         graph.add_node(0, id0);
         graph.add_node(1, id1);
         graph.add_node(2, id2);
@@ -465,12 +557,12 @@ mod tests {
     #[test]
     fn test_directed() {
         let mut graph = DirectedGraph::new(10.0, 1.0, 1.0);
-        let slack = BusNode::slack();
-        let pq1 = BusNode::load(1.0, 0.0);
-        let pq2 = BusNode::load(1.0, 0.0);
-        let pq3 = BusNode::load(1.0, 0.0);
-        let pq4 = BusNode::load(1.0, 0.0);
-        let pq5 = BusNode::load(1.0, 0.0);
+        let slack = BusNode::slack(graph.get_new_id());
+        let pq1 = BusNode::load(graph.get_new_id(), 1.0, 0.0);
+        let pq2 = BusNode::load(graph.get_new_id(), 1.0, 0.0);
+        let pq3 = BusNode::load(graph.get_new_id(), 1.0, 0.0);
+        let pq4 = BusNode::load(graph.get_new_id(), 1.0, 0.0);
+        let pq5 = BusNode::load(graph.get_new_id(), 1.0, 0.0);
         let l1 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l2 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l3 = Transmission::new(LineType::ACSRConductor, 100.0);
@@ -510,8 +602,8 @@ mod tests {
     #[test]
     fn test_mut_node() {
         let mut graph = DirectedGraph::new(10.0, 1.0, 1.0);
-        let slack = BusNode::slack();
-        let pq1 = BusNode::load(1.0, 0.0);
+        let slack = BusNode::slack(graph.get_new_id());
+        let pq1 = BusNode::load(graph.get_new_id(), 1.0, 0.0);
         graph.add_node(slack.id(), slack);
         graph.add_node(pq1.id(), pq1);
         let id = pq1.id();

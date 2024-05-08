@@ -24,6 +24,7 @@ impl Current {
             angle: complex.arg(),      // Angle of the complex number in radians.
         }
     }
+
     /// Converts the current to a complex number representation.
     pub fn to_complex(self) -> Complex<f64> {
         Complex::new(
@@ -32,6 +33,7 @@ impl Current {
         )
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,4 +1,3 @@
-mod diagnostics;
 mod graph;
 mod solvers;
 mod units;
@@ -6,21 +5,16 @@ mod utils;
 use crate::graph::edge::Transmission;
 use crate::graph::electric_graph::Graph as sim_graph;
 use crate::graph::electric_graph::UndirectedGraph;
-use component_library::energy::LoadFlowSolvers;
 use component_library::energy::{
-    Bases, CableType, GeneratorNode, LoadFlowAnalytics, LoadNode, PowerType, ProductionOverview,
-    SensorGeneratorNode, SensorLoadNode, SlackNode, TransmissionEdge,
+    CableType, GeneratorNode, LoadNode, PowerType, SensorGeneratorNode, SensorLoadNode, SlackNode,
+    TransmissionEdge,
 };
-use diagnostics::energy_production::power_type_percentages;
-use diagnostics::total_power;
 use graph::{edge::LineType, node::BusNode, node::PowerType as BusNodeType};
+use simulator_communication::graph::{Node, NodeId};
 use simulator_communication::simulator::SimulationError;
+use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
 use solvers::solver::Solver;
 use std::{collections::HashMap, env, net::SocketAddr, process::ExitCode};
-use tracing::debug;
-// Add the following line to import the `tracing` crate
-use simulator_communication::graph::{Node, NodeId};
-use simulator_communication::{ComponentsInfo, Graph, Server, Simulator};
 use tracing::{error, info};
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> ExitCode {
@@ -52,7 +46,6 @@ async fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// Simulator that gives a random demand and supply to a consumer and producer node respectively every timestep
 #[allow(dead_code)]
 pub struct LoadFlowSimulator {}
 
@@ -106,14 +99,12 @@ impl LoadFlowSimulator {
 impl Simulator for LoadFlowSimulator {
     fn get_component_info() -> ComponentsInfo {
         ComponentsInfo::new()
-            .add_optional_component::<Bases>()
             .add_required_component::<TransmissionEdge>()
             .add_required_component::<SensorLoadNode>()
             .add_required_component::<SensorGeneratorNode>()
             .add_required_component::<LoadNode>()
             .add_required_component::<GeneratorNode>()
-            .add_required_component::<SlackNode>()
-            .add_optional_component::<LoadFlowAnalytics>()
+            .add_optional_component::<SlackNode>()
             .add_output_component::<GeneratorNode>()
             .add_output_component::<LoadNode>()
             .add_output_component::<SlackNode>()
@@ -125,35 +116,12 @@ impl Simulator for LoadFlowSimulator {
     }
 
     async fn do_timestep(&mut self, mut graph: Graph) -> Result<Graph, SimulationError> {
-        let mut s_base = 100.0;
-        let mut v_base = 100.0;
-        let mut p_base = 100.0;
-        let mut base_given = false;
-
-        if let Some(bases) = graph.get_global_component::<Bases>() {
-            s_base = bases.s_base;
-            v_base = bases.v_base;
-            p_base = bases.p_base;
-            base_given = true;
-        }
-        let mut gs_solver = false;
-        let mut max_iterations = 200;
-        let mut tolerance = 0.01;
-        if let Some(load_flow_analytics) = graph.get_global_component_mut::<LoadFlowAnalytics>() {
-            gs_solver = load_flow_analytics.solver_input == LoadFlowSolvers::GaussSeidel;
-            max_iterations = load_flow_analytics.max_iterations_input;
-            tolerance = load_flow_analytics.tolerance_input;
-        }
+        let mut nodes_position: HashMap<usize, (f64, f64)> = HashMap::new();
+        let gs_solver = false;
         // Set default values if input is invalid
-        if max_iterations < 1 {
-            max_iterations = 200;
-        }
-        if tolerance < 1e-6 {
-            tolerance = 0.01;
-        }
-
-        // Sbase, Vbase: example: 1.0, 10.0
-        let mut g = UndirectedGraph::new(s_base, v_base, p_base);
+        let max_iterations = 1000;
+        let tolerance = 0.001;
+        let mut g = UndirectedGraph::new(1.0, 1.0, 1.0);
         let mut nodes: HashMap<NodeId, usize> = HashMap::new();
         let mut edges = HashMap::new();
 
@@ -162,15 +130,17 @@ impl Simulator for LoadFlowSimulator {
             return Err(SimulationError::InvalidInput("The load flow simulation needs a sensor load node for every load node and a sensor generator node for every generator node".to_owned()));
         };
 
-        for (nodeid, _, comp) in graph.get_all_nodes::<SensorLoadNode>().unwrap() {
-            let load = BusNode::load(comp.active_power, comp.reactive_power);
+        for (nodeid, node, comp) in graph.get_all_nodes::<SensorLoadNode>().unwrap() {
+            let load = BusNode::load(g.get_new_id(), comp.active_power, comp.reactive_power);
             g.add_node(load.id(), load);
             let mapped_id = node_translations.get(&nodeid).unwrap();
             nodes.insert(*mapped_id, load.id());
+            nodes_position.insert(load.id(), (node.latitude, node.longitude));
         }
 
-        for (nodeid, _, comp) in graph.get_all_nodes::<SensorGeneratorNode>().unwrap() {
+        for (nodeid, node, comp) in graph.get_all_nodes::<SensorGeneratorNode>().unwrap() {
             let generator = BusNode::generator(
+                g.get_new_id(),
                 comp.active_power,
                 comp.voltage_magnitude,
                 power_type_to_busnode_type(comp.power_type),
@@ -178,43 +148,60 @@ impl Simulator for LoadFlowSimulator {
             g.add_node(generator.id(), generator);
             let mapped_id = node_translations.get(&nodeid).unwrap();
             nodes.insert(*mapped_id, generator.id());
+            nodes_position.insert(generator.id(), (node.latitude, node.longitude));
         }
 
-        for (nodeid, _, _comp) in graph.get_all_nodes::<SlackNode>().unwrap() {
-            let slack = BusNode::slack();
+        // if slack nodes in graph, add them to the graph
+        for (nodeid, node, _comp) in graph.get_all_nodes::<SlackNode>().unwrap() {
+            let slack = BusNode::slack(g.get_new_id());
             g.add_node(slack.id(), slack);
             nodes.insert(nodeid, slack.id());
+            nodes_position.insert(slack.id(), (node.latitude, node.longitude));
         }
 
         for (edgeid, edge, comp) in graph.get_all_edges::<TransmissionEdge>().unwrap() {
-            //roulet for which line type to use
-            let line = Transmission::new(cable_type_to_line_type(comp.line_type), comp.length);
             //need to find id of node corresponding to the nodeid
             if let (Some(nid1), Some(nid2)) = (nodes.get(&edge.from), nodes.get(&edge.to)) {
+                //get lat and long of nodes
+                //unwrap is safe as all nodes are added to the graph
+                let (lat1, long1) = nodes_position.get(nid1).unwrap();
+                let (lat2, long2) = nodes_position.get(nid2).unwrap();
+                //calculate distance between nodes
+                let distance = utils::haversine_distance(*lat1, *long1, *lat2, *long2);
+                if distance == 0.0 {
+                    return Err(SimulationError::InvalidInput(
+                        "Distance between load-flow busses is 0".to_owned(),
+                    ));
+                }
+                if distance == std::f64::INFINITY {
+                    return Err(SimulationError::InvalidInput(
+                        "Distance between load-flow busses is infinitely big".to_owned(),
+                    ));
+                }
+                //add edge to graph
+                let line = Transmission::new(cable_type_to_line_type(comp.line_type), distance);
                 g.add_edge(*nid1, *nid2, line);
                 edges.insert(edgeid, (*nid1, *nid2));
             }
         }
-
-        let (_total_in, _total_out) = total_power::total_power_checker(&g);
-        // if no base givin: iterate over all nodes and edges to find the max values
+        // iterate over all nodes and edges to find the max values
         // and set all values to p.u
+        let (v_base, p_base, s_base) = g.calculate_optimal_bases();
+        g.set_bases(v_base, s_base, p_base);
 
-        if !base_given {
-            let (v_base, p_base, s_base) = g.calculate_optimal_bases();
-            g.set_bases(v_base, s_base, p_base);
-        }
-        let converged = if gs_solver {
+        // Match on the solver's result to handle Ok and Err cases
+        if gs_solver {
+            // Use Gauss-Seidel solver
             let solver = solvers::gauss_seidel::GaussSeidel::new();
-            solver.solve(&mut g, max_iterations as usize, tolerance) == Ok(())
+            let _ = solver.solve(&mut g, max_iterations as usize, tolerance); // Solve the power flow
         } else {
+            // Use Newton-Raphson solver
             let solver = solvers::newton_raphson::NewtonRaphson::new();
-            solver.solve(&mut g, max_iterations as usize, tolerance) == Ok(())
-        };
-        // if no base given, reset all values to original values
-        if !base_given {
-            g.reset_bases();
+            let _ = solver.solve(&mut g, max_iterations as usize, tolerance); // Solve the power flow
         }
+        // reset all values to original values
+        g.reset_bases();
+
         // update the grap of communication library
         // Place updated data back into the graph
         for (nodeid, _, comp) in graph.get_all_nodes_mut::<LoadNode>().unwrap() {
@@ -260,6 +247,7 @@ impl Simulator for LoadFlowSimulator {
                                         g.z_base(),
                                     )
                                     .magnitude
+                                    .abs()
                                     * g.z_base(),
                                 line_type: line_type_to_cable_type(line.line_type()),
                                 ..*comp
@@ -269,33 +257,9 @@ impl Simulator for LoadFlowSimulator {
                 }
             }
         }
-        //add items to load flow over
-        if let Some(load_flow_analytics) = graph.get_global_component_mut::<LoadFlowAnalytics>() {
-            let (total_in, total_out) = total_power::total_power_checker(&g);
-            let mut vec_overview = Vec::<ProductionOverview>::new();
-            for (power_type, percentage_overview) in power_type_percentages(&g) {
-                vec_overview.push(ProductionOverview {
-                    power_type: busnode_type_to_power_type(power_type),
-                    percentage: percentage_overview,
-                })
-            }
-            load_flow_analytics.total_generators = g.generators();
-            load_flow_analytics.total_slack_nodes = g.slacks();
-            load_flow_analytics.total_load_nodes = g.loads();
-            load_flow_analytics.total_transmission_edges = g.edges().len() as i32;
-            load_flow_analytics.total_nodes = g.nodes().len() as i32;
-            load_flow_analytics.total_incoming_power = total_in;
-            load_flow_analytics.total_outgoing_power = total_out;
-            load_flow_analytics.energy_production_overview = vec_overview.clone();
-            load_flow_analytics.solver_converged = converged;
-        } else {
-            debug!("No analytics component found");
-        }
-
         Ok(graph.filter(Self::get_component_info()))
     }
 }
-
 fn power_type_to_busnode_type(power_type: PowerType) -> BusNodeType {
     match power_type {
         PowerType::Renewable => BusNodeType::Renewable,

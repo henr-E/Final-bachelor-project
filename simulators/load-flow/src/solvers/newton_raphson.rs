@@ -5,10 +5,9 @@ use crate::graph::node::BusType;
 use crate::solvers::solver::Solver;
 use crate::units::power::Power;
 use crate::units::voltage::{self, Voltage};
-use crate::utils::admittance_matrix;
+use crate::utils::{admittance_matrix, check_convergence};
 use nalgebra::{Complex, DMatrix};
 use num_complex::ComplexFloat;
-use tracing::trace;
 /// Apply damping to the jacobian matrix
 fn apply_damping(jacobian: &mut DMatrix<f64>, epsilon: f64) {
     // Apply damping by adding epsilon to each diagonal element
@@ -17,22 +16,7 @@ fn apply_damping(jacobian: &mut DMatrix<f64>, epsilon: f64) {
         jacobian[(i, i)] += epsilon;
     }
 }
-/// Check if the voltage of any node is NaN and replace it with a default value.
-/// If the voltage is NaN, the algorithm will not converge.
-fn check_convergence(graph: &mut UndirectedGraph) -> bool {
-    let mut convergence = true;
-    for node in graph.nodes() {
-        if let Some(node) = graph.node(node) {
-            if node.voltage().amplitude.is_nan() || node.voltage().angle.is_nan() {
-                convergence = false;
-                let mut new_node = *node;
-                new_node.set_voltage(Voltage::new(1.0, 0.0));
-                graph.add_node(new_node.id(), new_node);
-            }
-        }
-    }
-    convergence
-}
+
 /// Order the nodes in the graph and return a hashmap with the position of the node in the jacobian matrix
 fn order_nodes(graph: &UndirectedGraph) -> (HashMap<usize, usize>, HashMap<usize, usize>) {
     let mut loads_generators: HashMap<usize, usize> = HashMap::new();
@@ -60,18 +44,73 @@ impl NewtonRaphson {
         NewtonRaphson {}
     }
 }
+use std::f64::INFINITY;
+
+fn find_min_amplitude(graph: &UndirectedGraph) -> f64 {
+    // Initialize min_amplitude to infinity
+    let mut min_amplitude = INFINITY;
+
+    // Iterate through all nodes in the graph
+    for node_id in graph.nodes() {
+        // Get the node and its voltage
+        if let Some(node) = graph.node(node_id) {
+            let amplitude = node.voltage().amplitude.abs();
+
+            // Update min_amplitude if a smaller value is found
+            if amplitude < min_amplitude {
+                min_amplitude = amplitude;
+            }
+        }
+    }
+
+    // Return the minimum amplitude
+    min_amplitude
+}
+fn average_amplitude(graph: &UndirectedGraph) -> Option<f64> {
+    let mut total_amplitude = 0.0; // Variable to keep track of the total amplitude
+    let mut count = 0; // Variable to count the number of nodes with voltages
+
+    // Iterate through all nodes in the graph
+    for node_id in graph.nodes() {
+        // Get the node
+        if let Some(node) = graph.node(node_id) {
+            // Increment the count
+            count += 1;
+            // Add the amplitude of the voltage to the total amplitude
+            total_amplitude += node.voltage().amplitude.abs();
+        }
+    }
+
+    // Check if count is greater than zero to avoid division by zero
+    if count > 0 {
+        // Calculate the average amplitude
+        Some(total_amplitude / count as f64)
+    } else {
+        // If there are no nodes with voltages, return None
+        None
+    }
+}
+
 /// Refactor the voltages of the graph
 ///
 /// This function is used to refactor the voltages of the graph after the newton raphson algorithm has converged
-/// the voltage angles are refactored to be between 0 and 2pi
+/// the voltage angles are refactored to be between -2pi and 2pi
 /// the voltage amplitudes can be refactored either by a common denominator or by taking the values of the voltages right before the convergence
 
-fn refactor_voltages(graph: &mut UndirectedGraph, voltages: HashMap<usize, Voltage>) {
+fn refactor_voltages(
+    graph: &mut UndirectedGraph,
+    voltages: HashMap<usize, Voltage>,
+    max_amplitude: f64,
+) {
     for (i, voltage) in voltages {
         if let Some(node) = graph.node(i) {
             let mut update = *node;
+            // Calculate scaling factor
+            let scale_factor = max_amplitude / voltage.amplitude;
+            // Scale down the amplitude
+            let scaled_amplitude = voltage.amplitude * scale_factor;
             update.set_voltage(Voltage::new(
-                voltage.amplitude,
+                scaled_amplitude,
                 voltage.angle % 2.0 * std::f64::consts::PI,
             ));
 
@@ -188,7 +227,10 @@ fn set_jacobian(
         if let Some(l_i_index) = loads.get(&i) {
             jacobian[(i_pos, loads_generators.len() + *l_i_index)] = der_f_pk_v_k;
             jacobian[(loads_generators.len() + *l_i_index, i_pos)] = der_f_qk_l_k;
-            jacobian[(loads_generators.len(), loads_generators.len() + *l_i_index)] = der_f_qk_v_k;
+            jacobian[(
+                loads_generators.len() + *l_i_index,
+                loads_generators.len() + *l_i_index,
+            )] = der_f_qk_v_k;
         }
     }
     Power::new(f_pk, f_qk)
@@ -204,6 +246,10 @@ impl Solver for NewtonRaphson {
         let mut iteration = 0;
         let mut max_norm_v;
         let mut max_norm_l;
+        let mut min_amplitude = find_min_amplitude(graph).abs();
+        if let Some(average) = average_amplitude(graph) {
+            min_amplitude = average;
+        }
         let mut voltages_vec: Vec<HashMap<usize, Voltage>> = Vec::new();
         let (loads_gen, loads) = order_nodes(graph);
         let mut _old_voltages = DMatrix::from_element(loads_gen.len() + loads.len(), 1, 0.0);
@@ -309,14 +355,13 @@ impl Solver for NewtonRaphson {
         if converged {
             if voltages_vec.len() > 1 {
                 let pos = voltages_vec[voltages_vec.len() - 2].clone();
-                refactor_voltages(graph, pos);
+                refactor_voltages(graph, pos, min_amplitude);
             }
             converged = check_convergence(graph);
         } else {
             check_convergence(graph);
         }
         if converged {
-            trace!("Newton-Raphson converged in {} iterations", iteration);
             Ok(())
         } else {
             Err("Newton-Raphson did not converge")
@@ -335,9 +380,9 @@ mod test {
     };
     fn test_graph1() -> UndirectedGraph {
         let mut graph = UndirectedGraph::new(1.0, 1.0, 1.0);
-        let pq1 = BusNode::load(1.0, 0.1);
-        let pq2 = BusNode::generator(1.2, 1.1, PowerType::Battery);
-        let pq3 = BusNode::load(1.0, 0.1);
+        let pq1 = BusNode::load(graph.get_new_id(), 0.80, 0.1);
+        let pq2 = BusNode::generator(graph.get_new_id(), 1.0, 1.1, PowerType::Battery);
+        let pq3 = BusNode::load(graph.get_new_id(), 0.80, 0.1);
 
         let l1 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l2 = Transmission::new(LineType::ACSRConductor, 100.0);
@@ -354,14 +399,14 @@ mod test {
     }
     fn test_graph2() -> UndirectedGraph {
         let mut graph = UndirectedGraph::new(1.0, 1.0, 1.0);
-        let slack = BusNode::slack();
-        let pq1 = BusNode::load(0.0, 0.1);
-        let pq2 = BusNode::generator(1.2, 0.1, PowerType::Battery);
-        let pq3 = BusNode::generator(10000.2, 0.1, PowerType::Battery);
-        let pq4 = BusNode::load(1.0, 0.1);
-        let pq5 = BusNode::load(1.0, 0.1);
-        let pq6 = BusNode::load(1000.1, 0.1);
-        let pq7 = BusNode::generator(1.0, 0.10, PowerType::Fossil);
+        let slack = BusNode::slack(graph.get_new_id());
+        let pq1 = BusNode::load(graph.get_new_id(), 1.0, -0.01);
+        let pq2 = BusNode::generator(graph.get_new_id(), 1.2, 0.1, PowerType::Battery);
+        let pq3 = BusNode::generator(graph.get_new_id(), 1.2, 0.1, PowerType::Battery);
+        let pq4 = BusNode::load(graph.get_new_id(), 1.0, -0.1);
+        let pq5 = BusNode::load(graph.get_new_id(), 100.0, -0.1);
+        let pq6 = BusNode::load(graph.get_new_id(), 1.1, -0.1);
+        let pq7 = BusNode::generator(graph.get_new_id(), 1.0, 100.10, PowerType::Fossil);
 
         let l1 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l2 = Transmission::new(LineType::ACSRConductor, 100.0);
@@ -375,14 +420,14 @@ mod test {
         let l10 = Transmission::new(LineType::ACSRConductor, 100.0);
         let l11 = Transmission::new(LineType::ACSRConductor, 100.0);
 
-        graph.add_node(slack.id(), slack);
         graph.add_node(pq1.id(), pq1);
-        graph.add_node(pq2.id(), pq2);
-        graph.add_node(pq3.id(), pq3);
         graph.add_node(pq4.id(), pq4);
         graph.add_node(pq5.id(), pq5);
         graph.add_node(pq6.id(), pq6);
+        graph.add_node(pq2.id(), pq2);
+        graph.add_node(pq3.id(), pq3);
         graph.add_node(pq7.id(), pq7);
+        graph.add_node(slack.id(), slack);
 
         graph.add_edge(slack.id(), pq1.id(), l1);
         graph.add_edge(slack.id(), pq2.id(), l2);
@@ -398,6 +443,17 @@ mod test {
 
         graph
     }
+    fn test_graph_3() -> UndirectedGraph {
+        let mut graph = UndirectedGraph::new(1.0, 1.0, 1.0);
+        let pq1 = BusNode::load(graph.get_new_id(), 1.0, 0.1);
+        let pq2 = BusNode::generator(graph.get_new_id(), 1.2, -10.1, PowerType::Battery);
+
+        let l1 = Transmission::new(LineType::ACSRConductor, 100.0);
+        graph.add_node(pq2.id(), pq2);
+        graph.add_node(pq1.id(), pq1);
+        graph.add_edge(pq2.id(), pq1.id(), l1);
+        graph
+    }
 
     #[test]
     fn test_newton_raphson() {
@@ -405,10 +461,13 @@ mod test {
         //make instance of newton raphson
         let newton_raphson1 = NewtonRaphson::new();
         //solve the graph
-        assert_eq!(newton_raphson1.solve(&mut graph, 100, 0.01), Ok(()));
+        assert_eq!(newton_raphson1.solve(&mut graph, 100, 0.001), Ok(()));
         graph = test_graph2();
         let newton_raphson2 = NewtonRaphson::new();
-        assert_eq!(newton_raphson2.solve(&mut graph, 100, 0.01), Ok(()));
+        assert_eq!(newton_raphson2.solve(&mut graph, 1000, 0.001), Ok(()));
+        graph = test_graph_3();
+        let newton_raphson3 = NewtonRaphson::new();
+        assert_eq!(newton_raphson3.solve(&mut graph, 900, 0.001), Ok(()));
     }
     #[test]
     fn test_jacobian_filler() {
@@ -429,9 +488,10 @@ mod test {
     }
     #[test]
     fn test_sensible_results() {
-        let node1 = BusNode::generator(1.0, 1.0, PowerType::Fossil);
-        let node2 = BusNode::generator(1.0, NAN, PowerType::Fossil);
         let mut graph = UndirectedGraph::new(1.0, 1.0, 1.0);
+        let node1 = BusNode::generator(graph.get_new_id(), 1.0, 1.0, PowerType::Fossil);
+        let node2 = BusNode::generator(graph.get_new_id(), 1.0, NAN, PowerType::Fossil);
+
         graph.add_node(node1.id(), node1);
         graph.add_node(node2.id(), node2);
         let edge = Transmission::new(LineType::ACSRConductor, 100.0);
