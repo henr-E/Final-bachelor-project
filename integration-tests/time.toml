@@ -1,0 +1,18 @@
+used_simulators = ["time-simulator"]
+expected_output_file = "time_output.csv"
+amount_of_timesteps = 20
+timestep_delta_seconds = 1
+
+# Expected components
+
+[expected_components.global_time]
+ty = "global"
+structure = { unix_timestamp_millis = "i64"  }
+
+# Initial state
+[initial_state]
+nodes = []
+edges = []
+
+[initial_state.global]
+global_time = { unix_timestamp_millis = 10000 }

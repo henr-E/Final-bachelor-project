@@ -11,6 +11,7 @@ members = [
     "simulation-manager",
     "simulators/*",
     "tools/database-migrator",
+    "tools/manager-integration-tests",
     "ui-backend",
 ]
 
