@@ -276,13 +276,17 @@ impl SimulationManager for Manager {
             ))
         })?;
 
+        let mut status = StatusEnum::Pending;
+        if simulation.timesteps == 0 {
+            status = StatusEnum::Finished;
+        }
         //add a new simulation to the simulation table
         let simulation_index = db
             .add_simulation(
                 simulation_id.as_str(),
                 (simulation.timestep_delta * 1000.0) as i32,
                 simulation.timesteps as i32,
-                StatusEnum::Pending,
+                status,
                 simulators,
             )
             .await
