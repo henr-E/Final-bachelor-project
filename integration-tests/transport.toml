@@ -1,0 +1,75 @@
+used_simulators = ["time-simulator", "load-flow"]
+expected_output_file = "transport_output.csv"
+amount_of_timesteps = 19
+timestep_delta_seconds = 1
+
+[mock_simulator]
+output_components = ["sensor_generator_node", "sensor_load_node"]
+data_file = "transport_sensor_mock.csv"
+
+# Expected components
+
+[expected_components.global_time]
+ty = "global"
+structure = { unix_timestamp_millis = "i64"  }
+
+[expected_components.energy_slack_node] 
+ty = "node"
+structure = { voltage_amplitude = "f64", active_power = "f64", reactive_power = "f64", voltage_angle = "f64" }
+[expected_components.energy_load_node]
+ty = "node"
+structure = { reactive_power = "f64", voltage_angle = "f64", active_power = "f64" , voltage_amplitude = "f64" }
+[expected_components.energy_generator_node]
+ty = "node"
+structure = { max_reactive_power = "f64", voltage_amplitude = "f64", active_power = "f64", power_type = "string", voltage_angle = "f64", min_reactive_power = "f64" }
+[expected_components.sensor_generator_node]
+ty = "node"
+structure = { voltage_magnitude = "f64", active_power = "f64", power_type = "string" }
+[expected_components.sensor_load_node]
+ty = "node"
+structure = { reactive_power = "f64", active_power = "f64" }
+
+[expected_components.energy_transmission_edge]
+ty = "edge"
+structure = { thermal_limit = "f64", resistance_per_meter = "f64", current = "f64", length = "f64", min_voltage_magnitude = "f64", line_type = "string", max_voltage_magnitude = "f64", reactance_per_meter = "f64"}
+
+# Initial state
+
+[initial_state.global]
+global_time = { unix_timestamp_millis = 10000 }
+
+[[initial_state.nodes]]
+longitude = 4.398
+latitude = 51.2249
+id = 0
+components  = [
+  { energy_load_node = { reactive_power = 0.0, voltage_angle = 0.0, active_power = 40.0, voltage_amplitude = 240.0 } },
+  { sensor_load_node = { reactive_power = 0.25, active_power = 0.1 } },
+]
+[[initial_state.nodes]]
+longitude = 4.40225
+latitude = 51.21997
+id = 1
+components  = [
+  { energy_slack_node = { reactive_power = 20.0, voltage_angle = 0.0, active_power = 20.0, voltage_amplitude = 300.0 } }
+]
+[[initial_state.nodes]]
+longitude = 4.4104
+latitude = 51.22269
+id = 2
+components  = [
+  { energy_generator_node = { voltage_amplitude = 0.0, active_power = 0.0, power_type = "Solar", voltage_angle = 0.0, min_reactive_power = 0.0, max_reactive_power = 60.0 } },
+  { sensor_generator_node = { voltage_magnitude = 0.2, active_power = 0.1, power_type = "Solar" } },
+]
+
+[[initial_state.edges]]
+from = 0
+to = 1
+component_type = "energy_transmission_edge"
+component_data = { resistance_per_meter = 0.1, length = 8.0, line_type = "AAC_Conductor", reactance_per_meter = 0.8, max_voltage_magnitude = 500.0, min_voltage_magnitude = 0.0, thermal_limit = 20.0, current = 20.0 } 
+
+[[initial_state.edges]]
+from = 1
+to = 2
+component_type = "energy_transmission_edge"
+component_data = { resistance_per_meter = 0.1, length = 5.0, line_type = "AAC_Conductor", reactance_per_meter = 0.8, max_voltage_magnitude = 500.0, min_voltage_magnitude = 0.0, thermal_limit = 20.0, current = 20.0 } 

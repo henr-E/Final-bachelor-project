@@ -6,6 +6,7 @@ use proto::simulation::{
 };
 use tokio::sync::Mutex;
 use tonic::{transport::Channel, Request, Response, Status};
+use tracing::debug;
 
 /// The connector allows the Simulation Manager to keep track of available simulators.
 /// This is done by modifying the Vec which is shared by the manager and the runner.
@@ -45,8 +46,15 @@ impl SimulatorConnection for SimulatorConnector {
         &self,
         request: Request<SimulatorInfo>,
     ) -> Result<Response<()>, Status> {
+        let remote_addr = request.remote_addr();
+        let simulator: SimulatorInfo = request.into_inner();
+        let port = simulator.port as u16;
+        let name = simulator.name;
+
+        debug!("Got request from simulator on port: {port}");
+
         // get address from request
-        let mut address: SocketAddr = match request.remote_addr() {
+        let mut address: SocketAddr = match remote_addr {
             Some(addr) => addr,
             None => {
                 return Err(Status::internal(
@@ -54,21 +62,24 @@ impl SimulatorConnection for SimulatorConnector {
                 ))
             }
         };
-        let simulator: SimulatorInfo = request.into_inner();
-        let port: u16 = simulator.port as u16;
+
         address.set_port(port);
+
+        let address = format!("http://{}", address);
+
         // connect to simulator
-        let name = simulator.name;
-        let client = SimulatorClient::connect(format!("http://{}", address))
+        debug!("Connection to simulator {name} on address: {address}");
+        let client = SimulatorClient::connect(address)
             .await
             .map_err(|err| Status::from_error(Box::new(err)))?;
+
         let mut simulators = self.simulators.lock().await;
         simulators.push(SimulatorsInfo {
             simulator: client,
             name,
         });
-
         drop(simulators);
+
         Ok(Response::new(()))
     }
 }

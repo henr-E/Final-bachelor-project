@@ -10,7 +10,7 @@ pub mod component;
 pub mod graph;
 pub mod simulator;
 
-use std::{net::SocketAddr, time::Duration};
+use std::{error::Error, net::SocketAddr, time::Duration};
 
 use tokio::sync::Mutex;
 use tonic::{transport, Request, Response, Status};
@@ -79,6 +79,7 @@ pub use prost_types::{self, Value};
 pub use proto::simulation as proto;
 #[doc(hidden)]
 pub use proto::{component_structure, ComponentSpecification, ComponentStructure};
+use tracing::info;
 
 #[tonic::async_trait]
 impl<S: Simulator> proto::simulator::simulator_server::Simulator for Server<S> {
@@ -179,6 +180,35 @@ pub struct Server<S: Simulator> {
     simulator: Mutex<Option<S>>,
 }
 
+/// Possible errors the server could return.
+pub enum ServerError {
+    /// A transport error from main server.
+    Transport(tonic::transport::Error),
+    /// Failed while trying to connect to the manger to advertise.
+    ConnectionTransport(tonic::transport::Error),
+    /// Failed while trying to advertise to the manger.
+    ConnectionReturn(String),
+    /// ANy other error, like a tokio error.
+    Other(Box<dyn Error>),
+}
+
+impl std::fmt::Display for ServerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ServerError::Transport(e) => write!(f, "Transport error: {e}"),
+            ServerError::ConnectionTransport(e) => write!(f, "Conneciton transport error: {e}"),
+            ServerError::ConnectionReturn(e) => write!(f, "Connection returned an error: {e}"),
+            ServerError::Other(e) => write!(f, "Other error: {e}"),
+        }
+    }
+}
+
+impl<E: Error + 'static> From<E> for ServerError {
+    fn from(value: E) -> Self {
+        Self::Other(Box::new(value))
+    }
+}
+
 impl<S: Simulator> Server<S> {
     /// Creates a new server instance.
     pub fn new() -> Self {
@@ -241,7 +271,7 @@ impl<S: Simulator> Server<S> {
         simulator_addr: impl Into<SocketAddr>,
         manager_addr: String,
         name: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), ServerError> {
         let addr = simulator_addr.into();
         let port = addr.port() as u32;
 
@@ -252,16 +282,24 @@ impl<S: Simulator> Server<S> {
         // Keep simulator running in a different thread
         let mut task = tokio::spawn(server);
 
+        let connection = async move {
+            info!("Sending connection request to manager");
+            SimulatorConnectionClient::connect(manager_addr).await
+        };
+
         // Checks if the simulator returns an early error. If it doesn't, then the connection to the manager will finish first.
         tokio::select! {
             err = &mut task => {
-                err??
+                err?.map_err(ServerError::Transport)?
             },
-            connection = SimulatorConnectionClient::connect(manager_addr) => {
-                connection?.connect_simulator(SimulatorInfo { port, name: name.to_string() }).await?;
+            connection = connection => {
+                connection
+                    .map_err(ServerError::ConnectionTransport)?
+                    .connect_simulator(SimulatorInfo { port, name: name.to_string()  }).await
+                    .map_err(|e| ServerError::ConnectionReturn(e.message().to_owned()))?;
 
                 // Keep simulator running
-                task.await??
+                task.await?.map_err(ServerError::Transport)?
             },
         }
 

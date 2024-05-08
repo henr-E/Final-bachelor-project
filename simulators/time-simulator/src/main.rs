@@ -11,7 +11,7 @@ async fn main() -> ExitCode {
     tracing_subscriber::fmt().init();
 
     let listen_addr = match env::var("TIME_SIMULATOR_ADDR")
-        .unwrap_or("127.0.0.1:8101".to_string())
+        .unwrap_or("0.0.0.0:8101".to_string())
         .parse::<SocketAddr>()
     {
         Ok(v) => v,

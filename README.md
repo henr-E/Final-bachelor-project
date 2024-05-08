@@ -121,3 +121,12 @@ When making use of the `database-config` crate, you can toggle the migrations at
 All secrets are defined in the `tools/generate-secrets.sh` script. This script will look at your
 `$SECRET_ROOT` folder (if unset: `.secrets/`) and make a file for any of the secrets that have not
 been defined. Take a look at the `crates/secrets` crate to read secrets at runtime.
+
+## Integration tests
+
+The simulation integration tests, test everything from the separate simulators, the manger simulator
+side, to the manger frontend communication side. However, it does not test the frontend itself.)
+They test runner is implemented in `./tools/manager-integration-tests/`, and runs tests located in
+`./integration-tests/`.
+
+You can read more about how to use it [here](docs/simulation/integration-tests.md)
