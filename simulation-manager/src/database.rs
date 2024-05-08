@@ -230,6 +230,9 @@ impl SimulationsDB {
         .fetch_optional(self.connection().await?)
         .await?
         .map(|s| s.id);
+        if let Some(id) = simulation_id {
+            self.update_status(id, StatusEnum::Computing, None).await?;
+        }
         Ok(simulation_id)
     }
 
