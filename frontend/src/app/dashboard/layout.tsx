@@ -6,11 +6,13 @@ import DashboardSidebar from '@/components/DashboardSidebar';
 import { CreateTwinModalProps } from '@/components/modals/CreateTwinModal';
 import { Breadcrumb } from 'flowbite-react';
 import { HiHome } from 'react-icons/hi';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Icon from '@mdi/react';
 import { mdiFullscreen, mdiFullscreenExit } from '@mdi/js';
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
+import { router } from 'next/client';
+import { it } from 'node:test';
 
 export default function DashboardLayout({
     children,
@@ -20,6 +22,7 @@ export default function DashboardLayout({
     const [isCreateTwinModalOpen, setIsCreateTwinModalOpen] = useState(false);
     const [sidebarVisible, setSidebarVisible] = useState(true);
     const pathname = usePathname();
+    const router = useRouter();
 
     const CreateTwinModalImport = dynamic<CreateTwinModalProps>(
         () => import('@/components/modals/CreateTwinModal'),
@@ -65,13 +68,19 @@ export default function DashboardLayout({
                                     item === 'dashboard' ? (
                                         <Breadcrumb.Item
                                             key={item}
-                                            href={'/' + item}
+                                            href={'#' + item}
+                                            onClick={() => {
+                                                router.replace('/' + item);
+                                            }}
                                             icon={HiHome}
                                         ></Breadcrumb.Item>
                                     ) : (
                                         <Breadcrumb.Item
                                             key={item}
-                                            href={pathname.split(item)[0] + item}
+                                            href={'#'}
+                                            onClick={() => {
+                                                router.replace(pathname.split(item)[0] + item);
+                                            }}
                                         >
                                             {item}
                                         </Breadcrumb.Item>
