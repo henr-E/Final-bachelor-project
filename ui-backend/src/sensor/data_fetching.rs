@@ -1,27 +1,18 @@
+//! Sensor data fetching service.
+//!
+//! This module includes the implemenation of the `SensorDataFetchingService` and some helper
+//! functions to convert from native rust types to protobuf message types and back.
+
+use super::{into_proto_big_decimal, SensorStore};
 use chrono::{DateTime, TimeDelta, Utc};
 use futures::poll;
-use num_bigint::{BigInt, Sign};
 use proto::frontend::sensor_data_fetching::{
     AllSensorData, AllSensorDataEntry, AllSensorDataMessage, AllSensorDataRequest,
     SensorDataFetchingService, SignalToValuesMap, SignalValue as ProtoSignalValue,
     SignalValues as ProtoSignalValues, SingleSensorDataMessage, SingleSensorDataRequest,
 };
-use proto::frontend::{
-    get_quantities_and_units_response::{Quantity as ProtoQuantity, Unit as ProtoUnit},
-    BigDecimal as ProtoBigDecimal, CreateSensorRequest, CreateSensorResponse, CrudFailure,
-    CrudFailureReason, DeleteSensorRequest, DeleteSensorResponse, GetQuantitiesAndUnitsResponse,
-    GetSensorsRequest, GetSensorsResponse, ReadSensorRequest, ReadSensorResponse,
-    Sensor as ProtoSensor, SensorCrudService, Signal as ProtoSignal, UpdateSensorRequest,
-    UpdateSensorResponse,
-};
-use sensor_store::signal::SignalValues;
-use sensor_store::{Quantity, Sensor, SensorStore as SensorStoreInner, Unit};
-use sqlx::types::BigDecimal;
-use std::collections::HashSet;
-use std::task::Poll;
-use std::time::Duration;
-use std::{collections::HashMap, pin::Pin, str::FromStr};
-use thiserror::Error;
+use sensor_store::{signal::SignalValues, Sensor, SensorStore as SensorStoreInner};
+use std::{collections::HashMap, task::Poll, time::Duration};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
@@ -30,327 +21,7 @@ use uuid::Uuid;
 
 const LIVE_DATA_FETCH_INTERVAL: Duration = Duration::from_millis(5000);
 
-#[derive(Clone)]
-pub struct SensorStore(SensorStoreInner);
-
-impl SensorStore {
-    pub async fn new() -> Self {
-        Self(
-            SensorStoreInner::new()
-                .await
-                .expect("Could not create sensor store."),
-        )
-    }
-
-    pub fn as_inner(&self) -> &SensorStoreInner {
-        &self.0
-    }
-}
-
-impl std::ops::Deref for SensorStore {
-    type Target = SensorStoreInner;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[derive(Error, Debug)]
-enum SignalError {
-    #[error("Invalid quantity!")]
-    QuantityParseError,
-    #[error("Invalid unit!")]
-    UnitParseError,
-}
-
-impl From<SignalError> for CrudFailure {
-    fn from(val: SignalError) -> Self {
-        CrudFailure::new_single(match val {
-            SignalError::QuantityParseError => CrudFailureReason::InvalidQuantityError,
-            SignalError::UnitParseError => CrudFailureReason::InvalidUnitError,
-        })
-    }
-}
-
-fn into_proto_big_decimal(decimal: &BigDecimal) -> ProtoBigDecimal {
-    let (big_int, exponent) = decimal.as_bigint_and_exponent();
-    let (sign, integer) = big_int.to_u32_digits();
-    ProtoBigDecimal {
-        integer: integer.to_vec(),
-        sign: sign == Sign::Minus,
-        // Scale/exponent is inverted in the `BigDecimal` type. See
-        // [documentation](https://docs.rs/bigdecimal/0.4.3/src/bigdecimal/lib.rs.html#191)
-        // for more info.
-        exponent: -exponent,
-    }
-}
-
-/// Transforms ORM sensor to expected gRPC sensor type.
-///
-/// This operation may fail, if the prefix exceeds u64 integer part.
-fn into_proto_sensor(sensor: Sensor) -> ProtoSensor {
-    // for every signal from orm signal
-    let signals = sensor
-        .signals()
-        .iter()
-        .map(|s| {
-            // extract the prefix.
-            let prefix = into_proto_big_decimal(&s.prefix);
-            // create expected gRPC signal type.
-            ProtoSignal {
-                id: s.id,
-                alias: s.name.to_string(),
-                quantity: s.quantity.to_string(),
-                unit: s.unit.base_unit().to_string(),
-                ingestion_unit: s.unit.to_string(),
-                prefix: Some(prefix),
-            }
-        })
-        .collect::<Vec<_>>();
-
-    ProtoSensor {
-        name: sensor.name.to_string(),
-        id: sensor.id.to_string(),
-        description: sensor.description.unwrap_or_default().to_string(),
-        longitude: sensor.location.0,
-        latitude: sensor.location.1,
-        signals,
-        twin_id: sensor.twin_id,
-        building_id: sensor.building_id,
-    }
-}
-
-fn into_sensor(sensor: ProtoSensor) -> Result<Sensor<'static>, SignalError> {
-    // Create a random uuid for the sensor.
-    let sensor_uuid = Uuid::now_v7();
-    let description = (!sensor.description.is_empty()).then_some(sensor.description);
-    // build an orm sensor.
-    let mut builder = Sensor::builder(
-        sensor_uuid,
-        sensor.name,
-        description,
-        (sensor.longitude, sensor.latitude),
-        sensor.twin_id,
-        sensor.building_id,
-    );
-    // push all provided signals through the builder.
-    for signal in sensor.signals.into_iter() {
-        let prefix = signal.prefix.unwrap_or_else(ProtoBigDecimal::one);
-        let sign = match prefix.sign {
-            true => Sign::Minus,
-            false => Sign::Plus,
-        };
-        let bigint = BigInt::new(sign, prefix.integer);
-        // Scale/exponent is inverted in the `BigDecimal` type. See
-        // [documentation](https://docs.rs/bigdecimal/0.4.3/src/bigdecimal/lib.rs.html#191)
-        // for more info.
-        let bigdecimal = BigDecimal::new(bigint, -prefix.exponent);
-        let quantity = match Quantity::from_str(&signal.quantity) {
-            Ok(q) => q,
-            Err(_) => return Err(SignalError::QuantityParseError),
-        };
-        let unit = match Unit::from_str(&signal.ingestion_unit) {
-            Ok(u) => u,
-            Err(_) => return Err(SignalError::UnitParseError),
-        };
-        builder.add_signal(0, signal.alias.clone(), quantity, unit, bigdecimal);
-    }
-
-    Ok(builder.build())
-}
-
-#[tonic::async_trait]
-impl SensorCrudService for SensorStore {
-    type GetQuantitiesAndUnitsStream = Pin<
-        Box<
-            dyn tokio_stream::Stream<Item = Result<GetQuantitiesAndUnitsResponse, Status>>
-                + Send
-                + 'static,
-        >,
-    >;
-    /// Get all supported quantities with associated units.
-    async fn get_quantities_and_units(
-        &self,
-        _request: Request<()>,
-    ) -> Result<Response<Self::GetQuantitiesAndUnitsStream>, Status> {
-        fn response_from_quantity(q: Quantity) -> GetQuantitiesAndUnitsResponse {
-            GetQuantitiesAndUnitsResponse {
-                quantity: Some(ProtoQuantity {
-                    id: q.to_string(),
-                    repr: q.to_string(),
-                }),
-                units: q
-                    .associated_units()
-                    .into_iter()
-                    .map(|u| ProtoUnit {
-                        id: u.to_string(),
-                        repr: u.to_string(),
-                    })
-                    .collect::<Vec<_>>(),
-                base_unit: q.associated_base_unit().to_string(),
-            }
-        }
-
-        Ok(Response::new(Box::pin(futures::stream::iter(
-            Quantity::all()
-                .into_iter()
-                .map(|q| Ok(response_from_quantity(q))),
-        ))))
-    }
-
-    type GetSensorsStream = Pin<
-        Box<dyn tokio_stream::Stream<Item = Result<GetSensorsResponse, Status>> + Send + 'static>,
-    >;
-    /// Get all sensors registered in the database.
-    async fn get_sensors(
-        &self,
-        request: Request<GetSensorsRequest>,
-    ) -> Result<Response<Self::GetSensorsStream>, Status> {
-        use futures::stream::StreamExt;
-
-        debug!("fetching all sensors");
-        let req = request.into_inner();
-        // Collect all sensors into vec and return that stream. This temporary collection
-        // is needed to avoid lifetime errors.
-        let sensors: Vec<Result<GetSensorsResponse, Status>> = self
-            .get_all_sensors_for_twin(req.twin_id)
-            .await
-            .map_err(|e| Status::internal(format!("could not get all sensors: {}", e)))?
-            .map(|s| match s {
-                Ok(s) => Ok(GetSensorsResponse {
-                    sensor: Some(into_proto_sensor(s)),
-                }),
-                Err(e) => Err(Status::internal(e.to_string())),
-            })
-            .collect()
-            .await;
-
-        Ok(Response::new(Box::pin(futures::stream::iter(sensors))))
-    }
-
-    /// Create a sensor given it's [`Uuid`].
-    ///
-    /// This function can fail if the provided sensor's format is incorrect or
-    /// if there is any error on the side of the database(decimal type errors, ...)
-    async fn create_sensor(
-        &self,
-        request: Request<CreateSensorRequest>,
-    ) -> Result<Response<CreateSensorResponse>, Status> {
-        let request = request.into_inner();
-        debug!("creating sensor: {:?}", request.sensor);
-        let Some(proto_sensor) = request.sensor else {
-            return Err(Status::invalid_argument("sensor field must be set"));
-        };
-
-        let unique_signals = proto_sensor
-            .signals
-            .iter()
-            .map(|s| &s.quantity)
-            .collect::<HashSet<_>>();
-        if proto_sensor.signals.len() != unique_signals.len() {
-            return CreateSensorResponse::failures(CrudFailure::new_single(
-                CrudFailureReason::DuplicateQuantityError,
-            ))
-            .into();
-        }
-
-        let sensor = match into_sensor(proto_sensor) {
-            Ok(s) => s,
-            Err(e) => {
-                return CreateSensorResponse::failures(e.into()).into();
-            }
-        };
-        match self.store_sensor(sensor).await {
-            Ok(uuid) => CreateSensorResponse::uuid(uuid).into(),
-            Err(e) => {
-                error!("Error setting sensor into the database {e}");
-                CreateSensorResponse::failures(CrudFailure::new_database_error()).into()
-            }
-        }
-    }
-
-    /// Fetch a sensor given it's [`Uuid`].
-    ///
-    /// This function can fail if the uuid is formatted incorrectly or
-    /// if the sensor with that uuid is not found in the database.
-    async fn read_sensor(
-        &self,
-        request: Request<ReadSensorRequest>,
-    ) -> Result<Response<ReadSensorResponse>, Status> {
-        let req_uuid: String = request.into_inner().uuid;
-        // check if the provided uuid has a valid format.
-        let Ok(sensor_id) = Uuid::parse_str(&req_uuid) else {
-            return ReadSensorResponse::failures(CrudFailure::new_uuid_format_error()).into();
-        };
-        // get the sensor from the database.
-        // this might error if the uuid is not present in the database.
-        let Ok(sensor) = self.get_sensor(sensor_id).await else {
-            return ReadSensorResponse::failures(CrudFailure::new_uuid_not_found_error()).into();
-        };
-        // convert orm sensor into gRPC sensor.
-        let sensor: ProtoSensor = into_proto_sensor(sensor);
-        // create response containing requested sensor.
-        ReadSensorResponse::sensor(sensor).into()
-    }
-
-    /// Update a sensor.
-    ///
-    /// This function can fail if the provided [`Uuid`] wasn't found in the database,
-    /// if there is any error on the side of the database(decimal type errors, ...) or
-    /// if the sensor has incorrect format.
-    async fn update_sensor(
-        &self,
-        request: Request<UpdateSensorRequest>,
-    ) -> Result<Response<UpdateSensorResponse>, Status> {
-        let req = request.into_inner();
-        let req_uuid: String = req.uuid;
-        // check if the provided uuid has a valid format.
-        let Ok(sensor_id) = Uuid::parse_str(&req_uuid) else {
-            return UpdateSensorResponse::failures(CrudFailure::new_uuid_format_error()).into();
-        };
-        // delete sensor entry for this `sensor_id`.
-        if self.as_inner().delete_sensor(sensor_id).await.is_err() {
-            return UpdateSensorResponse::failures(CrudFailure::new_uuid_not_found_error()).into();
-        }
-        // create ORM sensor.
-        let Some(proto_sensor) = req.sensor else {
-            return Err(Status::invalid_argument("sensor field must be set"));
-        };
-        let mut sensor = match into_sensor(proto_sensor) {
-            Ok(s) => s,
-            Err(e) => {
-                return UpdateSensorResponse::failures(e.into()).into();
-            }
-        };
-        // set required sensor_id.
-        sensor.id = sensor_id;
-        // push sensor into database.
-        let result = self.store_sensor(sensor).await;
-        UpdateSensorResponse::success(result.is_ok()).into()
-    }
-
-    /// Delete a sensor.
-    ///
-    /// This function can fail if the provided [`Uuid`]'s structure is incorrect or
-    /// if the uuid wasn't found in the database.
-    async fn delete_sensor(
-        &self,
-        request: Request<DeleteSensorRequest>,
-    ) -> Result<Response<DeleteSensorResponse>, Status> {
-        let req_uuid: String = request.into_inner().uuid;
-        // check if the provided uuid has a valid format.
-        let Ok(sensor_id) = Uuid::parse_str(&req_uuid) else {
-            return DeleteSensorResponse::failures(CrudFailure::new_uuid_format_error()).into();
-        };
-        // delete sensor id from database.
-        match self.as_inner().delete_sensor(sensor_id).await {
-            Ok(_) => DeleteSensorResponse::success(true),
-            Err(_) => DeleteSensorResponse::failures(CrudFailure::new_uuid_not_found_error()),
-        }
-        .into()
-    }
-}
-
+/// Convert [`SignalValues`] type into protobuf message `SignalValues` type.
 fn into_proto_signal_values(signal_values: SignalValues) -> ProtoSignalValues {
     ProtoSignalValues {
         value: signal_values
@@ -364,6 +35,8 @@ fn into_proto_signal_values(signal_values: SignalValues) -> ProtoSignalValues {
     }
 }
 
+/// Fetch sensor data from the [`SensorStore`](SensorStoreInner) based on the specified lookback
+/// for all sensors in te `sensors` stream.
 async fn fetch_sensor_data_into_hashmap<'a, E>(
     sensor_store: &SensorStoreInner,
     sensors: impl futures::stream::Stream<Item = Result<Sensor<'a>, E>> + Send,
@@ -427,6 +100,8 @@ where
 
 #[tonic::async_trait]
 impl SensorDataFetchingService for SensorStore {
+    /// Fetch sensor data for all sensors currently registered from `now` until the given
+    /// `lookback` into the past.
     async fn fetch_sensor_data_all_sensors(
         &self,
         request: Request<AllSensorDataRequest>,
@@ -453,6 +128,8 @@ impl SensorDataFetchingService for SensorStore {
         }))
     }
 
+    /// Fetch sensor data for a single sensor currently registered from `now` until the given
+    /// `lookback` into the past.
     async fn fetch_sensor_data_single_sensor(
         &self,
         request: Request<SingleSensorDataRequest>,
@@ -460,6 +137,8 @@ impl SensorDataFetchingService for SensorStore {
         fn internal_err_format(err: &dyn std::fmt::Display) -> Status {
             Status::internal(format!("could not fetch data for a single sensor: {}", err))
         }
+
+        use std::str::FromStr;
 
         debug!("fetching data for a single sensor");
         let req = request.into_inner();
@@ -495,6 +174,13 @@ impl SensorDataFetchingService for SensorStore {
     }
 
     type FetchSensorDataAllSensorsStreamStream = ReceiverStream<Result<AllSensorDataEntry, Status>>;
+    /// Stream of sensor data for all sensors.
+    ///
+    /// When new sensors are registered, they will be included in the next response if data is
+    /// ingested for them.
+    ///
+    /// The `lookback` is only used for the first response. Following responses inlcude all data
+    /// that has not been included since the last response.
     async fn fetch_sensor_data_all_sensors_stream(
         &self,
         request: Request<Streaming<AllSensorDataMessage>>,
@@ -510,10 +196,6 @@ impl SensorDataFetchingService for SensorStore {
             tx: &mpsc::Sender<Result<AllSensorDataEntry, Status>>,
             data: Result<AllSensorDataEntry, Status>,
         ) -> Result<(), Status> {
-            if tx.is_closed() {
-                return Err(Status::unavailable("The channel has been closed."));
-            }
-
             if let Err(err) = tx.send(data).await {
                 error!("Sending data on the sensor data stream failed: {}.", err);
                 return Err::<(), _>(internal_err_format(&err));
@@ -561,6 +243,7 @@ impl SensorDataFetchingService for SensorStore {
             let mut last_timestamp = None;
 
             loop {
+                // Check for the shutdown signal from the client.
                 if let Poll::Ready(Some(Ok(AllSensorDataMessage {
                     start_or_shutdown: Some(req),
                 }))) = poll!(Box::pin(req_stream.next()))
@@ -658,6 +341,13 @@ impl SensorDataFetchingService for SensorStore {
 
     type FetchSensorDataSingleSensorStreamStream =
         ReceiverStream<Result<SignalToValuesMap, Status>>;
+    /// Stream of sensor data for a single sensor.
+    ///
+    /// When new sensors register, they will be included in the next response if data is ingested
+    /// for them.
+    ///
+    /// The `lookback` is only used for the first response. Following responses inlcude all data
+    /// that has not been included since the last response.
     async fn fetch_sensor_data_single_sensor_stream(
         &self,
         request: Request<Streaming<SingleSensorDataMessage>>,
@@ -673,9 +363,6 @@ impl SensorDataFetchingService for SensorStore {
             tx: &mpsc::Sender<Result<SignalToValuesMap, Status>>,
             data: Result<SignalToValuesMap, Status>,
         ) -> Result<(), Status> {
-            if tx.is_closed() {
-                return Err(Status::internal("e"));
-            }
             if let Err(err) = tx.send(data).await {
                 error!("Sending data on the sensor data stream failed: {}.", err);
                 return Err::<(), _>(internal_err_format(&err));
@@ -696,6 +383,7 @@ impl SensorDataFetchingService for SensorStore {
         }
 
         use proto::frontend::sensor_data_fetching::single_sensor_data_message::StartOrShutdown;
+        use std::str::FromStr;
         use tokio_stream::StreamExt;
 
         debug!("starting sensor data stream for a single sensor");
@@ -737,6 +425,7 @@ impl SensorDataFetchingService for SensorStore {
             let mut last_timestamp = None;
 
             loop {
+                // Check for the shutdown signal from the client.
                 if let Poll::Ready(Some(Ok(SingleSensorDataMessage {
                     start_or_shutdown: Some(req),
                 }))) = poll!(Box::pin(req_stream.next()))
@@ -785,23 +474,20 @@ impl SensorDataFetchingService for SensorStore {
                     .collect::<HashMap<_, _>>();
 
                 // Skip sending when no sensor data was found.
-                if result.is_empty() {
-                    // if there is no new sensor data, sleep for a bit.
-                    tokio::time::sleep(LIVE_DATA_FETCH_INTERVAL).await;
-                    continue;
+                if !result.is_empty() {
+                    // Get the last timestamp data was successfully fetched at.
+                    let last_data_timestamp = last_data_timestamp(&result);
+
+                    tracing::trace!("sending on channel");
+                    send_on_channel(&tx, Ok(SignalToValuesMap { signals: result })).await?;
+
+                    // Update the timestamp the data was last requested at.
+                    if let Some(last_data_timestamp) = last_data_timestamp {
+                        last_timestamp = Some(last_data_timestamp);
+                    }
                 }
 
-                // Get the last timestamp data was successfully fetched at.
-                let last_data_timestamp = last_data_timestamp(&result);
-
-                tracing::trace!("sending on channel");
-                send_on_channel(&tx, Ok(SignalToValuesMap { signals: result })).await?;
-
-                // Update the timestamp the data was last requested at.
-                if let Some(last_data_timestamp) = last_data_timestamp {
-                    last_timestamp = Some(last_data_timestamp);
-                }
-
+                // if there is no new sensor data, sleep for a bit.
                 tokio::time::sleep(LIVE_DATA_FETCH_INTERVAL).await;
             }
 
