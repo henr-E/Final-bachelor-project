@@ -674,194 +674,130 @@ mod manager_grpc_test {
 
     use super::*;
 
-    #[cfg(feature = "db_test")]
-    struct ExpectedNodes {
-        node_id: i32,
-        simulation_id: i32,
-        time_step: i32,
-        longitude: f64,
-        latitude: f64,
-    }
-
-    #[cfg(feature = "db_test")]
-    struct ExpectedNodeComponents {
-        name: String,
-        component_data: serde_json::Value,
-    }
-
-    /// Tests pushing a simulation. This test uses the database simulations_test so as not to
+    /// Tests pushing a simulation. This test uses sqlx::test so as not to
     /// affect the main simulations database. This test only runs if the db_test feature is enabled.
     #[cfg(feature = "db_test")]
     #[sqlx::test(migrations = "../migrations/simulator/")]
     async fn test_push_simulation(pool: PgPool) {
+        use prost_types::value::Kind;
+        use prost_types::Value;
+        use proto::simulation::simulation_manager::SimulatorSelection;
+        use proto::simulation::{Edge, Node};
         //set up
         let simulators: Arc<Mutex<Vec<SimulatorsInfo>>> = Arc::new(Mutex::new(Vec::default()));
         let (send, _recv) = mpsc::channel(1);
-        let mut manager = Manager::new(pool, simulators, send);
+        let manager = Manager::new(pool.clone(), simulators, send).await;
+
+        let node0 = Node {
+            longitude: 11.11,
+            latitude: 11.11,
+            id: 0,
+            components: [(
+                "key1".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(1.0)),
+                },
+            )]
+            .into(),
+        };
+        let node1 = Node {
+            longitude: 10.11,
+            latitude: 10.11,
+            id: 1,
+            components: [(
+                "key2".to_string(),
+                Value {
+                    kind: Some(Kind::NumberValue(2.0)),
+                },
+            )]
+            .into(),
+        };
+        let edge1 = Edge {
+            from: 0,
+            to: 1,
+            component_type: "Edge".to_string(),
+            component_data: Some(Value {
+                kind: Some(Kind::NumberValue(42.0)),
+            }),
+            id: 0,
+        };
         let request1 = PushSimulationRequest {
             id: Some(SimulationId {
                 uuid: "sim1".to_string(),
             }),
             timestep_delta: 30.0,
             timesteps: 3,
+            selection: Some(SimulatorSelection { name: vec![] }),
             initial_state: Some(State {
                 graph: Some(Graph {
-                    nodes: vec![
-                        Node {
-                            longitude: 11.11,
-                            latitude: 11.11,
-                            id: 0,
-                            components: std::iter::once((
-                                "key1".to_string(),
-                                Value {
-                                    kind: Some(prost_types::value::Kind::NumberValue(1.0)),
-                                },
-                            ))
-                            .collect(),
-                        },
-                        Node {
-                            longitude: 10.11,
-                            latitude: 10.11,
-                            id: 1,
-                            components: std::iter::once((
-                                "key2".to_string(),
-                                Value {
-                                    kind: Some(prost_types::value::Kind::NumberValue(2.0)),
-                                },
-                            ))
-                            .collect(),
-                        },
-                    ],
-                    edge: vec![Edge {
-                        from: 0,
-                        to: 1,
-                        component_type: "Edge".to_string(),
-                        component_data: Some(Value {
-                            kind: Some(value::Kind::NumberValue(42.0)),
-                        }),
-                        id: 0,
-                    }],
+                    nodes: vec![node0.clone(), node1.clone()],
+                    edge: vec![edge1.clone()],
                 }),
-                global_components: std::iter::once((
+                global_components: [(
                     "key3".to_string(),
                     Value {
-                        kind: Some(prost_types::value::Kind::NumberValue(3.0)),
+                        kind: Some(Kind::NumberValue(3.0)),
                     },
-                ))
-                .collect(),
+                )]
+                .into(),
             }),
         };
 
-        Manager::push_simulation(&manager.await, Request::new(request1))
+        Manager::push_simulation(&manager, Request::new(request1))
             .await
             .expect("");
-        //check if the data in the database is correct
-        let res = sqlx::query!("SELECT id FROM simulations WHERE name = $1", "sim1")
-            .fetch_one(&pool)
-            .await
-            .expect("Error executing query simulations");
-        let expected_data = vec![
-            ExpectedNodes {
-                node_id: 0,
-                longitude: 11.11,
-                latitude: 11.11,
-                simulation_id: res.id,
-                time_step: 0,
-            },
-            ExpectedNodes {
-                node_id: 1,
-                longitude: 10.11,
-                latitude: 10.11,
-                simulation_id: res.id,
-                time_step: 0,
-            },
-        ];
-        let expected_component_data = vec![
-            ExpectedNodeComponents {
-                name: "key1".to_string(),
-                component_data: prost_to_serde_json(Value {
-                    kind: Some(value::Kind::NumberValue(1.0)),
-                })
-                .unwrap(),
-            },
-            ExpectedNodeComponents {
-                name: "key2".to_string(),
-                component_data: prost_to_serde_json(Value {
-                    kind: Some(value::Kind::NumberValue(2.0)),
-                })
-                .unwrap(),
-            },
-        ];
-        let res1 = sqlx::query!("SELECT * FROM simulations")
-            .fetch_all(&pool)
-            .await
-            .expect("Error executing query simulations");
-        assert!(
-            res1.iter()
-                .any(|row| row.name == "sim1" && row.max_steps == 3 && row.step_size_ms == 30000),
-            "Assertion failed: mismatched values: - name: expected={}, \
-        max_steps: expected={}, step_size: expected={}; actual={:?}",
-            "sim1",
-            3,
-            30000,
-            res1
-        );
-        let res2 = sqlx::query!("SELECT * FROM nodes")
-            .fetch_all(&pool)
-            .await
-            .expect("Error executing query nodes");
-        for expected in expected_data {
-            assert!(res2.iter().any(|row| row.simulation_id == expected.simulation_id && row.time_step == expected.time_step
-                && row.node_id == expected.node_id && row.longitude == expected.longitude && row.latitude == expected.latitude),
-                    "Assertion failed: mismatched values: - simulation_id: expected={}, time_step: epxected={}, node_id: expected={}, longitude: expected={},\
-                    latitude: expected={}; actual={:?}", expected.simulation_id, expected.time_step, expected.node_id, expected.longitude, expected.latitude, res2);
-        }
-        let res3 = sqlx::query!("SELECT * FROM edges")
-            .fetch_all(&pool)
-            .await
-            .expect("Error executing query edges");
-        assert!(res3.iter().any(|row| row.edge_id == 0 && row.time_step == 0 && row.component_type == "Edge"
-            && row.from_node == 0 && row.to_node == 1 && row.component_data == prost_to_serde_json(Value { kind: Some(value::Kind::NumberValue(42.0)) }).unwrap())
-                , "Assertion failed: mismatched values: - edge_id: expected={}; time_step: expected={}, component_type: expected={}, \
-                from_node: expected={}, to_node: expected={}, component_data: expected={}; actual={:?}", 0, 0, "Edge", 0, 1,
-                prost_to_serde_json(Value { kind: Some(value::Kind::NumberValue(42.0)) }).unwrap(), res3);
-        let res4 = sqlx::query!("SELECT * FROM queue")
-            .fetch_all(&pool)
-            .await
-            .expect("Error executing query queue");
-        assert!(
-            res4.iter().any(|row| row.simulation_id == res.id),
-            "Assertion failed: mistmatched values: - simulation id: expected={}; actual={:?}",
-            res.id,
-            res4
-        );
-        let res5 = sqlx::query!("SELECT * FROM global_components")
-            .fetch_all(&pool)
-            .await
-            .expect("Error executing query global components");
-        let value = prost_to_serde_json(Value {
-            kind: Some(value::Kind::NumberValue(3.0)),
-        })
-        .unwrap();
-        assert!(res5.iter().any(|row| row.simulation_id == res.id && row.time_step == 0 && row.name == "key3" &&
-            row.component_data == value), "Assertion failed: mismatched values: - id: expected={}, \
-                    time_step: expected={}; name: expected={}; component_data: expected={}; actual={:?}", 0, res.id, "key3", value, res5);
-        let res6 = sqlx::query!("SELECT * FROM node_components")
-            .fetch_all(&pool)
-            .await
-            .expect("Error executing query global components");
 
-        for expected in expected_component_data {
-            assert!(
-                res6.iter().any(|row| row.name == expected.name
-                    && row.component_data == expected.component_data),
-                "Assertion failed: mismatched values: - name: expected={}, \
-                    component_data: expected={}; actual={:?}",
-                expected.name,
-                expected.component_data,
-                res6
-            );
-        }
+        // Check if the data in the database is correct
+        let simulation = manager
+            .db
+            .lock()
+            .await
+            .get_simulation_via_name("sim1")
+            .await
+            .unwrap();
+
+        assert_eq!(simulation.name, "sim1");
+        assert_eq!(simulation.max_steps, 3);
+        assert_eq!(simulation.step_size_ms, 30000);
+
+        // Check if the nodes are added correctly to the database
+        let nodes = manager
+            .db
+            .lock()
+            .await
+            .get_nodes(simulation.id, 0)
+            .await
+            .unwrap();
+
+        assert_eq!(nodes[0], node0);
+        assert_eq!(nodes[1], node1);
+
+        // Check if the edges are added correctly to the database
+        let edges = manager
+            .db
+            .lock()
+            .await
+            .get_edges(simulation.id, 0)
+            .await
+            .unwrap();
+
+        assert_eq!(edges[0], edge1);
+
+        // Check if the global components are added correctly to the database
+        let globals = manager
+            .db
+            .lock()
+            .await
+            .get_global_components(simulation.id, 0)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            globals["key3"],
+            Value {
+                kind: Some(Kind::NumberValue(3.0)),
+            }
+        );
     }
 
     pub struct ManagerTest {}

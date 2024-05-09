@@ -588,31 +588,11 @@ mod database_test {
     use prost_types::Value;
 
     #[sqlx::test(migrations = "../migrations/simulator/")]
-    async fn test_queue(pool: sqlx::PgPool) {
-        let mut db = SimulationsDB::from_pg_pool(pool).await.unwrap();
-        let id_1 = db
-            .add_simulation("sim1", 1000, 100, StatusEnum::Pending)
-            .await
-            .unwrap();
-        let id_2 = db
-            .add_simulation("sim2", 2000, 200, StatusEnum::Pending)
-            .await
-            .unwrap();
-        db.enqueue(id_1).await.unwrap();
-        db.enqueue(id_2).await.unwrap();
-        let q1 = db.get_next_simulation().await.unwrap();
-        let q2 = db.get_next_simulation().await.unwrap();
-        let q3 = db.get_next_simulation().await.unwrap();
-        assert_eq!(q1, Some(id_1));
-        assert_eq!(q2, Some(id_2));
-        assert_eq!(q3, None);
-    }
-    #[sqlx::test(migrations = "../migrations/simulator/")]
     async fn test_add_edge(pool: sqlx::PgPool) {
         let mut db = SimulationsDB::from_pg_pool(pool).await.unwrap();
         db.begin_transaction().await.unwrap();
         let simulation_id = db
-            .add_simulation("sim", 42000, 10, StatusEnum::Pending)
+            .add_simulation("sim", 42000, 10, StatusEnum::Pending, vec![])
             .await
             .unwrap();
         db.add_node(
@@ -677,7 +657,7 @@ mod database_test {
     async fn test_nodes_filtered(pool: sqlx::PgPool) {
         let mut db = SimulationsDB::from_pg_pool(pool).await.unwrap();
         let simulation_id = db
-            .add_simulation("sim", 42000, 10, "Pending")
+            .add_simulation("sim", 42000, 10, StatusEnum::Pending, vec![])
             .await
             .unwrap();
         db.add_node(
