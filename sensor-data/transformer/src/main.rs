@@ -287,12 +287,16 @@ impl TransformerJob {
                 })
                 .collect();
             let ids: Vec<i32> = chunk.iter().map(|item| item.sensor_signal_id).collect();
-            sqlx::query!(
+            if let Err(e) = sqlx::query!(
                 "INSERT INTO sensor_values (timestamp, value, sensor_signal_id) SELECT * FROM UNNEST($1::timestamptz[], $2::decimal[], $3::int[])",
                 &timestamps[..],
                 &values[..],
                 &ids[..]
-            ).execute(&self.pool).await?;
+            ).execute(&self.pool).await{
+                // If the query fails, clear duplicate entries.
+                self.clear_buffer();
+                return Err(Box::new(e));
+            }
 
             amt_chunks += 1;
         }
