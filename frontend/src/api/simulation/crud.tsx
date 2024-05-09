@@ -1,15 +1,14 @@
 'use client';
-import { createChannel, createClient } from 'nice-grpc-web';
+import { createChannel } from 'nice-grpc-web';
 import {
     CreateSimulationParams,
     Simulation,
     SimulationInterfaceServiceDefinition,
     Simulations,
+    SimulationStatus,
 } from '@/proto/simulation/frontend';
-import { Simulators } from '@/proto/simulation/simulation-manager';
+import { ComponentsInfo, Simulators } from '@/proto/simulation/simulation-manager';
 import { uiBackendServiceUrl } from '@/api/urls';
-import { ComponentsInfo } from '@/proto/simulation/simulation-manager';
-import { SensorCRUDServiceClient, SensorCRUDServiceDefinition } from '@/proto/sensor/sensor-crud';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { clientAuthLayer } from '@/api/protecteRequestFactory';
 
@@ -55,19 +54,51 @@ export async function BackendDeleteSimulation(simulationId: number): Promise<boo
 }
 
 export async function BackendGetSimulationDetails(simulationId: string): Promise<Simulation> {
-    const channel = createChannel(uiBackendServiceUrl);
-    const client = clientAuthLayer.create(SimulationInterfaceServiceDefinition, channel);
-    return await client.getSimulation({ uuid: simulationId });
+    try {
+        const channel = createChannel(uiBackendServiceUrl);
+        const client = clientAuthLayer.create(SimulationInterfaceServiceDefinition, channel);
+        return await client.getSimulation({ uuid: simulationId });
+    } catch (error) {
+        ToastNotification(
+            'error',
+            'Simulation details request failed (see console for more details)'
+        );
+        console.error('Simulation details request failed:', error);
+        return {
+            creationDateTime: 0,
+            endDateTime: 0,
+            framesLoaded: 0,
+            id: 0,
+            name: 'Failed to load',
+            startDateTime: 0,
+            status: SimulationStatus.FAILED,
+        };
+    }
 }
 
 export async function BackendGetSimulators(): Promise<Simulators> {
-    const channel = createChannel(uiBackendServiceUrl);
-    const client = clientAuthLayer.create(SimulationInterfaceServiceDefinition, channel);
-    return await client.getSimulators(Request);
+    try {
+        const channel = createChannel(uiBackendServiceUrl);
+        const client = clientAuthLayer.create(SimulationInterfaceServiceDefinition, channel);
+        return await client.getSimulators(Request);
+    } catch (error) {
+        ToastNotification('error', 'Failed to load simulators (see console for more details)');
+        console.error('Failed to load simulators:', error);
+        return { simulator: [] };
+    }
 }
 
 export async function BackendGetComponent(): Promise<ComponentsInfo> {
-    const channel = createChannel(uiBackendServiceUrl);
-    const client = clientAuthLayer.create(SimulationInterfaceServiceDefinition, channel);
-    return await client.getComponents({});
+    try {
+        const channel = createChannel(uiBackendServiceUrl);
+        const client = clientAuthLayer.create(SimulationInterfaceServiceDefinition, channel);
+        return await client.getComponents({});
+    } catch (error) {
+        ToastNotification(
+            'error',
+            'Failed to load simulation components (see console for more details)'
+        );
+        console.error('Failed to load simulation components:', error);
+        return { components: {} };
+    }
 }

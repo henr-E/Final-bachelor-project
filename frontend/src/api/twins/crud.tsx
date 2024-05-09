@@ -1,12 +1,9 @@
 'use client';
 import ToastNotification from '@/components/notification/ToastNotification';
-import { buildingObject, TwinServiceDefinition, presetObject } from '@/proto/twins/twin';
-import { ClientError, createChannel, createClient, Status } from 'nice-grpc-web';
+import { presetObject, TwinServiceDefinition } from '@/proto/twins/twin';
+import { ClientError, createChannel, Status } from 'nice-grpc-web';
 import { uiBackendServiceUrl } from '@/api/urls';
 import '@/store/twins/Provider';
-import { SensorCRUDServiceClient, SensorCRUDServiceDefinition } from '@/proto/sensor/sensor-crud';
-import { failureReasonToString } from '@/api/sensor/crud';
-import { SimulationInterfaceServiceDefinition } from '@/proto/simulation/frontend';
 import { clientAuthLayer } from '@/api/protecteRequestFactory';
 
 export async function BackendCreateTwin(
@@ -111,8 +108,7 @@ export async function BackendCreatePreset(
         const channel = createChannel(uiBackendServiceUrl);
         const client = clientAuthLayer.create(TwinServiceDefinition, channel);
         const request: presetObject = { name: presetName, info: presetInfo, isEdge: presetIs_edge };
-        const response = await client.createPreset(request);
-        return response;
+        return await client.createPreset(request);
     } catch (error) {
         ToastNotification('error', 'Failed to create preset.');
         console.error('Failed to create preset.', error);

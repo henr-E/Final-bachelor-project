@@ -71,7 +71,7 @@ function SimulationOverviewPage() {
                             >
                                 Create Simulation
                             </Button>
-                            {twinState.current.simulations.length != 0 && (
+                            {twinState.current.simulations?.length != 0 && (
                                 <Button
                                     color='indigo'
                                     theme={{
