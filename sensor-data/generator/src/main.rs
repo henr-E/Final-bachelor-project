@@ -24,7 +24,7 @@ mod virtual_sensor;
 
 const INGEST_SERVICE_URL_ENV: &str = "SENSOR_DATA_INGESTOR_URL";
 const DEFAULT_INGEST_SERVICE_URL: &str = "http://0.0.0.0:8084";
-const DAYS_OF_EXTRA_DATA: u64 = 14;
+const DAYS_OF_EXTRA_DATA: u64 = 5;
 
 struct GeneratorJob {
     sensor_store: SensorStore,
@@ -111,7 +111,7 @@ async fn generate_last_n_days(
                         // no unwrap due to timing issue
                         if let Some(&amt) = amount_per_signal.get(&sensor_id) {
                             // if there is already some data for this sensor, don't register it.
-                            if amt < 1000 {
+                            if amt < 2000 {
                                 sensor_found_map.entry(sensor_id).or_insert(Utc::now());
                             }
                             sensors.insert(sensor_id, sensor);
