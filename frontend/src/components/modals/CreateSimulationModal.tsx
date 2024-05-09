@@ -1,6 +1,6 @@
 'use client';
-import { useContext, useState, useRef, useEffect } from 'react';
-import { Button, Modal, Label, TextInput, Datepicker, Table, Checkbox } from 'flowbite-react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { Button, Checkbox, Datepicker, Label, Modal, Table } from 'flowbite-react';
 import dynamic from 'next/dynamic';
 import { CreateSimulationParams } from '@/proto/simulation/frontend';
 import { SimulatorInfo } from '@/proto/simulation/simulation-manager';
@@ -15,6 +15,8 @@ import {
     BackendGetSimulators,
 } from '@/api/simulation/crud';
 import CustomJsonEditor, { TypeConverter } from '@/components/CustomJsonEditor';
+import { TourControlContext } from '@/store/tour';
+import { end } from '@popperjs/core';
 
 interface CreateSimulationModalProps {
     isModalOpen: boolean;
@@ -39,17 +41,6 @@ enum ModalPage {
     GLOBAL,
 }
 
-interface JsonData {
-    the: string;
-    that: string;
-    on: string;
-    moon: string;
-    maybe: number;
-    i: string;
-    probably: string[];
-    am_i_right: boolean;
-}
-
 function CreateSimulationModal(propItems: CreateSimulationModalProps) {
     const [twinState, dispatchTwin] = useContext(TwinContext);
     const [modalPage, setModalPage] = useState<ModalPage>(ModalPage.SIMULATION);
@@ -65,22 +56,26 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
     const nodeItemsRef = useRef<Map<number, NodeItem>>();
     const edgeItemsRef = useRef<Array<LineItem>>();
     const formRef = useRef<HTMLFormElement>(null);
+    const tourController = useContext(TourControlContext);
 
     useEffect(() => {
         async function fetchSimulators() {
-            setSimulators((await BackendGetSimulators()).simulator);
+            let test = (await BackendGetSimulators()).simulator;
+            setSimulators(test);
+            console.log(test);
         }
+
         fetchSimulators().then();
     }, []);
 
     useEffect(() => {
-        setName(propItems.title || '');
-        setStartDate(propItems.startDate || new Date(Date.now()));
-        setEndDate(propItems.endDate || new Date(Date.now()));
-        setStartTime(propItems.startTime || '');
-        setEndTime(propItems.endTime || '');
-        setTimeStepDelta(propItems.timeStepDelta || 0);
-        setGlobalComponents(propItems.globalComponents || '{}');
+        setName(propItems.title || name);
+        setStartDate(propItems.startDate || startDate);
+        setEndDate(propItems.endDate || endDate);
+        setStartTime(propItems.startTime || startTime);
+        setEndTime(propItems.endTime || endTime);
+        setTimeStepDelta(propItems.timeStepDelta || timeStepDelta);
+        setGlobalComponents(propItems.globalComponents || globalComponents);
     }, [propItems]);
 
     const GenerateSimulation = async () => {
@@ -247,6 +242,8 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                     return;
                 }
 
+                tourController?.customGoToNextTourStep(1);
+
                 const startTimeSplit = startTime.split(':');
                 let startDateTime = startDate;
                 startDateTime.setHours(+startTimeSplit[0], +startTimeSplit[1], +startTimeSplit[2]);
@@ -267,6 +264,9 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                     ToastNotification('warning', 'Must select at least one simulator!');
                     return;
                 }
+                if (tourController?.isOpen) {
+                    tourController?.customCloseTourAndStartAtStep(5);
+                }
                 setModalPage(ModalPage.GLOBALCOMPONENTS);
                 await getComponentGlobalComponents();
                 return;
@@ -286,22 +286,7 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
             }
         }
     };
-    const handlePreviousButtonClick = () => {
-        switch (modalPage) {
-            case ModalPage.SIMULATION: {
-                closeModelAndReset();
-                break;
-            }
-            case ModalPage.SIMULATORS: {
-                setModalPage(ModalPage.SIMULATION);
-                return;
-            }
-            case ModalPage.GLOBAL: {
-                setModalPage(ModalPage.SIMULATION);
-                return;
-            }
-        }
-    };
+
     const closeModelAndReset = () => {
         setModalPage(ModalPage.SIMULATION);
         setName(propItems.title || '');
@@ -319,9 +304,6 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
         ssr: false,
     });
 
-    const onJsonChange = (key: string, value: any, parent: any, data: JsonData) => {
-        console.log(key, value, parent, data);
-    };
     const CreateSimulationStepper = () => {
         const activeStyles = 'text-indigo-600';
         return (
@@ -423,110 +405,115 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                 {modalPage === ModalPage.SIMULATION && (
                     <Modal.Body>
                         <CreateSimulationStepper />
-                        <form ref={formRef}>
-                            <div className='flex flex-row w-full space-x-3 pt-3'>
-                                <div className='basis-1/2'>
-                                    <div className='mb-2 block'>
-                                        <Label htmlFor='name' value='Name' />
-                                    </div>
-                                    <input
-                                        id='name'
-                                        type='text'
-                                        value={name}
-                                        className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
-                                        placeholder='name'
-                                        required
-                                        maxLength={50}
-                                        onChange={e => setName(e.target.value)}
-                                        style={{ marginBottom: '10px' }}
-                                    />
-                                </div>
-                                <div className='basis-1/2'>
-                                    <div className='mb-2 block'>
-                                        <Label
-                                            htmlFor='timestepdelta'
-                                            value='Timestep delta (seconds)'
+                        <div className={'tour-step-1-simulation'}>
+                            <form ref={formRef}>
+                                <div className='flex flex-row w-full space-x-3 pt-3'>
+                                    <div className='basis-1/2'>
+                                        <div className='mb-2 block'>
+                                            <Label htmlFor='name' value='Name' />
+                                        </div>
+                                        <input
+                                            id='name'
+                                            type='text'
+                                            value={name}
+                                            className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
+                                            placeholder='name'
+                                            required
+                                            maxLength={50}
+                                            onChange={e => setName(e.target.value)}
+                                            style={{ marginBottom: '10px' }}
                                         />
                                     </div>
-                                    <input
-                                        id='timesteps'
-                                        value={timeStepDelta}
-                                        placeholder={'1'}
-                                        className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
-                                        min={1}
-                                        maxLength={200}
-                                        required
-                                        type='number'
-                                        onChange={e => setTimeStepDelta(+e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                            <div className='flex flex-row w-full space-x-3 pt-3'>
-                                <div className='basis-1/2'>
-                                    <div className='mb-2 block'>
-                                        <Label htmlFor='starttime' value='Start time (hh:mm:ss)' />
+                                    <div className='basis-1/2'>
+                                        <div className='mb-2 block'>
+                                            <Label
+                                                htmlFor='timestepdelta'
+                                                value='Timestep delta (seconds)'
+                                            />
+                                        </div>
+                                        <input
+                                            id='timesteps'
+                                            value={timeStepDelta}
+                                            placeholder={'1'}
+                                            className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
+                                            min={1}
+                                            maxLength={200}
+                                            required
+                                            type='number'
+                                            onChange={e => setTimeStepDelta(+e.target.value)}
+                                        />
                                     </div>
-                                    <input
-                                        id='starttime'
-                                        type='text'
-                                        value={startTime}
-                                        placeholder={'00:00:00'}
-                                        className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
-                                        pattern='\d{2}:\d{2}:\d{2}'
-                                        maxLength={200}
-                                        required
-                                        onChange={e => setStartTime(e.target.value)}
-                                    />
                                 </div>
-                                <div className='basis-1/2'>
-                                    <div className='mb-2 block'>
-                                        <Label htmlFor='startdate' value='Start date' />
+                                <div className='flex flex-row w-full space-x-3 pt-3'>
+                                    <div className='basis-1/2'>
+                                        <div className='mb-2 block'>
+                                            <Label
+                                                htmlFor='starttime'
+                                                value='Start time (hh:mm:ss)'
+                                            />
+                                        </div>
+                                        <input
+                                            id='starttime'
+                                            type='text'
+                                            value={startTime}
+                                            placeholder={'00:00:00'}
+                                            className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
+                                            pattern='\d{2}:\d{2}:\d{2}'
+                                            maxLength={200}
+                                            required
+                                            onChange={e => setStartTime(e.target.value)}
+                                        />
                                     </div>
-                                    <Datepicker
-                                        id='startdate'
-                                        style={{ zIndex: 50 }}
-                                        defaultDate={startDate}
-                                        required
-                                        onSelectedDateChanged={date => setStartDate(date)}
-                                    />
-                                </div>
-                            </div>
-                            <div className='flex flex-row w-full space-x-3 pt-3'>
-                                <div className='basis-1/2'>
-                                    <div className='mb-2 block'>
-                                        <Label htmlFor='endtime' value='End time (hh:mm:ss)' />
+                                    <div className='basis-1/2'>
+                                        <div className='mb-2 block'>
+                                            <Label htmlFor='startdate' value='Start date' />
+                                        </div>
+                                        <Datepicker
+                                            id='startdate'
+                                            style={{ zIndex: 50 }}
+                                            defaultDate={startDate}
+                                            required
+                                            onSelectedDateChanged={date => setStartDate(date)}
+                                        />
                                     </div>
-                                    <input
-                                        id='endtime'
-                                        type='text'
-                                        className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
-                                        value={endTime}
-                                        placeholder={'00:00:00'}
-                                        pattern='\d{2}:\d{2}:\d{2}'
-                                        maxLength={200}
-                                        required
-                                        onChange={e => setEndTime(e.target.value)}
-                                    />
                                 </div>
-                                <div className='basis-1/2'>
-                                    <div className='mb-2 block'>
-                                        <Label htmlFor='enddate' value='End date' />
+                                <div className='flex flex-row w-full space-x-3 pt-3'>
+                                    <div className='basis-1/2'>
+                                        <div className='mb-2 block'>
+                                            <Label htmlFor='endtime' value='End time (hh:mm:ss)' />
+                                        </div>
+                                        <input
+                                            id='endtime'
+                                            type='text'
+                                            className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
+                                            value={endTime}
+                                            placeholder={'00:00:00'}
+                                            pattern='\d{2}:\d{2}:\d{2}'
+                                            maxLength={200}
+                                            required
+                                            onChange={e => setEndTime(e.target.value)}
+                                        />
                                     </div>
-                                    <Datepicker
-                                        id='enddate'
-                                        style={{ zIndex: 50 }}
-                                        defaultDate={endDate}
-                                        required
-                                        onSelectedDateChanged={date => setEndDate(date)}
-                                    />
+                                    <div className='basis-1/2'>
+                                        <div className='mb-2 block'>
+                                            <Label htmlFor='enddate' value='End date' />
+                                        </div>
+                                        <Datepicker
+                                            id='enddate'
+                                            style={{ zIndex: 50 }}
+                                            defaultDate={endDate}
+                                            required
+                                            onSelectedDateChanged={date => setEndDate(date)}
+                                        />
+                                    </div>
                                 </div>
-                            </div>
-                        </form>
+                            </form>
+                        </div>
                     </Modal.Body>
                 )}
                 {modalPage === ModalPage.SIMULATORS && (
                     <Modal.Body>
-                        <div className='overflow-x-auto'>
+                        <div className='tour-step-3-simulation overflow-x-auto'>
                             <Table hoverable>
                                 <Table.Head>
                                     <Table.HeadCell className='p-4'>
@@ -601,7 +588,7 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                 )}
                 {modalPage == ModalPage.GLOBALCOMPONENTS && (
                     <Modal.Body>
-                        <div className='flex flex-row w-full space-x-3 pt-3'>
+                        <div className='tour-step-5-simulation flex flex-row w-full space-x-3 pt-3'>
                             <div className='w-full'>
                                 <CustomJsonEditor
                                     data={JSON.parse(globalComponents)}
@@ -615,7 +602,10 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                     </Modal.Body>
                 )}
                 {modalPage == ModalPage.GLOBAL && (
-                    <Modal.Body style={{ overflowY: 'hidden' }}>
+                    <Modal.Body
+                        className={'tour-step-7-simulation'}
+                        style={{ overflowY: 'hidden' }}
+                    >
                         <div className='h-screen w-full'>
                             <div style={{ height: '60%' }}>
                                 <MapEditor
@@ -645,13 +635,26 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                         </Button>
                     )}
                     <Button
+                        className={
+                            'tour-step-2-simulation tour-step-4-simulation tour-step-6-simulation tour-step-8-simulation'
+                        }
                         color='indigo'
                         theme={{
                             color: {
                                 indigo: 'bg-indigo-600 text-white ring-indigo-600',
                             },
                         }}
-                        onClick={handleNextButtonClick}
+                        onClick={() => {
+                            handleNextButtonClick();
+                            if (modalPage === ModalPage.GLOBALCOMPONENTS) {
+                                tourController?.customGoToNextTourStep(1);
+                            } else if (modalPage === ModalPage.GLOBAL) {
+                                if (tourController?.isOpen) {
+                                    //no need to check which steps the tour is doing because the classnames are all simulation steps
+                                    tourController?.customCloseTourAndStartAtStep(9);
+                                }
+                            }
+                        }}
                     >
                         {modalPage == ModalPage.GLOBAL ? 'Create' : 'Next'}
                     </Button>

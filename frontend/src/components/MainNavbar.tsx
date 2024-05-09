@@ -1,5 +1,4 @@
 'use client';
-
 import { UserContext } from '@/store/user';
 import {
     Button,
@@ -9,9 +8,14 @@ import {
     NavbarLink,
     NavbarToggle,
 } from 'flowbite-react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useContext } from 'react';
 import Image from 'next/image';
+import { Tooltip } from 'react-tooltip';
+import { simulationSteps } from '@/store/tour/steps/simulation';
+import { TourControlContext } from '@/store/tour';
+import { startupSteps } from '@/store/tour/steps/startup';
+import ToastNotification from '@/components/notification/ToastNotification';
 
 interface MainNavbarProps {
     openLoginModal: () => void;
@@ -21,6 +25,8 @@ interface MainNavbarProps {
 function MainNavbar({ openLoginModal, openRegisterModal }: MainNavbarProps) {
     const [userState, dispatch] = useContext(UserContext);
     const router = useRouter();
+    const pathName = usePathname();
+    const tourController = useContext(TourControlContext);
 
     const handleGetStartedButtonClick = () => {
         const token = localStorage.getItem('authToken');
@@ -39,7 +45,12 @@ function MainNavbar({ openLoginModal, openRegisterModal }: MainNavbarProps) {
     return (
         <>
             <Navbar fluid rounded>
-                <NavbarBrand>
+                <NavbarBrand
+                    onClick={() => {
+                        router.push('/');
+                    }}
+                    className={'cursor-pointer'}
+                >
                     <Image src='/favicons/favicon.ico' width={36} height={36} alt='Logo' />
                     <span className='self-center whitespace-nowrap text-xl font-semibold dark:text-white'>
                         Digital Twin
@@ -47,30 +58,84 @@ function MainNavbar({ openLoginModal, openRegisterModal }: MainNavbarProps) {
                 </NavbarBrand>
                 <div className='flex md:order-2'>
                     {!userState.user && (
-                        <Button onClick={handleRegisterButtonClick} color='green'>
+                        <Button
+                            className={'tour-step-2-startup'}
+                            onClick={() => {
+                                handleRegisterButtonClick();
+                                tourController?.customGoToNextTourStep(1);
+                            }}
+                            color='green'
+                        >
                             Register
                         </Button>
                     )}
                     <div className='ml-2'>
-                        <Button color='indigo' onClick={handleGetStartedButtonClick}>
-                            {userState.user ? 'Dashboard' : 'Login'}
-                        </Button>
+                        {!userState.user && (
+                            <Button
+                                className={'tour-step-5-startup'}
+                                color='indigo'
+                                onClick={() => {
+                                    handleGetStartedButtonClick();
+                                    //login button
+                                    tourController?.customGoToNextTourStep(1);
+                                }}
+                            >
+                                Login
+                            </Button>
+                        )}
+                        {userState.user && (
+                            <Button
+                                className={'tour-step-2-startup '}
+                                color='indigo'
+                                onClick={() => {
+                                    handleGetStartedButtonClick();
+                                    //dashboard button
+                                    tourController?.customGoToNextTourStep(1);
+                                    tourController?.setIsOpen(false);
+                                }}
+                            >
+                                Dashboard
+                            </Button>
+                        )}
                         <NavbarToggle />
                     </div>
                 </div>
                 <NavbarCollapse>
-                    <NavbarLink href='#' active>
+                    <NavbarLink
+                        className={
+                            pathName === '/' ? 'underline decoration-solid text-indigo-600' : ''
+                        }
+                        href='/'
+                    >
                         Home
                     </NavbarLink>
-                    <NavbarLink href='#'>About</NavbarLink>
-                    <NavbarLink href='#'>Docs</NavbarLink>
-                    <NavbarLink href='#'>Contact</NavbarLink>
+
+                    <NavbarLink
+                        className={
+                            pathName === '/docs'
+                                ? 'tour-step-1-startup underline decoration-solid text-indigo-600'
+                                : 'tour-step-1-startup'
+                        }
+                        href='/docs'
+                    >
+                        Docs
+                    </NavbarLink>
+
+                    <div
+                        className={'tour-step-0-startup cursor-pointer'}
+                        onClick={() => {
+                            tourController?.setIsOpen(true);
+                            tourController?.setCurrentStep(0);
+                            if (tourController?.customSetSteps) {
+                                tourController?.customSetSteps(startupSteps);
+                            }
+                            ToastNotification('info', 'Loading tutorial');
+                        }}
+                    >
+                        Startup Tutorial
+                    </div>
                 </NavbarCollapse>
             </Navbar>
-            <div className='flex flex-col justify-center items-center h-screen'>
-                <Image src='/favicons/favicon.ico' width={405} height={509} alt='Logo' />
-                <h1 className='text-indigo-700 text-3xl font-bold mt-4'>DIGITAL TWIN</h1>
-            </div>
         </>
     );
 }

@@ -2,12 +2,13 @@
 
 import { Button, Label, Modal, TextInput } from 'flowbite-react';
 
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { register } from '@/lib/authentication';
 import { FaUser } from 'react-icons/fa';
 import { RiLockPasswordFill } from 'react-icons/ri';
 import { removeCookie } from 'typescript-cookie';
 import ToastNotification from '@/components/notification/ToastNotification';
+import { TourControlContext } from '@/store/tour';
 
 interface RegisterModalProps {
     isRegisterModalOpen: boolean;
@@ -18,6 +19,7 @@ export function RegisterModal({ isRegisterModalOpen, closeRegisterModal }: Regis
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const tourController = useContext(TourControlContext);
 
     const validatePassword = () => {
         const hasNumber = /\d/.test(password);
@@ -73,6 +75,8 @@ export function RegisterModal({ isRegisterModalOpen, closeRegisterModal }: Regis
             closeRegisterModal();
         }
         setToDefault();
+
+        tourController?.customGoToNextTourStep(1);
     };
 
     const setToDefault = () => {
@@ -92,7 +96,7 @@ export function RegisterModal({ isRegisterModalOpen, closeRegisterModal }: Regis
             <Modal show={isRegisterModalOpen} onClose={closeRegisterModal}>
                 <form action={handleSubmit}>
                     <Modal.Header>Register</Modal.Header>
-                    <Modal.Body>
+                    <Modal.Body className={'tour-step-3-startup'}>
                         <div>
                             <div className='mb-2 block'>
                                 <Label htmlFor='username' value='Your username' />
@@ -142,7 +146,7 @@ export function RegisterModal({ isRegisterModalOpen, closeRegisterModal }: Regis
                         </div>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button color='green' type='submit'>
+                        <Button className={'tour-step-4-startup'} color='green' type='submit'>
                             Register
                         </Button>
                         <Button color='gray' onClick={handleCancelButtonClick}>

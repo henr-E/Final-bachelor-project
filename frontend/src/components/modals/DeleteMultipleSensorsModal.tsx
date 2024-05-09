@@ -2,6 +2,8 @@
 
 import { Alert, Button, Modal } from 'flowbite-react';
 import { Sensor } from '@/proto/sensor/sensor-crud';
+import { useContext } from 'react';
+import { TourControlContext } from '@/store/tour';
 
 interface DeleteMultipleSensorsModalProps {
     isModalOpen: boolean;
@@ -20,6 +22,7 @@ function DeleteMultipleSensorsModal({
         confirm();
         closeModal();
     };
+    const tourController = useContext(TourControlContext);
 
     return (
         <Modal show={isModalOpen} onClose={closeModal}>
@@ -52,7 +55,14 @@ function DeleteMultipleSensorsModal({
                     Cancel
                 </Button>
                 <div className='grow'></div>
-                <Button color='warning' onClick={handleConfirmButtonClick}>
+                <Button
+                    className={'tour-step-18-sensors'}
+                    color={'red'}
+                    onClick={() => {
+                        handleConfirmButtonClick();
+                        tourController?.setIsOpen(false);
+                    }}
+                >
                     Delete
                 </Button>
             </Modal.Footer>

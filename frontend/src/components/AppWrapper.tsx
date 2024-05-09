@@ -1,10 +1,12 @@
 'use client';
 import 'react-toastify/dist/ReactToastify.css';
-import ToastNotification, { ToastContainer } from '@/components/notification/ToastNotification';
-import { UserFromProvider, UserContext } from '@/store/user';
+import { ToastContainer } from '@/components/notification/ToastNotification';
+import { UserContext, UserFromProvider } from '@/store/user';
 import { useContext, useEffect } from 'react';
-import { jwtDecode, InvalidTokenError } from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode';
 import { usePathname, useRouter } from 'next/navigation';
+import { TourProvider } from '@reactour/tour';
+import { TourControlProvider } from '@/store/tour';
 
 function AppWrapper({ children }: { children: React.ReactNode }) {
     const [userState, dispatchUser] = useContext(UserContext);
@@ -35,10 +37,24 @@ function AppWrapper({ children }: { children: React.ReactNode }) {
         }
     }, [dispatchUser, userState.token, userState.user, pathName, router]);
     return (
-        <>
-            <ToastContainer />
-            {children}
-        </>
+        <TourProvider
+            steps={[]}
+            disableDotsNavigation={true}
+            // onClickMask is for clicking out of the box
+            onClickMask={({ setCurrentStep, currentStep, setIsOpen }) => {
+                //     if (currentStep === overview.length - 1) {
+                //         setIsOpen(false);
+                //     } else {
+                //         setCurrentStep(currentStep + 1);
+                //     }
+            }}
+        >
+            <TourControlProvider>
+                <ToastContainer />
+
+                {children}
+            </TourControlProvider>
+        </TourProvider>
     );
 }
 

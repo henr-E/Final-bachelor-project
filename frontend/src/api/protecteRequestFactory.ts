@@ -28,7 +28,8 @@ async function* loginStatusCheckerMiddleware<Request, Response>(
         if (
             error instanceof ClientError &&
             Status[error.code] == 'UNAUTHENTICATED' &&
-            document.location.pathname != '/'
+            document.location.pathname != '/' &&
+            document.location.pathname != '/docs'
         ) {
             localStorage.removeItem('authToken');
             ToastNotification('error', 'Not singed in');

@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { login } from '@/lib/authentication';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { UserContext } from '@/store/user';
+import { TourControlContext } from '@/store/tour';
 
 interface LoginModalProps {
     isLoginModalOpen: boolean;
@@ -20,6 +21,7 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
 
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const tourController = useContext(TourControlContext);
 
     const handleSubmit = async () => {
         let formdata = new FormData();
@@ -40,6 +42,7 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
             ToastNotification('error', response.val.message);
             return;
         }
+        tourController?.setIsOpen(false);
     };
 
     const setToDefault = () => {
@@ -57,7 +60,7 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
             <Modal show={isLoginModalOpen} onClose={closeLoginModal}>
                 <form action={handleSubmit}>
                     <Modal.Header>Login</Modal.Header>
-                    <Modal.Body>
+                    <Modal.Body className={'tour-step-6-startup'}>
                         <div>
                             <div className='mb-2 block'>
                                 <Label htmlFor='username' value='Your username' />
@@ -87,7 +90,7 @@ function LoginModal({ isLoginModalOpen, closeLoginModal }: LoginModalProps) {
                         </div>
                     </Modal.Body>
                     <Modal.Footer>
-                        <Button color='indigo' type='submit'>
+                        <Button className={'tour-step-7-startup'} color='indigo' type='submit'>
                             Login
                         </Button>
                         <Button color='gray' onClick={handleCancelButtonClick}>

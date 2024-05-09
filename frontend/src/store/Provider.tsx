@@ -4,6 +4,7 @@ import React from 'react';
 import { UserProvider } from './user';
 import { TwinProvider } from './twins';
 import { SensorProvider } from '@/store/sensor';
+import { ToastContainer } from '@/components/notification/ToastNotification';
 
 function Provider({ children }: { children: React.ReactNode }) {
     return (

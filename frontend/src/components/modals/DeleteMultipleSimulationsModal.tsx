@@ -2,6 +2,8 @@
 
 import { Alert, Button, Modal } from 'flowbite-react';
 import { Simulation } from '@/proto/simulation/frontend';
+import { useContext } from 'react';
+import { TourControlContext } from '@/store/tour';
 
 interface DeleteMultipleSimulationsModalProps {
     isModalOpen: boolean;
@@ -20,6 +22,7 @@ function DeleteMultipleSimulationsModal({
         confirm();
         closeModal();
     };
+    const tourController = useContext(TourControlContext);
 
     return (
         <Modal show={isModalOpen} onClose={closeModal}>
@@ -52,7 +55,14 @@ function DeleteMultipleSimulationsModal({
                     Cancel
                 </Button>
                 <div className='grow'></div>
-                <Button color='warning' onClick={handleConfirmButtonClick}>
+                <Button
+                    className={'tour-step-11-simulation'}
+                    color={'red'}
+                    onClick={() => {
+                        handleConfirmButtonClick();
+                        tourController?.setIsOpen(false);
+                    }}
+                >
                     Delete
                 </Button>
             </Modal.Footer>

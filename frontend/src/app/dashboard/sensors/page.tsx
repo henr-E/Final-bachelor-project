@@ -9,6 +9,7 @@ import { BackendCreateSensor, BackendDeleteSensor, BackendGetSensors } from '@/a
 import { TwinContext } from '@/store/twins';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { Sensor } from '@/proto/sensor/sensor-crud';
+import { TourControlContext } from '@/store/tour';
 
 interface renderSensorTableProps {
     sensors: Sensor[];
@@ -16,6 +17,8 @@ interface renderSensorTableProps {
     sensorsToDelete: Sensor[];
     setSensorsToDelete: (sensors: Sensor[]) => void;
     global: boolean;
+    customGoToNextTourStep: (timeout: number) => void;
+    createdSensorDuringTutorial?: number;
 }
 
 function renderSensorTable({
@@ -24,17 +27,29 @@ function renderSensorTable({
     sensorsToDelete,
     setSensorsToDelete,
     global,
+    customGoToNextTourStep,
+    createdSensorDuringTutorial,
 }: renderSensorTableProps) {
     return (
         <tbody>
-            {sensors.map(sensor => (
+            {sensors.map((sensor, index) => (
                 <tr
                     key={sensor.id}
                     className={global ? 'bg-indigo-300 ring-indigo-300 my-6' : 'my-6'}
                     style={{ cursor: 'pointer' }}
                 >
-                    <th scope='row' className='px-3 py-3 w-8'>
-                        <div className='flex items-center'>
+                    <th
+                        scope='row'
+                        className={
+                            index == 0 ? 'tour-step-16-sensors px-3 py-3 w-8' : 'px-3 py-3 w-8'
+                        }
+                    >
+                        <div
+                            className='flex items-center'
+                            onClick={() => {
+                                customGoToNextTourStep(1);
+                            }}
+                        >
                             <input
                                 id='checkbox-all-search'
                                 checked={sensorsToDelete.includes(sensor)}
@@ -52,7 +67,13 @@ function renderSensorTable({
                             />
                         </div>
                     </th>
-                    <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
+                    <td
+                        className='tour-step-7-sensors p-3 px-3'
+                        onClick={() => {
+                            handleClick(sensor);
+                            customGoToNextTourStep(1);
+                        }}
+                    >
                         {sensor.name}
                     </td>
                     <td className='p-3 px-3' onClick={() => handleClick(sensor)}>
@@ -138,6 +159,8 @@ function SensorPage() {
         setIsDeleteMultipleSensorsModalOpen(false);
     };
 
+    const tourController = useContext(TourControlContext);
+
     return (
         <>
             {!twinState.current && <div>Please select a Twin.</div>}
@@ -146,6 +169,7 @@ function SensorPage() {
                     <div className='space-y-4 flex flex-col w-auto'>
                         <div className='flex flex-row space-x-2'>
                             <Button
+                                className={'tour-step-0-sensors'}
                                 color='indigo'
                                 theme={{
                                     color: {
@@ -162,7 +186,16 @@ function SensorPage() {
                                                 'warning',
                                                 'There can be only one global sensor.'
                                             );
+                                            if (tourController?.isOpen) {
+                                                tourController.setIsOpen(false);
+                                                ToastNotification(
+                                                    'warning',
+                                                    'The tutorial has been stopped because a global sensor already exists.'
+                                                );
+                                            }
                                         } else {
+                                            //only go to the next tutorial window if there is no global tutorial
+                                            tourController?.customGoToNextTourStep(1);
                                             setIsCreateSensorModalOpen(true);
                                         }
                                     } else {
@@ -174,6 +207,7 @@ function SensorPage() {
                             </Button>
                             {twinState.current.sensors.length != 0 && (
                                 <Button
+                                    className={'tour-step-17-sensors'}
                                     color='indigo'
                                     theme={{
                                         color: {
@@ -193,6 +227,7 @@ function SensorPage() {
                                                 'Twin not selected. Try again.'
                                             );
                                         }
+                                        tourController?.customGoToNextTourStep(1);
                                     }}
                                 >
                                     Delete selected sensors
@@ -239,6 +274,9 @@ function SensorPage() {
                                         sensorsToDelete,
                                         setSensorsToDelete,
                                         global: true,
+                                        customGoToNextTourStep:
+                                            tourController?.customGoToNextTourStep ||
+                                            ((timeout: number): void => {}),
                                     })}
 
                                     {/*table for building sensors*/}
@@ -250,6 +288,9 @@ function SensorPage() {
                                         sensorsToDelete,
                                         setSensorsToDelete,
                                         global: false,
+                                        customGoToNextTourStep:
+                                            tourController?.customGoToNextTourStep ||
+                                            ((timeout: number): void => {}),
                                     })}
                                 </table>
                             </div>

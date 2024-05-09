@@ -29,6 +29,9 @@ cargo run --bin simulation-manager
 cargo run --bin time-simulator
 cargo run --bin ui-backend
 
+cargo run --bin energy-supply-and-demand-simulator
+cargo run --bin load-flow
+cargo run --bin weather-simulator
 ```
 
 #### if you want to run the sensors:

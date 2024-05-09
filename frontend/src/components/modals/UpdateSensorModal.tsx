@@ -17,9 +17,7 @@ import { Sensor } from '@/proto/sensor/sensor-crud';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { TwinContext } from '@/store/twins';
 import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
-import { BigDecimal } from '@/proto/sensor/bigdecimal';
-import { bigIntToExponent } from '@/store/sensor';
-import { getFirstQuantity } from '@/lib/util';
+import { TourControlContext } from '@/store/tour';
 
 interface UpdateSensorModalProps {
     isModalOpen: boolean;
@@ -64,6 +62,8 @@ function UpdateSensorModal({
     const [twinState, dispatch] = useContext(TwinContext);
 
     const basicFormRef = useRef<HTMLFormElement>(null);
+
+    const tourController = useContext(TourControlContext);
 
     useEffect(() => {
         BackendGetQuantityWithUnits().then(quantitiesWithUnits => {
@@ -305,7 +305,7 @@ function UpdateSensorModal({
                 <Modal.Body>
                     <UpdateSensorStepper page={modalPage} />
                     {modalPage === ModalPage.BASIC && (
-                        <div className='my-4'>
+                        <div className='tour-step-9-sensors my-4'>
                             <form ref={basicFormRef}>
                                 <div>
                                     <div className='mb-2 block'>
@@ -342,7 +342,7 @@ function UpdateSensorModal({
                         </div>
                     )}
                     {modalPage === ModalPage.SIGNALS && (
-                        <div className='flex flex-col space-y-4'>
+                        <div className='tour-step-11-sensors flex flex-col space-y-4'>
                             <Label>What does this sensor measure?</Label>
                             <ButtonGroup className=''>
                                 <select
@@ -424,7 +424,7 @@ function UpdateSensorModal({
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className={'tour-step-13-sensors'}>
                                     {Object.entries(quantities).map(([id, quantity]) => (
                                         <tr key={id}>
                                             <td className='w-32 p-2'>
@@ -506,6 +506,7 @@ function UpdateSensorModal({
                     </Button>
                     <div className='grow'></div>
                     <Button
+                        className={'tour-step-10-sensors tour-step-12-sensors tour-step-14-sensors'}
                         color='indigo'
                         disabled={
                             modalPage === ModalPage.SIGNALS &&
@@ -516,7 +517,17 @@ function UpdateSensorModal({
                                 indigo: 'bg-indigo-600 text-white ring-indigo-600',
                             },
                         }}
-                        onClick={handleNextButtonClick}
+                        onClick={() => {
+                            handleNextButtonClick();
+                            if (modalPage === ModalPage.BASIC || modalPage === ModalPage.SIGNALS) {
+                                tourController?.customGoToNextTourStep(1);
+                            } else if (modalPage === ModalPage.INGEST) {
+                                if (tourController?.isOpen) {
+                                    //no need to check which steps the tour is doing because the classnames are all sensors steps
+                                    tourController?.customCloseTourAndStartAtStep(15);
+                                }
+                            }
+                        }}
                     >
                         {modalPage === ModalPage.INGEST ? 'Update' : 'Next'}
                     </Button>
