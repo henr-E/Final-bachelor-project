@@ -204,10 +204,10 @@ pub mod energy {
         pub active_power: f64,
         /// Type of power produced
         pub power_type: PowerType,
-        /// Max reactive power in MVAR, set by manufacturer
-        pub max_reactive_power: f64,
-        /// Minimum reactive power in MVAR, set by manufacturer
-        pub min_reactive_power: f64,
+        /// Max active power in MVAR, set by manufacturer
+        pub max_active_power: f64,
+        /// Minimum active power in MVAR, set by manufacturer
+        pub min_active_power: f64,
     }
 
     #[derive(ComponentPiece, Component)]
@@ -227,7 +227,7 @@ pub mod energy {
         /// Maximum voltage in per unit (pu)
         pub max_voltage_magnitude: f64,
         /// Maximum allowable current on transmission lines in amperes.
-        pub thermal_limit: f64,
+        pub max_current: f64,
     }
 
     #[derive(ComponentPiece, Component, Clone)]

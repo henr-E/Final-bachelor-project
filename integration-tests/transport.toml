@@ -21,7 +21,7 @@ ty = "node"
 structure = { reactive_power = "f64", voltage_angle = "f64", active_power = "f64" , voltage_amplitude = "f64" }
 [expected_components.energy_generator_node]
 ty = "node"
-structure = { max_reactive_power = "f64", voltage_amplitude = "f64", active_power = "f64", power_type = "string", voltage_angle = "f64", min_reactive_power = "f64" }
+structure = { max_active_power = "f64", voltage_amplitude = "f64", active_power = "f64", power_type = "string", voltage_angle = "f64", min_active_power = "f64" }
 [expected_components.sensor_generator_node]
 ty = "node"
 structure = { voltage_magnitude = "f64", active_power = "f64", power_type = "string" }
@@ -31,7 +31,7 @@ structure = { reactive_power = "f64", active_power = "f64" }
 
 [expected_components.energy_transmission_edge]
 ty = "edge"
-structure = { thermal_limit = "f64", resistance_per_meter = "f64", current = "f64", length = "f64", min_voltage_magnitude = "f64", line_type = "string", max_voltage_magnitude = "f64", reactance_per_meter = "f64"}
+structure = { max_current = "f64", resistance_per_meter = "f64", current = "f64", length = "f64", min_voltage_magnitude = "f64", line_type = "string", max_voltage_magnitude = "f64", reactance_per_meter = "f64"}
 
 # Initial state
 
@@ -58,7 +58,7 @@ longitude = 4.4104
 latitude = 51.22269
 id = 2
 components  = [
-  { energy_generator_node = { voltage_amplitude = 0.0, active_power = 0.0, power_type = "Solar", voltage_angle = 0.0, min_reactive_power = 0.0, max_reactive_power = 60.0 } },
+  { energy_generator_node = { voltage_amplitude = 0.0, active_power = 0.0, power_type = "Solar", voltage_angle = 0.0, min_active_power = 0.0, max_active_power = 60.0 } },
   { sensor_generator_node = { voltage_magnitude = 0.2, active_power = 0.1, power_type = "Solar" } },
 ]
 
@@ -66,10 +66,10 @@ components  = [
 from = 0
 to = 1
 component_type = "energy_transmission_edge"
-component_data = { resistance_per_meter = 0.1, length = 8.0, line_type = "AAC_Conductor", reactance_per_meter = 0.8, max_voltage_magnitude = 500.0, min_voltage_magnitude = 0.0, thermal_limit = 20.0, current = 20.0 } 
+component_data = { resistance_per_meter = 0.1, length = 8.0, line_type = "AAC_Conductor", reactance_per_meter = 0.8, max_voltage_magnitude = 500.0, min_voltage_magnitude = 0.0, max_current = 20.0, current = 20.0 } 
 
 [[initial_state.edges]]
 from = 1
 to = 2
 component_type = "energy_transmission_edge"
-component_data = { resistance_per_meter = 0.1, length = 5.0, line_type = "AAC_Conductor", reactance_per_meter = 0.8, max_voltage_magnitude = 500.0, min_voltage_magnitude = 0.0, thermal_limit = 20.0, current = 20.0 } 
+component_data = { resistance_per_meter = 0.1, length = 5.0, line_type = "AAC_Conductor", reactance_per_meter = 0.8, max_voltage_magnitude = 500.0, min_voltage_magnitude = 0.0, max_current = 20.0, current = 20.0 } 
