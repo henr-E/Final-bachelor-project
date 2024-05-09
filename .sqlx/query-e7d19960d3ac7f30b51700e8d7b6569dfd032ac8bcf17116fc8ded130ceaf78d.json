@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM node_components WHERE node_id = $1 AND name IN (SELECT unnest($2::text[]))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "node_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "component_data",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e7d19960d3ac7f30b51700e8d7b6569dfd032ac8bcf17116fc8ded130ceaf78d"
+}
