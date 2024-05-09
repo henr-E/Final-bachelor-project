@@ -38,6 +38,7 @@ pub struct Runner {
     simulators: Arc<Mutex<Vec<SimulatorsInfo>>>,
     notif_receiver: mpsc::Receiver<()>,
     state_sender: mpsc::UnboundedSender<Transport>,
+    input_components: HashSet<String>,
 }
 
 impl Runner {
@@ -55,6 +56,7 @@ impl Runner {
             simulators,
             notif_receiver,
             state_sender,
+            input_components: HashSet::new(),
         })
     }
     ///Get the selected simulators
@@ -108,6 +110,12 @@ impl Runner {
                 for server in &mut selected {
                     let request = tonic::Request::new(IoConfigRequest {});
                     let response = server.get_io_config(request).await?.into_inner();
+                    for name in response.required_input_components {
+                        self.input_components.insert(name);
+                    }
+                    for name in response.optional_input_components {
+                        self.input_components.insert(name);
+                    }
                     for name in response.output_components {
                         if !output_components.insert(name) {
                             self.db
@@ -197,7 +205,11 @@ impl Runner {
         // get current simulation nodes at timestep 0 and add to graph
         let mut nodes = self
             .db
-            .get_nodes(simulation_id, 0)
+            .get_nodes_filtered(
+                simulation_id,
+                0,
+                Some(self.input_components.clone().into_iter().collect()),
+            )
             .await
             .context("error getting nodes")?;
         graph.nodes.append(&mut nodes);

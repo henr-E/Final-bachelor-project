@@ -264,8 +264,15 @@ impl SimulationsDB {
         Ok(node_id)
     }
 
-    /// Get all nodes and their components with a `simulation_id` and `time_step` from the nodes table.
-    pub async fn get_nodes(&mut self, simulation_id: i32, time_step: i32) -> Result<Vec<Node>> {
+    /// Get all nodes with their components from the nodes table. If the components field isn't
+    /// None, it only returns those components. If it is None, all components are returned. If
+    /// components is empty, no components are returned.
+    pub async fn get_nodes_filtered(
+        &mut self,
+        simulation_id: i32,
+        time_step: i32,
+        components: Option<Vec<String>>,
+    ) -> Result<Vec<Node>> {
         // get the nodes
         let mut records: Vec<_> = query!(
             "SELECT * FROM nodes WHERE simulation_id = $1 AND time_step = $2",
@@ -280,25 +287,44 @@ impl SimulationsDB {
         let mut nodes = Vec::new();
         for n in &mut records {
             // get node components
-            let components = query!(
-                "SELECT * FROM node_components WHERE node_id = $1",
-                n.id as i32
-            )
-            .fetch_all(self.connection().await?)
-            .await?
-            .into_iter()
-            .map(|c| Some((c.name, serde_json_to_prost(c.component_data)?)))
-            .collect::<Option<_>>()
-            .context("invalid component in db")?;
+            let node_components = match components {
+                Some(ref comps) => {
+                    query!(
+                        "SELECT * FROM node_components WHERE node_id = $1 AND name IN (SELECT unnest($2::text[]))",
+                        n.id,
+                        comps
+                    )
+                    .fetch_all(self.connection().await?)
+                    .await?
+                    .into_iter()
+                    .map(|c| Some((c.name, serde_json_to_prost(c.component_data)?)))
+                    .collect::<Option<_>>()
+                    .context("invalid component in db")?
+                }
+
+                None => query!("SELECT * FROM node_components WHERE node_id = $1", n.id)
+                    .fetch_all(self.connection().await?)
+                    .await?
+                    .into_iter()
+                    .map(|c| Some((c.name, serde_json_to_prost(c.component_data)?)))
+                    .collect::<Option<_>>()
+                    .context("invalid component in db")?
+            };
 
             nodes.push(Node {
                 id: n.node_id as u64,
                 longitude: n.longitude,
                 latitude: n.latitude,
-                components,
+                components: node_components,
             });
         }
         Ok(nodes)
+    }
+
+    /// Get all nodes and their components with a `simulation_id` and `time_step` from the nodes table.
+    pub async fn get_nodes(&mut self, simulation_id: i32, time_step: i32) -> Result<Vec<Node>> {
+        self.get_nodes_filtered(simulation_id, time_step, None)
+            .await
     }
 
     /// Get one specific node.
@@ -645,5 +671,66 @@ mod database_test {
 
         let edges = db.get_edges(simulation_id, 5).await.unwrap();
         assert_eq!(edges.len(), 1);
+    }
+
+    #[sqlx::test(migrations = "../migrations/simulator/")]
+    async fn test_nodes_filtered(pool: sqlx::PgPool) {
+        let mut db = SimulationsDB::from_pg_pool(pool).await.unwrap();
+        let simulation_id = db
+            .add_simulation("sim", 42000, 10, "Pending")
+            .await
+            .unwrap();
+        db.add_node(
+            Node {
+                id: 3,
+                latitude: 3.14,
+                longitude: 6.28,
+                components: [
+                    (
+                        "first".to_string(),
+                        Value {
+                            kind: Some(Kind::NumberValue(1.0)),
+                        },
+                    ),
+                    (
+                        "second".to_string(),
+                        Value {
+                            kind: Some(Kind::NumberValue(2.0)),
+                        },
+                    ),
+                    (
+                        "third".to_string(),
+                        Value {
+                            kind: Some(Kind::NumberValue(3.0)),
+                        },
+                    ),
+                    (
+                        "fourth".to_string(),
+                        Value {
+                            kind: Some(Kind::NumberValue(4.0)),
+                        },
+                    ),
+                ]
+                .into(),
+            },
+            simulation_id,
+            5,
+        )
+        .await
+        .unwrap();
+        let unfiltered = db.get_nodes_filtered(simulation_id, 5, None).await.unwrap();
+        let filtered = db
+            .get_nodes_filtered(
+                simulation_id,
+                5,
+                Some(vec!["second".to_string(), "third".to_string()]),
+            )
+            .await
+            .unwrap();
+        assert_eq!(unfiltered[0].components.len(), 4);
+        assert_eq!(filtered[0].components.len(), 2);
+        assert!(filtered[0].components.contains_key("second"));
+        assert!(!filtered[0].components.contains_key("first"));
+        assert!(unfiltered[0].components.contains_key("first"));
     }
 }
