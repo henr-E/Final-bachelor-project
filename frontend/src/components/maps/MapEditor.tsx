@@ -15,12 +15,7 @@ import { TwinContext } from '@/store/twins';
 import { BuildingItem, LineItem, MapItems, MapItemType, NodeItem } from '@/components/maps/MapItem';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { TwinServiceDefinition, presetObject } from '@/proto/twins/twin';
-import { createChannel, createClient } from 'nice-grpc-web';
-import { uiBackendServiceUrl } from '@/api/urls';
-import { toast } from 'react-hot-toast';
 import CreateIconsModal from '@/components/modals/CreateIconsModal';
-import { BackendGetComponent, BackendGetSimulations } from '@/api/simulation/crud';
-import { ComponentsInfo } from '@/proto/simulation/simulation-manager';
 
 import { Sensor } from '@/proto/sensor/sensor-crud';
 import { BackendCreateSensor, BackendGetSensors } from '@/api/sensor/crud';
@@ -32,6 +27,7 @@ import {
     BackendGetAllPreset,
     BackendUndoDeleteBuilding,
 } from '@/api/twins/crud';
+import { TourControlContext } from '@/store/tour';
 
 /*
 function addCursorState(name: string) {
@@ -88,6 +84,8 @@ function MapEditor({
     const [selectedSensor, setSelectedSensor] = useState<Sensor>();
     const [presets, setPresets] = useState<Array<presetObject | undefined>>([]);
     const [typePreset, setTypePreset] = useState<Array<any>>([]);
+
+    const tourController = useContext(TourControlContext);
 
     const getAllPreset = async () => {
         const response = await BackendGetAllPreset();
@@ -335,7 +333,7 @@ function MapEditor({
                         />
                     </div>
                     <div className='flex justify-start gap-2'>
-                        <div className='bg-white gap-4 p-2 my-1 rounded-md flex justify-start max-w-100 overflow-x-auto'>
+                        <div className='tour-step-24-editor bg-white gap-4 p-2 my-1 rounded-md flex justify-start max-w-100 overflow-x-auto'>
                             <Button
                                 outline={!currentPreset}
                                 onClick={(_: any) => changePreset(undefined)}
@@ -358,17 +356,24 @@ function MapEditor({
                                     },
                                 }}
                                 //outline={cursor !== CursorState.PLACE_PRODUCER}
-                                onClick={OnClickPreset}
+                                onClick={() => {
+                                    OnClickPreset();
+                                    tourController?.customGoToNextTourStep(1);
+                                }}
                             >
-                                <span className='whitespace-nowrap text-xl font-semibold dark:text-white'>
+                                <span className='tour-step-14-editor tour-step-19-editor whitespace-nowrap text-xl font-semibold dark:text-white'>
                                     <Icon path={mdiPlus} size={1.2} />
                                 </span>
                             </Button>
+
                             {Array.from(presets.values()).map((preset, index) => (
                                 <div key={index}>
                                     <Button
                                         outline={currentPreset?.name !== preset?.name}
-                                        onClick={() => changePreset(preset)}
+                                        onClick={() => {
+                                            changePreset(preset);
+                                            tourController?.setIsOpen(false);
+                                        }}
                                         color='indigo'
                                         theme={{
                                             color: {
@@ -438,12 +443,16 @@ function MapEditor({
                                                         );
                                                     return filteredSensors.map(buildingSensor => (
                                                         <Badge
+                                                            className={'tour-step-12-editor'}
                                                             key={buildingSensor.id}
                                                             color='gray'
                                                             style={{ cursor: 'pointer' }}
-                                                            onClick={() =>
-                                                                handleClick(buildingSensor)
-                                                            }
+                                                            onClick={() => {
+                                                                handleClick(buildingSensor);
+                                                                tourController?.customGoToNextTourStep(
+                                                                    1
+                                                                );
+                                                            }}
                                                         >
                                                             {buildingSensor.name}
                                                         </Badge>
@@ -454,20 +463,29 @@ function MapEditor({
                                     </div>
                                     {selectedBuilding.visible ? (
                                         <Button
+                                            className={'tour-step-1-editor'}
                                             color={'red'}
-                                            onClick={() => handleDeleteBuilding()}
+                                            onClick={() => {
+                                                handleDeleteBuilding();
+                                                tourController?.customGoToNextTourStep(1);
+                                            }}
                                         >
                                             Delete building
                                         </Button>
                                     ) : (
                                         <Button
+                                            className={'tour-step-3-editor'}
                                             color={'red'}
-                                            onClick={() => handleUndoDeleteBuilding()}
+                                            onClick={() => {
+                                                handleUndoDeleteBuilding();
+                                                tourController?.customGoToNextTourStep(1);
+                                            }}
                                         >
                                             Restore building
                                         </Button>
                                     )}
                                     <Button
+                                        className={'tour-step-5-editor'}
                                         color='indigo'
                                         theme={{
                                             color: {
@@ -475,6 +493,7 @@ function MapEditor({
                                             },
                                         }}
                                         onClick={() => {
+                                            tourController?.customGoToNextTourStep(1);
                                             if (twinState.current) {
                                                 const filteredSensors =
                                                     twinState.current.sensors.filter(

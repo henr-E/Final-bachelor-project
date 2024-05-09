@@ -41,7 +41,16 @@ function ToastNotification(
 
 // This component could be included at the top level of your app, typically inside the component that wraps your app's content.
 export function ToastContainer() {
-    return <Toaster position='bottom-right' reverseOrder={false} />;
+    const toastContainerStyles = {
+        zIndex: 100001, //yes, this should be 100001 because reactour tutorial has zIndex 100000
+    };
+    return (
+        <Toaster
+            position='bottom-right'
+            reverseOrder={false}
+            containerStyle={toastContainerStyles}
+        />
+    );
 }
 
 export default ToastNotification;

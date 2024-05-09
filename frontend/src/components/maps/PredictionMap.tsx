@@ -367,7 +367,7 @@ export function PredictionMap({
                     transition: 'filter 0.3s ease',
                     zIndex: 1,
                 }}
-                className='rounded-md'
+                className='tour-step-0-editor tour-step-2-editor tour-step-4-editor rounded-md'
                 center={[twin.latitude, twin.longitude]}
                 zoom={16}
             >

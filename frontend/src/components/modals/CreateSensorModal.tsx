@@ -16,8 +16,8 @@ import { Sensor } from '@/proto/sensor/sensor-crud';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { TwinContext } from '@/store/twins';
 import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
-import { undoDeleteBuildingRequest } from '@/proto/twins/twin';
 import { getFirstQuantity } from '@/lib/util';
+import { TourControlContext, StepName } from '@/store/tour';
 
 interface CreateSensorModalProps {
     isModalOpen: boolean;
@@ -69,6 +69,7 @@ function CreateSensorModal({
     const [twinState, dispatch] = useContext(TwinContext);
 
     const basicFormRef = useRef<HTMLFormElement>(null);
+    const tourController = useContext(TourControlContext);
 
     useEffect(() => {
         (async () => {
@@ -284,8 +285,8 @@ function CreateSensorModal({
                 <Modal.Body>
                     <CreateSensorStepper page={modalPage} />
                     {modalPage === ModalPage.BASIC && (
-                        <div className='my-4'>
-                            <form ref={basicFormRef}>
+                        <div className='tour-step-1-sensors my-4'>
+                            <form className={'tour-step-6-editor'} ref={basicFormRef}>
                                 <div>
                                     <div className='mb-2 block'>
                                         <Label htmlFor='name' value='Name' />
@@ -321,9 +322,9 @@ function CreateSensorModal({
                         </div>
                     )}
                     {modalPage === ModalPage.SIGNALS && (
-                        <div className='flex flex-col space-y-4'>
+                        <div className='tour-step-8-editor tour-step-3-sensors flex flex-col space-y-4'>
                             <Label>What does this sensor measure?</Label>
-                            <ButtonGroup className=''>
+                            <ButtonGroup>
                                 <select
                                     id='quantity'
                                     className='bg-gray-50 border border-gray-300 text-gray-900 rounded-l-lg text-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5'
@@ -397,7 +398,7 @@ function CreateSensorModal({
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className={'tour-step-10-editor tour-step-5-sensors'}>
                                     {quantities.map((quantity, i) => (
                                         <tr key={i}>
                                             <td className='w-32 p-2'>
@@ -480,6 +481,9 @@ function CreateSensorModal({
                     </Button>
                     <div className='grow'></div>
                     <Button
+                        className={
+                            'tour-step-7-editor tour-step-2-sensors tour-step-9-editor tour-step-4-sensors tour-step-11-editor tour-step-6-sensors'
+                        }
                         color='indigo'
                         disabled={modalPage === ModalPage.SIGNALS && quantities.length === 0}
                         theme={{
@@ -487,7 +491,32 @@ function CreateSensorModal({
                                 indigo: 'bg-indigo-600 text-white ring-indigo-600',
                             },
                         }}
-                        onClick={handleNextButtonClick}
+                        onClick={() => {
+                            handleNextButtonClick();
+                            if (modalPage === ModalPage.BASIC || modalPage === ModalPage.SIGNALS) {
+                                if (name !== '' && description !== '') {
+                                    tourController?.customGoToNextTourStep(1);
+                                }
+                            } else if (modalPage === ModalPage.INGEST) {
+                                if (tourController?.isOpen) {
+                                    // this modal is used by editor tour and sensors tour (see classnames) so this check is needed
+                                    if (
+                                        tourController.getCurrentStepsName() == StepName.EDITORSTEPS
+                                    ) {
+                                        //go to 12 in editor tutorial
+                                        tourController?.customCloseTourAndStartAtStep(12);
+                                    }
+
+                                    if (
+                                        tourController.getCurrentStepsName() ==
+                                        StepName.SENSORSSTEPS
+                                    ) {
+                                        //go to 7 in sensors tutorial
+                                        tourController?.customCloseTourAndStartAtStep(7);
+                                    }
+                                }
+                            }
+                        }}
                     >
                         {modalPage === ModalPage.INGEST ? 'Create' : 'Next'}
                     </Button>

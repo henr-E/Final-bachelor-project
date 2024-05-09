@@ -1,8 +1,9 @@
 'use client';
 
 import { Alert, Button, Modal } from 'flowbite-react';
-import { twinObject } from '@/proto/twins/twin';
 import { TwinFromProvider } from '@/store/twins';
+import { useContext } from 'react';
+import { TourControlContext } from '@/store/tour';
 
 interface DeleteMultipleTwinsModalProps {
     isModalOpen: boolean;
@@ -22,9 +23,11 @@ function DeleteMultipleTwinsModal({
         closeModal();
     };
 
+    const tourController = useContext(TourControlContext);
+
     return (
         <Modal show={isModalOpen} onClose={closeModal}>
-            <Modal.Header>Delete Simulations ({twins.length})</Modal.Header>
+            <Modal.Header>Delete Twins ({twins.length})</Modal.Header>
             <Modal.Body>
                 <div className='mb-2 flex flex-col space-y-2'>
                     <span>You are about to delete the following twins:</span>
@@ -53,7 +56,14 @@ function DeleteMultipleTwinsModal({
                     Cancel
                 </Button>
                 <div className='grow'></div>
-                <Button color='warning' onClick={handleConfirmButtonClick}>
+                <Button
+                    className={'tour-step-10-overview'}
+                    color={'red'}
+                    onClick={() => {
+                        handleConfirmButtonClick();
+                        tourController?.setIsOpen(false);
+                    }}
+                >
                     Delete
                 </Button>
             </Modal.Footer>

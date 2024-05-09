@@ -393,10 +393,10 @@ function SimulationPage() {
                     title={'Branch/' + simulation?.name + '/' + currentTime}
                     initialNodes={FrameToMapInformation(frames[currentTime])[0]}
                     initialEdges={FrameToMapInformation(frames[currentTime])[1]}
-                    timeStepDelta={
+                    timeStepDelta={Math.round(
                         ((simulation?.endDateTime || 60) - (simulation?.startDateTime || 0)) /
-                        (simulation?.framesLoaded || 1)
-                    }
+                            (simulation?.framesLoaded || 1)
+                    )}
                     startDate={
                         simulation?.startDateTime
                             ? new Date(

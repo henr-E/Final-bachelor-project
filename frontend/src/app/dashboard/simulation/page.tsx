@@ -1,7 +1,7 @@
 'use client';
 import { Button, Spinner, Tooltip } from 'flowbite-react';
 import { MdOutlineDeleteOutline } from 'react-icons/md';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import CreateSimulationModal from '@/components/modals/CreateSimulationModal';
 import { mdiCheck, mdiClose } from '@mdi/js';
@@ -11,6 +11,7 @@ import { Simulation } from '@/proto/simulation/frontend';
 import ToastNotification from '@/components/notification/ToastNotification';
 import DeleteMultipleSimulationsModal from '@/components/modals/DeleteMultipleSimulationsModal';
 import { TwinContext } from '@/store/twins';
+import { TourControlContext } from '@/store/tour';
 
 function SimulationOverviewPage() {
     const [twinState, dispatchTwin] = useContext(TwinContext);
@@ -23,6 +24,8 @@ function SimulationOverviewPage() {
     const handleClick = (id: number) => {
         router.push('simulation/' + id);
     };
+
+    const tourController = useContext(TourControlContext);
 
     const handleDeleteSelectedSimulations = async () => {
         if (!simulationsToDelete) {
@@ -59,8 +62,10 @@ function SimulationOverviewPage() {
                     <div className='space-y-4 flex flex-col w-auto'>
                         <div className='flex flex-row space-x-2'>
                             <Button
+                                className={'tour-step-0-simulation'}
                                 onClick={() => {
                                     setIsCreateSimulationModalOpen(true);
+                                    tourController?.customGoToNextTourStep(1);
                                 }}
                                 color='indigo'
                                 theme={{
@@ -73,6 +78,7 @@ function SimulationOverviewPage() {
                             </Button>
                             {twinState.current.simulations?.length != 0 && (
                                 <Button
+                                    className={'tour-step-10-simulation'}
                                     color='indigo'
                                     theme={{
                                         color: {
@@ -95,6 +101,7 @@ function SimulationOverviewPage() {
                                                 'Twin not selected. Try again.'
                                             );
                                         }
+                                        tourController?.customGoToNextTourStep(1);
                                     }}
                                 >
                                     Delete selected simulations
@@ -138,14 +145,31 @@ function SimulationOverviewPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {twinState.current.simulations?.map(simulation => (
+                                        {twinState.current.simulations?.map((simulation, index) => (
                                             <tr
                                                 key={simulation.id}
                                                 className='my-6'
                                                 style={{ cursor: 'pointer' }}
                                             >
-                                                <th scope='row' className='px-3 py-3 w-8'>
-                                                    <div className='flex items-center'>
+                                                <th
+                                                    scope='row'
+                                                    className={
+                                                        index ==
+                                                        (twinState?.current?.simulations?.length ||
+                                                            1) -
+                                                            1
+                                                            ? 'tour-step-9-simulation px-3 py-3 w-8'
+                                                            : 'px-3 py-3 w-8'
+                                                    }
+                                                >
+                                                    <div
+                                                        onClick={() => {
+                                                            tourController?.customGoToNextTourStep(
+                                                                1
+                                                            );
+                                                        }}
+                                                        className='flex items-center'
+                                                    >
                                                         <input
                                                             id='checkbox-all-search'
                                                             checked={simulationsToDelete.includes(

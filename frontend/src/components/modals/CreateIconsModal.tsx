@@ -1,10 +1,11 @@
 import { Modal, ModalBody, ModalHeader, Label, Button, Table, Checkbox } from 'flowbite-react';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useContext } from 'react';
 import { BackendGetComponent, BackendGetSimulations } from '@/api/simulation/crud';
 import { BackendCreatePreset, BackendGetAllPreset } from '@/api/twins/crud';
 import CustomJsonEditor, { TypeConverter } from '@/components/CustomJsonEditor';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { ComponentSpecification } from '@/proto/simulation/simulation';
+import { TourControlContext } from '@/store/tour';
 
 interface CreateIconsModalProps {
     isModalOpen: boolean;
@@ -33,6 +34,7 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
         Map<string, ComponentSpecification>
     >(new Map());
     const [isValid, setIsValid] = useState(true);
+    const tourController = useContext(TourControlContext);
 
     useEffect(() => {
         const getComponentResponse = async () => {
@@ -87,6 +89,7 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                 }
             }
 
+            tourController?.customGoToNextTourStep(1);
             let containsEdges = false;
             for (let [key, item] of ComponentSpecSelected) {
                 if (item.type == 1) {
@@ -106,6 +109,7 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
             case ModalPage.ICONS: {
                 if (isValid) {
                     setModalPage(modalPage + 1);
+                    tourController?.customGoToNextTourStep(1);
                     break;
                 } else return;
             }
@@ -216,7 +220,7 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                 className='flex flex-row'
             >
                 <ModalHeader>Create Icon</ModalHeader>
-                <ModalBody>
+                <ModalBody className={'tour-step-15-editor tour-step-20-editor'}>
                     {modalPage === ModalPage.ICONS && (
                         <div className='overflow-x-auto'>
                             <Table hoverable>
@@ -261,7 +265,7 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                                     </div>
                                     <input
                                         id='name'
-                                        className='bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
+                                        className='tour-step-17-editor tour-step-22-editor bg-gray-50 border border-gray-300 text-gray-900 rounded-lg text-sm focus:ring-indigo-500 w-full focus:border-indigo-500 p-2.5'
                                         type='text'
                                         value={name}
                                         placeholder='name'
@@ -301,13 +305,18 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                     </Button>
                     <div className='grow'></div>
                     <Button
+                        className={
+                            'tour-step-16-editor tour-step-18-editor tour-step-21-editor tour-step-23-editor'
+                        }
                         color='indigo'
                         theme={{
                             color: {
                                 indigo: 'bg-indigo-600 text-white ring-indigo-600',
                             },
                         }}
-                        onClick={handleNextButtonClick}
+                        onClick={() => {
+                            handleNextButtonClick();
+                        }}
                     >
                         {modalPage === ModalPage.INFOS ? 'Create' : 'Next'}
                     </Button>

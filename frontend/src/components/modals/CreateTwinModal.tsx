@@ -8,10 +8,8 @@ import L, { LatLngBoundsExpression } from 'leaflet';
 import Image from 'next/image';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { BackendCreateTwin } from '@/api/twins/crud';
-
 import loadingGif from '@/../public/loader/loading.gif';
-import { Sensor } from '@/proto/sensor/sensor-crud';
-import { Simulations } from '@/proto/simulation/frontend';
+import { TourControlContext } from '@/store/tour';
 
 /**
  * The icon to put on the map
@@ -89,8 +87,10 @@ export interface CreateTwinModalProps {
  * @param closeCreateTwinModal
  * @constructor
  */
+
 function CreateTwinModal({ isCreateTwinModalOpen, closeCreateTwinModal }: CreateTwinModalProps) {
-    const [twinContext, dispatchTwin] = useContext(TwinContext);
+    const tourController = useContext(TourControlContext);
+    const [twinState, dispatchTwin] = useContext(TwinContext);
     const [place, setPlace] = useState<string>('');
     const [coords, setCoords] = useState<string>('');
     const [position, setPosition] = useState<[number, number]>([51.505, -0.09]);
@@ -103,7 +103,6 @@ function CreateTwinModal({ isCreateTwinModalOpen, closeCreateTwinModal }: Create
         [0, 0],
         [0, 0],
     ]);
-
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         // Search by place if the place input is not empty and coords is empty
@@ -172,15 +171,15 @@ function CreateTwinModal({ isCreateTwinModalOpen, closeCreateTwinModal }: Create
         let twinExists = false;
         if (place !== '' && coords !== '') {
             //check if the city already exists
-            for (let i = 0; i < twinContext.twins.length; i++) {
+            for (let i = 0; i < twinState.twins.length; i++) {
                 if (
-                    twinContext.twins[i].latitude == position[0] &&
-                    twinContext.twins[i].longitude == position[1]
+                    twinState.twins[i].latitude == position[0] &&
+                    twinState.twins[i].longitude == position[1]
                 ) {
                     twinExists = true;
                     ToastNotification('warning', 'Hmm, looks like this twin already exists.');
                 }
-                if (twinContext.twins[i].name == customName) {
+                if (twinState.twins[i].name == customName) {
                     twinExists = true;
                     ToastNotification(
                         'warning',
@@ -226,7 +225,7 @@ function CreateTwinModal({ isCreateTwinModalOpen, closeCreateTwinModal }: Create
 
             resetAll();
         }
-
+        tourController?.customGoToNextTourStep(1);
         setCreateTwinLoading(false);
     };
 
@@ -334,43 +333,49 @@ function CreateTwinModal({ isCreateTwinModalOpen, closeCreateTwinModal }: Create
                                     gap: '10px',
                                 }}
                             >
-                                <div>
-                                    Enter a city, place or coordinates. Press Enter or Search.
-                                    <TextInput
-                                        type='text'
-                                        value={place}
-                                        placeholder='City or place'
-                                        onChange={e => {
-                                            setPlace(e.target.value);
-                                            if (coords) setCoords('');
-                                        }}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter') handleSearch(e);
-                                        }}
-                                    />
-                                </div>
-                                <div>
-                                    <TextInput
-                                        type='text'
-                                        value={coords}
-                                        placeholder='Coordinates (lat, lng)'
-                                        onChange={e => {
-                                            setCoords(e.target.value);
-                                            if (place) setPlace('');
-                                        }}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Enter') handleSearch(e);
-                                        }}
-                                    />
+                                <div className={'tour-step-2-overview'}>
+                                    <div>
+                                        Enter a city, place or coordinates. Press Enter or Search.
+                                        <TextInput
+                                            type='text'
+                                            value={place}
+                                            placeholder='City or place'
+                                            onChange={e => {
+                                                setPlace(e.target.value);
+                                                if (coords) setCoords('');
+                                            }}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') handleSearch(e);
+                                            }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <TextInput
+                                            type='text'
+                                            value={coords}
+                                            placeholder='Coordinates (lat, lng)'
+                                            onChange={e => {
+                                                setCoords(e.target.value);
+                                                if (place) setPlace('');
+                                            }}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter') handleSearch(e);
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                                 <Button
+                                    className={'tour-step-3-overview'}
                                     color='indigo'
                                     theme={{
                                         color: {
                                             indigo: 'bg-indigo-600 text-white ring-indigo-600',
                                         },
                                     }}
-                                    onClick={handleSearch}
+                                    onClick={e => {
+                                        handleSearch(e);
+                                        tourController?.customGoToNextTourStep(1);
+                                    }}
                                 >
                                     Search
                                 </Button>
@@ -378,6 +383,7 @@ function CreateTwinModal({ isCreateTwinModalOpen, closeCreateTwinModal }: Create
                                 <div>
                                     Enter the radius (in meters) and press Enter. Min:400 Max:1000
                                     <TextInput
+                                        className={'tour-step-4-overview'}
                                         type='number'
                                         value={radiusInput}
                                         onChange={e => setRadiusInput(e.target.value)}
@@ -395,6 +401,7 @@ function CreateTwinModal({ isCreateTwinModalOpen, closeCreateTwinModal }: Create
                                 <div>
                                     Enter a custom name or keep the suggested name.
                                     <TextInput
+                                        className={'tour-step-5-overview'}
                                         type='text'
                                         value={customName}
                                         placeholder={'Custom name'}
@@ -437,13 +444,19 @@ function CreateTwinModal({ isCreateTwinModalOpen, closeCreateTwinModal }: Create
                                         }}
                                     >
                                         <Button
+                                            className={'tour-step-6-overview'}
                                             color='indigo'
                                             theme={{
                                                 color: {
                                                     indigo: 'bg-indigo-600 text-white ring-indigo-600',
                                                 },
                                             }}
-                                            onClick={openConfirmModal}
+                                            onClick={() => {
+                                                openConfirmModal();
+                                                if (place !== '' && coords !== '') {
+                                                    tourController?.customGoToNextTourStep(1);
+                                                }
+                                            }}
                                         >
                                             Create
                                         </Button>
@@ -502,6 +515,7 @@ function CreateTwinModal({ isCreateTwinModalOpen, closeCreateTwinModal }: Create
                         </Button>
                         <div className='grow'></div>
                         <Button
+                            className={'tour-step-7-overview'}
                             color='indigo'
                             theme={{
                                 color: { indigo: 'bg-indigo-600 text-white ring-indigo-600' },

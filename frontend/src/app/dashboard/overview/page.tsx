@@ -1,16 +1,16 @@
 'use client';
-import React, { useContext, useEffect, useReducer, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { TwinContext, TwinFromProvider } from '@/store/twins';
-import { MdOutlineDeleteOutline } from 'react-icons/md';
 import { useRouter } from 'next/navigation';
 import ToastNotification from '@/components/notification/ToastNotification';
-import { Button, Modal } from 'flowbite-react';
+import { Button } from 'flowbite-react';
 import { LatLngBoundsExpression } from 'leaflet';
 import dynamic from 'next/dynamic';
 import { CustomMapContainerProps } from '@/components/maps/CustomMapContainer';
 import { BackendDeleteTwin, BackendGetTwins } from '@/api/twins/crud';
 import { twinObject } from '@/proto/twins/twin';
 import DeleteMultipleTwinsModal from '@/components/modals/DeleteMultipleTwinsModal';
+import { TourControlContext } from '@/store/tour';
 
 const CustomMapContainerImport = dynamic<CustomMapContainerProps>(
     () => import('@/components/maps/CustomMapContainer'),
@@ -18,6 +18,7 @@ const CustomMapContainerImport = dynamic<CustomMapContainerProps>(
 );
 
 function OverviewPage() {
+    const tourController = useContext(TourControlContext);
     const [twinState, dispatchTwin] = useContext(TwinContext);
     const router = useRouter();
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -55,6 +56,7 @@ function OverviewPage() {
                 }
             }
         }
+
         getTwins();
     }, [dispatchTwin, router]);
 
@@ -87,6 +89,7 @@ function OverviewPage() {
         } catch {
             ToastNotification('error', `Something went wrong while deleting twins.`);
         }
+        tourController?.setIsOpen(false);
     };
 
     const handleCancelSelectedTwinsDelete = () => {
@@ -102,6 +105,7 @@ function OverviewPage() {
                     <div className='flex flex-col grow space-y-4 h-full w-full'>
                         <div className='flex flex-row'>
                             <Button
+                                className={'tour-step-9-overview'}
                                 color='indigo'
                                 theme={{
                                     color: {
@@ -118,6 +122,7 @@ function OverviewPage() {
                                     } else {
                                         ToastNotification('error', 'Twin not selected. Try again.');
                                     }
+                                    tourController?.customGoToNextTourStep(1);
                                 }}
                             >
                                 Delete selected twins
@@ -156,8 +161,22 @@ function OverviewPage() {
                                                 className='my-6'
                                                 style={{ cursor: 'pointer' }}
                                             >
-                                                <th scope='row' className='px-3 py-3 w-8'>
-                                                    <div className='flex items-center'>
+                                                <th
+                                                    scope='row'
+                                                    className={
+                                                        index == twinState.twins?.length - 1
+                                                            ? 'tour-step-8-overview px-3 py-3 w-8'
+                                                            : 'px-3 py-3 w-8'
+                                                    }
+                                                >
+                                                    <div
+                                                        onClick={() => {
+                                                            tourController?.customGoToNextTourStep(
+                                                                1
+                                                            );
+                                                        }}
+                                                        className='flex items-center'
+                                                    >
                                                         <input
                                                             id='checkbox-all-search'
                                                             checked={twinsToDelete.includes(

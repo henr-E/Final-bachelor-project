@@ -3,16 +3,14 @@ import { PredictionMapProps } from '@/components/maps/PredictionMap';
 import { useContext, useEffect, useState } from 'react';
 import { TwinContext } from '@/store/twins';
 import dynamic from 'next/dynamic';
-import { sensorServiceUrl } from '@/api/urls';
-import { createChannel, createClient, WebsocketTransport } from 'nice-grpc-web';
 import { QuantityWithUnits, SensorContext } from '@/store/sensor';
 import { Button, Dropdown, DropdownItem } from 'flowbite-react';
 import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
-import { SensorDataFetchingServiceDefinition } from '@/proto/sensor/data-fetching';
 import { LiveDataSingleSensor } from '@/api/sensor/dataFetching';
 import { getFirstQuantity } from '@/lib/util';
-import { useRouter } from 'next/router';
+
 import { isAbortError } from 'abort-controller-x';
+import { TourControlContext } from '@/store/tour';
 
 const PredictionMapImport = dynamic<PredictionMapProps>(
     () => import('@/components/maps/PredictionMap'),
@@ -30,6 +28,7 @@ async function* mockLoadSensorStream(): AsyncGenerator<{ signalId: number; value
 function RealTimePage() {
     const [twinState, dispatch] = useContext(TwinContext);
     const [sensorContext, dispatchSensor] = useContext(SensorContext);
+    const tourController = useContext(TourControlContext);
 
     const [quantitiesWithUnits, setQuantitiesWithUnits] = useState<
         Record<string, QuantityWithUnits>
@@ -91,7 +90,12 @@ function RealTimePage() {
                     quantityFilter={quantityFilter}
                 />
             </div>
-            <div>
+            <div
+                className='tour-step-0-realtime'
+                onClick={() => {
+                    tourController?.customGoToNextTourStep(1);
+                }}
+            >
                 <Dropdown
                     pill
                     color='indigo'
@@ -103,11 +107,16 @@ function RealTimePage() {
                     label={quantityFilter ?? 'All Quantities'}
                     dismissOnClick
                 >
-                    {Object.keys(quantitiesWithUnits).map(quantity => (
-                        <DropdownItem key={quantity} onClick={() => setQuantityFilter(quantity)}>
-                            {quantity}
-                        </DropdownItem>
-                    ))}
+                    <div className='tour-step-1-realtime'>
+                        {Object.keys(quantitiesWithUnits).map(quantity => (
+                            <DropdownItem
+                                key={quantity}
+                                onClick={() => setQuantityFilter(quantity)}
+                            >
+                                {quantity}
+                            </DropdownItem>
+                        ))}
+                    </div>
                 </Dropdown>
             </div>
         </div>

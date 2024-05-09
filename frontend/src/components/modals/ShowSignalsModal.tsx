@@ -7,9 +7,9 @@ import { TwinContext } from '@/store/twins';
 import { updateSensor } from '@/api/sensor/crud';
 import ToastNotification from '@/components/notification/ToastNotification';
 import UpdateSensorModal from '@/components/modals/UpdateSensorModal';
-import { toast } from 'react-toastify';
 import { bigIntToExponent, prefixes, prefixExponents, prefixMap } from '@/store/sensor';
 import { BigDecimal } from '@/proto/sensor/bigdecimal';
+import { TourControlContext } from '@/store/tour';
 
 interface ShowSignalsModalProps {
     isModalOpen: boolean;
@@ -30,6 +30,7 @@ function ShowSignalsModal({ isModalOpen, sensor, closeModal }: ShowSignalsModalP
     const [showSignalModal, setShowSignalModal] = useState<boolean>();
 
     const [currentSensor, setCurrentSensor] = useState<Sensor>();
+    const tourController = useContext(TourControlContext);
 
     useEffect(() => {
         setCurrentSensor(sensor);
@@ -80,7 +81,7 @@ function ShowSignalsModal({ isModalOpen, sensor, closeModal }: ShowSignalsModalP
                                         Quantity
                                     </th>
                                     <th scope='col' className='p-3 px-3' style={{ width: '20%' }}>
-                                        Unit
+                                        Ingestion Unit
                                     </th>
                                     <th scope='col' className='p-3 px-3' style={{ width: '20%' }}>
                                         Prefix
@@ -109,6 +110,7 @@ function ShowSignalsModal({ isModalOpen, sensor, closeModal }: ShowSignalsModalP
                 </Modal.Body>
                 <Modal.Footer>
                     <Button
+                        className={'tour-step-13-editor tour-step-15-sensors'}
                         outline
                         color='indigo'
                         theme={{
@@ -118,11 +120,13 @@ function ShowSignalsModal({ isModalOpen, sensor, closeModal }: ShowSignalsModalP
                         }}
                         onClick={() => {
                             closeModal();
+                            tourController?.customGoToNextTourStep(1);
                         }}
                     >
                         Back
                     </Button>
                     <Button
+                        className={'tour-step-8-sensors'}
                         outline
                         color='indigo'
                         theme={{
@@ -133,6 +137,7 @@ function ShowSignalsModal({ isModalOpen, sensor, closeModal }: ShowSignalsModalP
                         onClick={() => {
                             setIsUpdateSensorModalOpen(true);
                             setShowSignalModal(false);
+                            tourController?.customGoToNextTourStep(1);
                         }}
                     >
                         Update Sensor

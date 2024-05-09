@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Tooltip } from 'flowbite-react';
+import { Button, Dropdown, DropdownItem, Tooltip } from 'flowbite-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { PropsWithChildren, useContext } from 'react';
@@ -8,12 +8,22 @@ import { MdSensors, MdHome, MdEdit } from 'react-icons/md';
 import { FaChartArea, FaArrowRight, FaBolt } from 'react-icons/fa';
 import { CiLogout } from 'react-icons/ci';
 import { UserContext } from '@/store/user';
+import { useTour } from '@reactour/tour';
+import { overviewSteps } from '../store/tour/steps/overview';
+import { editorSteps } from '../store/tour/steps/editor';
+import { sensorsSteps } from '../store/tour/steps/sensors';
+import { realtimeSteps } from '../store/tour/steps/realtime';
+import { simulationSteps } from '../store/tour/steps/simulation';
+import { TourControlContext } from '@/store/tour';
+import ToastNotification from '@/components/notification/ToastNotification';
 
 // TODO: avoid hard refresh (to={Link} does not appear to work on Sidebar.Item)
 function DashboardSidebar() {
     const pathName = usePathname();
     const router = useRouter();
     const [userState, dispatchUser] = useContext(UserContext);
+
+    const tourController = useContext(TourControlContext);
 
     const SidebarItem = ({
         children,
@@ -78,14 +88,92 @@ function DashboardSidebar() {
                         />
                     </Button>
                 </Tooltip>
-                <Button
-                    fullSized
-                    className='bg-transparent focus:ring-indigo-600 ring-indigo-600 enabled:hover:ring-indigo-600 enabled:hover:bg-indigo-600'
-                    outline
-                    onClick={() => router.replace('/dashboard/account')}
+
+                <Dropdown
+                    pill
+                    color='indigo'
+                    theme={{
+                        floating: {
+                            target: 'enabled:hover:bg-indigo-700 bg-indigo-600 text-white',
+                        },
+                    }}
+                    label={'Tutorials'}
+                    dismissOnClick
                 >
-                    My Account
-                </Button>
+                    <DropdownItem
+                        onClick={() => {
+                            router.push('/dashboard/overview');
+                            tourController?.setIsOpen(true);
+                            tourController?.setCurrentStep(0);
+                            if (tourController?.customSetSteps) {
+                                tourController?.customSetSteps(overviewSteps);
+                            }
+                            ToastNotification('info', 'Loading tutorial');
+                        }}
+                    >
+                        Overview tutorial
+                    </DropdownItem>
+                    <DropdownItem
+                        onClick={() => {
+                            router.push('/dashboard/editor');
+                            setTimeout(() => {
+                                tourController?.setIsOpen(true);
+                                tourController?.setCurrentStep(0);
+                                if (tourController?.customSetSteps) {
+                                    tourController?.customSetSteps(editorSteps);
+                                }
+                            }, 3000);
+                            ToastNotification('info', 'Loading tutorial');
+                        }}
+                    >
+                        Editor tutorial
+                    </DropdownItem>
+                    <DropdownItem
+                        onClick={() => {
+                            router.push('/dashboard/realtime');
+                            setTimeout(() => {
+                                tourController?.setIsOpen(true);
+                                tourController?.setCurrentStep(0);
+                                if (tourController?.customSetSteps) {
+                                    tourController?.customSetSteps(realtimeSteps);
+                                }
+                            }, 3000);
+                            ToastNotification('info', 'Loading tutorial');
+                        }}
+                    >
+                        Realtime tutorial
+                    </DropdownItem>
+                    <DropdownItem
+                        onClick={() => {
+                            router.push('/dashboard/sensors');
+                            setTimeout(() => {
+                                tourController?.setIsOpen(true);
+                                tourController?.setCurrentStep(0);
+                                if (tourController?.customSetSteps) {
+                                    tourController?.customSetSteps(sensorsSteps);
+                                }
+                            }, 3000);
+                            ToastNotification('info', 'Loading tutorial');
+                        }}
+                    >
+                        Sensors tutorial
+                    </DropdownItem>
+                    <DropdownItem
+                        onClick={() => {
+                            router.push('/dashboard/simulation');
+                            setTimeout(() => {
+                                tourController?.setIsOpen(true);
+                                tourController?.setCurrentStep(0);
+                                if (tourController?.customSetSteps) {
+                                    tourController?.customSetSteps(simulationSteps);
+                                }
+                            }, 3000);
+                            ToastNotification('info', 'Loading tutorial');
+                        }}
+                    >
+                        Simulations tutorial
+                    </DropdownItem>
+                </Dropdown>
             </div>
         </div>
     );
