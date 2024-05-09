@@ -232,7 +232,7 @@ function CreateSimulationModal(propItems: CreateSimulationModalProps) {
                     return;
                 }
                 if (twinState.current) {
-                    for (let i = 0; i < twinState.current.simulations.length; i++) {
+                    for (let i = 0; i < twinState.current.simulations?.length; i++) {
                         if (twinState.current.simulations[i].name == name) {
                             ToastNotification(
                                 'warning',
