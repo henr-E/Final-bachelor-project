@@ -12,7 +12,7 @@ interface ContentSectionProps {
 const ContentSection: React.FC<ContentSectionProps> = ({ refs }) => {
     return (
         <div className='flex flex-col items-center justify-center'>
-            <div className={'w-[1059px] space-y-10'}>
+            <div className={'w-full max-w-4xl space-y-10'}>
                 {/*createAccount*/}
                 <h1
                     ref={refs.createAccount}
