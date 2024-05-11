@@ -229,8 +229,20 @@ function TwinProvider({ children }: { children: React.ReactNode }) {
                 if (twinsFromBackend.length > 0) {
                     // Load all twins into the state
                     dispatchTwin({ type: 'load_twins', twins: twinsFromBackend });
-                    // Set the current twin to the first twin from the list
-                    dispatchTwin({ type: 'switch_twin', twin: twinsFromBackend[0] });
+                    // Set the current twin to the twin that was last selected if possible
+                    const selectedTwinID = localStorage.getItem('selectedTwinID');
+                    const selectedTwin = selectedTwinID
+                        ? twinsFromBackend.find(t => t.id === parseInt(selectedTwinID))
+                        : twinsFromBackend[0];
+
+                    if (selectedTwin) {
+                        dispatchTwin({ type: 'switch_twin', twin: selectedTwin });
+                        localStorage.setItem('selectedTwinID', selectedTwin.id.toString());
+                    } else {
+                        dispatchTwin({ type: 'switch_twin', twin: twinsFromBackend[0] });
+                        localStorage.setItem('selectedTwinID', twinsFromBackend[0].id.toString());
+                    }
+
                     ToastNotification('info', 'All twins are being loaded.');
                 } else {
                     // Optionally handle the case where no twins are returned
