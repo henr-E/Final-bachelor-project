@@ -42,6 +42,7 @@ services:
   # ==========
 
   simulation-manager:
+    restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/simulation-manager"]
     networks:
@@ -61,6 +62,7 @@ services:
       - DATABASE_PASSWORD
 
   simulator-time:
+    restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/time-simulator"]
     networks:
@@ -72,6 +74,7 @@ services:
       TIME_SIMULATOR_ADDR: 0.0.0.0:8101
 
   simulator-weather:
+    restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: [ "/bin/weather-simulator" ]
     networks:
@@ -89,6 +92,7 @@ services:
       - DATABASE_PASSWORD
 
   simulator-energy-supply-and-demand:
+    restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/energy-supply-and-demand-simulator"]
     networks:
@@ -106,6 +110,7 @@ services:
       - DATABASE_PASSWORD
 
   simulator-energy-transmission:
+    restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/load-flow"]
     networks:
@@ -120,6 +125,7 @@ services:
   # ===========
 
   sensor-data-ingestor:
+    restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-ingestor"]
     networks:
@@ -139,6 +145,7 @@ services:
       - DATABASE_PASSWORD
 
   sensor-data-transformer:
+    restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-transformer"]
     networks:
@@ -157,6 +164,7 @@ services:
       - DATABASE_PASSWORD
 
   sensor-data-generator:
+    restart: unless-stopped
     image: ${DOCKER_REPOSITORY}rust-bins:$IMAGE_TAG
     command: ["/bin/sensor-data-generator"]
     networks:
@@ -246,6 +254,7 @@ services:
 
   # gRPC-web proxy.
   grpcwebpoxy:
+    restart: always
     container_name: grpcwebpoxy
     image: webis/grpcwebproxy:0.14.0
     command:
