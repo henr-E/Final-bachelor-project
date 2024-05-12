@@ -44,6 +44,7 @@ export interface PredictionMapProps {
     onSelectBuilding?: (building: BuildingItem) => void;
     realtime?: boolean;
     quantityFilter?: string;
+    showLabels?: boolean;
 }
 enum status {
     ok = 1,
@@ -102,6 +103,7 @@ export function PredictionMap({
     edges = [],
     onSelectBuilding = undefined,
     realtime = false,
+    showLabels = false,
 }: PredictionMapProps) {
     const [twinState, dispatch] = useContext(TwinContext);
     const [sensorState, dispatchSensor] = useContext(SensorContext);
@@ -462,7 +464,8 @@ export function PredictionMap({
                             </Polygon>
                         );
                     })}
-                {realtime &&
+                {showLabels &&
+                    realtime &&
                     twin.sensors
                         .filter(sensor => buildings.find(b => b.id === sensor.buildingId))
                         .flatMap(sensor => {
