@@ -46,7 +46,7 @@ cargo run --bin sensor-data-transformer
 
 ```
 yarn install
-yarn proto
+yarn run proto
 yarn run build
 yarn run dev
 ```

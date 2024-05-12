@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import MainNavbar from '@/components/MainNavbar';
 import LoginModal from '@/components/modals/LoginModal';
 import RegisterModal from '@/components/modals/RegisterModal';
-import { MdArrowUpward, MdDeleteOutline, MdEdit } from 'react-icons/md';
+import { MdArrowUpward, MdDeleteOutline, MdEdit, MdSettings } from 'react-icons/md';
 import ContentSection from '@/app/docs/content';
 import { CgProfile } from 'react-icons/cg';
 import { GrUpdate } from 'react-icons/gr';
@@ -66,6 +66,12 @@ function DocsPage() {
         createSimulation: useRef<HTMLDivElement>(null),
         openSimulation: useRef<HTMLDivElement>(null),
         deleteSimulation: useRef<HTMLDivElement>(null),
+
+        time: useRef<HTMLDivElement>(null),
+        weather: useRef<HTMLDivElement>(null),
+        supplyAndDemand: useRef<HTMLDivElement>(null),
+        loadflow: useRef<HTMLDivElement>(null),
+        components: useRef<HTMLDivElement>(null),
     };
 
     const labelMapping: LabelMapping = {
@@ -88,6 +94,12 @@ function DocsPage() {
         createSimulation: 'create simulations?',
         openSimulation: 'open simulations?',
         deleteSimulation: 'delete simulations?',
+
+        time: 'time',
+        weather: 'weather',
+        supplyAndDemand: 'supply and demand',
+        loadflow: 'loadflow',
+        components: 'components',
     };
 
     return (
@@ -117,16 +129,16 @@ function DocsPage() {
 
                         <hr className='my-2 border-t border-gray-300' />
                         <SidebarItem
-                            label={labelMapping['switchTwin']}
-                            elementRef={sectionRefs['switchTwin']}
-                        >
-                            <HiOutlineSwitchHorizontal size={20} />
-                        </SidebarItem>
-                        <SidebarItem
                             label={labelMapping['createTwin']}
                             elementRef={sectionRefs['createTwin']}
                         >
                             <MdEdit size={20} />
+                        </SidebarItem>
+                        <SidebarItem
+                            label={labelMapping['switchTwin']}
+                            elementRef={sectionRefs['switchTwin']}
+                        >
+                            <HiOutlineSwitchHorizontal size={20} />
                         </SidebarItem>
                         <SidebarItem
                             label={labelMapping['deleteTwin']}
@@ -200,6 +212,35 @@ function DocsPage() {
                             elementRef={sectionRefs['deleteSimulation']}
                         >
                             <MdDeleteOutline size={20} />
+                        </SidebarItem>
+                        <hr className='my-2 border-t border-gray-300' />
+                        <span className='text-gray-500 text-lg'>Simulators</span>
+                        <SidebarItem label={labelMapping['time']} elementRef={sectionRefs['time']}>
+                            <MdSettings size={20} />
+                        </SidebarItem>
+                        <SidebarItem
+                            label={labelMapping['weather']}
+                            elementRef={sectionRefs['weather']}
+                        >
+                            <MdSettings size={20} />
+                        </SidebarItem>
+                        <SidebarItem
+                            label={labelMapping['supplyAndDemand']}
+                            elementRef={sectionRefs['supplyAndDemand']}
+                        >
+                            <MdSettings size={20} />
+                        </SidebarItem>
+                        <SidebarItem
+                            label={labelMapping['loadflow']}
+                            elementRef={sectionRefs['loadflow']}
+                        >
+                            <MdSettings size={20} />
+                        </SidebarItem>
+                        <SidebarItem
+                            label={labelMapping['components']}
+                            elementRef={sectionRefs['components']}
+                        >
+                            <MdSettings size={20} />
                         </SidebarItem>
                     </div>
                 </div>
