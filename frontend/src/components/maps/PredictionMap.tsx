@@ -70,9 +70,10 @@ interface ComponentStateTooltipProps {
  * @constructor
  */
 function ComponentStateTooltip({ warningComp }: ComponentStateTooltipProps) {
+    //Tooltip needs random key to update on leafletmap
     return (
         warningComp.length > 0 && (
-            <Tooltip>
+            <Tooltip key={Math.random()}>
                 {warningComp.map((item, index) => (
                     <div key={item.status} className={'flex p-0 h-5 m-0'}>
                         <p className={'pr-2'}>
