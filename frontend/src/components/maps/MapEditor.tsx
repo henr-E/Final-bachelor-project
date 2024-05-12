@@ -29,23 +29,6 @@ import {
 } from '@/api/twins/crud';
 import { TourControlContext } from '@/store/tour';
 
-/*
-function addCursorState(name: string) {
-    const len = Object.keys(CursorState).length;
-    CursorState[name] = len;
-}
-
-const iconPaths = {
-    [CursorState.PLACE_PRODUCER]: '/icons/home-lightning-bolt-outline.svg',
-    [CursorState.PLACE_CONSUMER]: '/icons/wind-turbine.svg',
-    [CursorState.CONNECT_ITEMS]: '/icons/transit-connection-horizontal.svg',
-    [CursorState.MOVE_ITEMS]: '/icons/cursor-move.svg',
-    [CursorState.GRAB]: 'hand',
-    [CursorState.NONE]: 'hand',
-};
-*/
-//TODO make variable
-
 export interface MapEditorProps {
     nodeItemRef?: MutableRefObject<Map<number, NodeItem> | undefined>;
     edgeItemRef?: MutableRefObject<LineItem[] | undefined>;
@@ -206,7 +189,7 @@ function MapEditor({
     const removeMapItem = (node: NodeItem | undefined) => {
         let removeItem = node;
         if (!removeItem) return;
-        removeItem.inactive = true; //currently set item to inactive TODO
+        removeItem.inactive = true;
         setNodes(prevState => ({ ...prevState, id: removeItem }));
     };
 
@@ -355,7 +338,6 @@ function MapEditor({
                                         indigo: 'bg-indigo-600 text-white ring-indigo-600',
                                     },
                                 }}
-                                //outline={cursor !== CursorState.PLACE_PRODUCER}
                                 onClick={() => {
                                     OnClickPreset();
                                     tourController?.customGoToNextTourStep(1);

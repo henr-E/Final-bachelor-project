@@ -1,6 +1,6 @@
 import { Modal, ModalBody, ModalHeader, Label, Button, Table, Checkbox } from 'flowbite-react';
 import { useEffect, useState, useRef, useContext } from 'react';
-import { BackendGetComponent, BackendGetSimulations } from '@/api/simulation/crud';
+import { BackendGetComponent } from '@/api/simulation/crud';
 import { BackendCreatePreset, BackendGetAllPreset } from '@/api/twins/crud';
 import CustomJsonEditor, { TypeConverter } from '@/components/CustomJsonEditor';
 import ToastNotification from '@/components/notification/ToastNotification';
@@ -97,6 +97,7 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                 }
             }
 
+            // Preset are stored in the database as name, components_info, is_edge (boolean)
             await BackendCreatePreset(name, components, containsEdges);
             handleCloseModal();
         } catch (error) {
@@ -256,7 +257,6 @@ function CreateIconsModal(propItems: CreateIconsModalProps) {
                         </div>
                     )}
                     {modalPage === ModalPage.INFOS && (
-                        //producer information
                         <div className='my-4'>
                             <form ref={basicFormRef}>
                                 <div>

@@ -5,10 +5,9 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { PropsWithChildren, useContext } from 'react';
 import { MdSensors, MdHome, MdEdit } from 'react-icons/md';
-import { FaChartArea, FaArrowRight, FaBolt } from 'react-icons/fa';
+import { FaChartArea } from 'react-icons/fa';
 import { CiLogout } from 'react-icons/ci';
 import { UserContext } from '@/store/user';
-import { useTour } from '@reactour/tour';
 import { overviewSteps } from '../store/tour/steps/overview';
 import { editorSteps } from '../store/tour/steps/editor';
 import { sensorsSteps } from '../store/tour/steps/sensors';
@@ -17,7 +16,6 @@ import { simulationSteps } from '../store/tour/steps/simulation';
 import { TourControlContext } from '@/store/tour';
 import ToastNotification from '@/components/notification/ToastNotification';
 
-// TODO: avoid hard refresh (to={Link} does not appear to work on Sidebar.Item)
 function DashboardSidebar() {
     const pathName = usePathname();
     const router = useRouter();

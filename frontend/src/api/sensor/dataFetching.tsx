@@ -1,4 +1,4 @@
-import { Channel, WebsocketTransport, createChannel, createClient } from 'nice-grpc-web';
+import { Channel, WebsocketTransport, createChannel } from 'nice-grpc-web';
 import { uiBackendServiceUrl } from '@/api/urls';
 import {
     AllSensorDataMessage,

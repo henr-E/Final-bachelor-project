@@ -1,15 +1,12 @@
 import {
     ClientError,
     ClientMiddlewareCall,
-    ClientMiddlewareCallResponse,
     createClientFactory,
     Metadata,
     Status,
 } from 'nice-grpc-web';
 import ToastNotification from '@/components/notification/ToastNotification';
-import { useRouter } from 'next/navigation';
 import { CallOptions } from 'nice-grpc-common';
-import { isAbortError } from 'abort-controller-x';
 
 /**
  * Checks if request sends an UNAUTHENTICATED error back, when it does redirect the user to the login page and delete his current token

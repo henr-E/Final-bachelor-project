@@ -14,6 +14,8 @@ interface Props {
 }
 
 export const TypeConverter = (structure: ComponentStructure | undefined): any => {
+    // convert a field type coming from the simulator to a coressponding
+    // value
     if (structure?.primitive == 11) {
         return '';
     } else if (structure?.primitive && structure?.primitive <= 10) {
@@ -36,7 +38,9 @@ export const TypeConverter = (structure: ComponentStructure | undefined): any =>
 
 const CustomJsonEditor: React.FC<Props> = ({ data, onSave }) => {
     const [editableData, setEditableData] = useState<JsonData | undefined>(data);
-
+    // Provides a userfriendly way to edit json objects.
+    // The json can have nest depth one with either another json object or a list.
+    // It dynamically adjusts to the type of the element in the json.
     useEffect(() => {
         setEditableData(data);
     }, [data]);

@@ -109,6 +109,7 @@ export async function BackendCreatePreset(
         const client = clientAuthLayer.create(TwinServiceDefinition, channel);
         const request: presetObject = { name: presetName, info: presetInfo, isEdge: presetIs_edge };
         return await client.createPreset(request);
+        // a preset is a button to put simulation components on the map
     } catch (error) {
         ToastNotification('error', 'Failed to create preset.');
         console.error('Failed to create preset.', error);
@@ -122,6 +123,7 @@ export async function BackendGetAllPreset() {
         const client = clientAuthLayer.create(TwinServiceDefinition, channel);
         const response = await client.getAllPreset({});
         return response.preset;
+        // backend request for getting all the presets created by the user.
     } catch (error) {
         ToastNotification('error', 'Failed to fetch preset.');
         console.error('Failed to fetch preset.', error);

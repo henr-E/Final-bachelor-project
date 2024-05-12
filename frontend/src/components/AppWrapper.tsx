@@ -41,13 +41,7 @@ function AppWrapper({ children }: { children: React.ReactNode }) {
             steps={[]}
             disableDotsNavigation={true}
             // onClickMask is for clicking out of the box
-            onClickMask={({ setCurrentStep, currentStep, setIsOpen }) => {
-                //     if (currentStep === overview.length - 1) {
-                //         setIsOpen(false);
-                //     } else {
-                //         setCurrentStep(currentStep + 1);
-                //     }
-            }}
+            onClickMask={({ setCurrentStep, currentStep, setIsOpen }) => {}}
         >
             <TourControlProvider>
                 <ToastContainer />

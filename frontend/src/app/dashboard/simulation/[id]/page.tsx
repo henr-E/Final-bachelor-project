@@ -1,22 +1,13 @@
 'use client';
 import dynamic from 'next/dynamic';
-import {
-    RangeSlider,
-    Card,
-    Spinner,
-    Label,
-    TextInput,
-    Tooltip,
-    Button,
-    Badge,
-} from 'flowbite-react';
+import { RangeSlider, Card, Spinner, Label, TextInput, Tooltip, Badge } from 'flowbite-react';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { TwinContext } from '@/store/twins';
 import { PredictionMapProps } from '@/components/maps/PredictionMap';
 import { mdiPlay, mdiPause, mdiCogOutline, mdiCheck, mdiSourceBranchPlus } from '@mdi/js';
 import Icon from '@mdi/react';
-import { createChannel, createClient, WebsocketTransport } from 'nice-grpc-web';
+import { createChannel, WebsocketTransport } from 'nice-grpc-web';
 import {
     SimulationFrame,
     SimulationFrameRequest,

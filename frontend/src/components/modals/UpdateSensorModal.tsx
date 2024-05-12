@@ -8,7 +8,6 @@ import {
     Unit,
     Prefix,
     QuantityWithUnits,
-    prefixMap,
 } from '@/store/sensor';
 import { v4 as uuidv4 } from 'uuid';
 import { Button, ButtonGroup, Label, Modal } from 'flowbite-react';

@@ -12,7 +12,6 @@ import { uiBackendServiceUrl } from '@/api/urls';
 import ToastNotification from '@/components/notification/ToastNotification';
 import { clientAuthLayer } from '@/api/protecteRequestFactory';
 
-//todo the twinId should be a number as it is stored as SERIAL in the database and as number in the frontend
 export async function BackendGetSimulations(twinId: string): Promise<Simulations> {
     try {
         const channel = createChannel(uiBackendServiceUrl);
@@ -93,6 +92,8 @@ export async function BackendGetComponent(): Promise<ComponentsInfo> {
         const channel = createChannel(uiBackendServiceUrl);
         const client = clientAuthLayer.create(SimulationInterfaceServiceDefinition, channel);
         return await client.getComponents({});
+        // this is a backend request for getting all the components (energy node, energy transmission edge, ...)
+        // that are supported in the backend by the simulators
     } catch (error) {
         ToastNotification(
             'error',
