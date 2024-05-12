@@ -15,16 +15,9 @@ import {
 } from 'react-leaflet';
 import { mdiCheck, mdiClose, mdiAlert } from '@mdi/js';
 import { Icon as leafLetIcon, LatLngExpression, LeafletEventHandlerFnMap, DivIcon } from 'leaflet';
-import {
-    BuildingItem,
-    LineItem,
-    MapItems,
-    MapItemType,
-    NodeItem,
-    iconPaths,
-} from '@/components/maps/MapItem';
+import { BuildingItem, LineItem, NodeItem } from '@/components/maps/MapItem';
 import ToastNotification from '../notification/ToastNotification';
-import { createChannel, createClient } from 'nice-grpc-web';
+import { createChannel } from 'nice-grpc-web';
 import { uiBackendServiceUrl } from '@/api/urls';
 import { buildingObject, TwinServiceDefinition } from '@/proto/twins/twin';
 import { SensorContext } from '@/store/sensor';
@@ -32,7 +25,6 @@ import L from 'leaflet';
 import { useLeafletContext } from '@react-leaflet/core';
 import Script from 'next/script';
 import Icon from '@mdi/react';
-import { s } from 'hastscript';
 import '@/css/leaflet.css';
 import { clientAuthLayer } from '@/api/protecteRequestFactory';
 
@@ -317,6 +309,7 @@ export function PredictionMap({
         const minValue = Math.min(...filteredValues);
 
         useEffect(() => {
+            // map realtime data to leaflet heatmap layers
             if (realtime && (L as any).heatLayer && quantityFilter) {
                 if (heatmap.current) {
                     context.map.removeLayer(heatmap.current);

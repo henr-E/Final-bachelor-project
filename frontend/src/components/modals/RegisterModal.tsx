@@ -86,7 +86,6 @@ export function RegisterModal({ isRegisterModalOpen, closeRegisterModal }: Regis
     };
 
     const handleCancelButtonClick = () => {
-        // reseting all the states to default value
         setToDefault();
         closeRegisterModal();
     };

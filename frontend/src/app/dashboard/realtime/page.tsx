@@ -4,7 +4,7 @@ import { useContext, useEffect, useState } from 'react';
 import { TwinContext } from '@/store/twins';
 import dynamic from 'next/dynamic';
 import { QuantityWithUnits, SensorContext } from '@/store/sensor';
-import { Button, Dropdown, DropdownItem } from 'flowbite-react';
+import { Dropdown, DropdownItem } from 'flowbite-react';
 import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
 import { LiveDataAllSensor } from '@/api/sensor/dataFetching';
 import { getFirstQuantity } from '@/lib/util';

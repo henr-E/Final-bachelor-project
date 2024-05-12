@@ -1,10 +1,7 @@
-import { createChannel, createClient, ClientError, Status } from 'nice-grpc-web';
 import { Result, Err, Ok } from 'ts-results';
 import { z } from 'zod';
 
 import {
-    AuthenticationServiceDefinition,
-    AuthenticationServiceClient,
     LoginError as GrpcLoginError,
     RegisterError as GrpcRegisterError,
     User,

@@ -1,6 +1,5 @@
 import React from 'react';
 import { toast, Toaster } from 'react-hot-toast';
-import { Browser } from 'leaflet';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 

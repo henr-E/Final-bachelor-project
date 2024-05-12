@@ -45,10 +45,6 @@ The branch has to be created from the related feature branch and should be merge
 -   The use of `unsafe {}` should not be needed. If you do end up needing it for some reason, be sure to argue why your code is safe and try to encapsulate the usage of unsafe into separate libraries.
 -   Sort cargo dependencies alphabetically.
 
-### JS/TS conventions
-
-TODO for someone currently working on the frontend
-
 ## Running production (locally)
 Be sure to first generate all secrets as described below.
 

@@ -21,12 +21,6 @@ function OverviewPage() {
     const tourController = useContext(TourControlContext);
     const [twinState, dispatchTwin] = useContext(TwinContext);
     const router = useRouter();
-    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-    const [position, setPosition] = useState<[number, number]>([51.505, -0.09]);
-    const [bounds, setBounds] = useState<LatLngBoundsExpression>([
-        [0, 0],
-        [0, 0],
-    ]);
     const [isDeleteMultipleTwinsModalOpen, setIsDeleteMultipleTwinsModalOpen] = useState(false);
     const [twinsToDelete, setTwinsToDelete] = useState<TwinFromProvider[]>([]);
 
@@ -59,15 +53,6 @@ function OverviewPage() {
 
         getTwins();
     }, [dispatchTwin, router]);
-
-    const resetAll = () => {
-        setIsConfirmModalOpen(false);
-        setPosition([51.505, -0.09]);
-        setBounds([
-            [0, 0],
-            [0, 0],
-        ]);
-    };
 
     const handleDeleteSelectedTwins = async () => {
         if (!twinsToDelete) {

@@ -2,12 +2,12 @@
 import React, { useContext, useEffect, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import { Button, Modal } from 'flowbite-react';
-import { Sensor, Signal } from '@/proto/sensor/sensor-crud';
+import { Sensor } from '@/proto/sensor/sensor-crud';
 import { TwinContext } from '@/store/twins';
 import { updateSensor } from '@/api/sensor/crud';
 import ToastNotification from '@/components/notification/ToastNotification';
 import UpdateSensorModal from '@/components/modals/UpdateSensorModal';
-import { bigIntToExponent, prefixes, prefixExponents, prefixMap } from '@/store/sensor';
+import { bigIntToExponent, prefixMap } from '@/store/sensor';
 import { BigDecimal } from '@/proto/sensor/bigdecimal';
 import { TourControlContext } from '@/store/tour';
 

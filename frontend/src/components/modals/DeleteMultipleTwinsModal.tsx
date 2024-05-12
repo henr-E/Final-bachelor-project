@@ -1,6 +1,6 @@
 'use client';
 
-import { Alert, Button, Modal } from 'flowbite-react';
+import { Button, Modal } from 'flowbite-react';
 import { TwinFromProvider } from '@/store/twins';
 import { useContext } from 'react';
 import { TourControlContext } from '@/store/tour';

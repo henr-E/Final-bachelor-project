@@ -1,5 +1,5 @@
 'use client';
-import { createChannel, createClient } from 'nice-grpc-web';
+import { createChannel } from 'nice-grpc-web';
 import { uiBackendServiceUrl } from '@/api/urls';
 import {
     CrudFailureReason,

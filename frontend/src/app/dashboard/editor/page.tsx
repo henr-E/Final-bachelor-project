@@ -6,11 +6,9 @@ function EditorPage() {
         ssr: false,
     });
     return (
-        // <div className='h-screen w-full'>
         <div style={{ height: '75%' }}>
             <MapEditor></MapEditor>
         </div>
-        // </div>
     );
 }
 

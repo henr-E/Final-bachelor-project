@@ -16,7 +16,6 @@ import {
 } from '@/api/simulation/crud';
 import CustomJsonEditor, { TypeConverter } from '@/components/CustomJsonEditor';
 import { TourControlContext } from '@/store/tour';
-import { end } from '@popperjs/core';
 
 interface CreateSimulationModalProps {
     isModalOpen: boolean;
