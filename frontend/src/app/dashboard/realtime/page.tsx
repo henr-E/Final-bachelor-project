@@ -8,7 +8,7 @@ import { Button, Dropdown, DropdownItem } from 'flowbite-react';
 import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
 import { LiveDataAllSensor } from '@/api/sensor/dataFetching';
 import { getFirstQuantity } from '@/lib/util';
-
+import { ToggleSwitch } from 'flowbite-react';
 import { isAbortError } from 'abort-controller-x';
 import { TourControlContext } from '@/store/tour';
 
@@ -29,6 +29,7 @@ function RealTimePage() {
     const [twinState, dispatch] = useContext(TwinContext);
     const [sensorContext, dispatchSensor] = useContext(SensorContext);
     const tourController = useContext(TourControlContext);
+    const [showLabels, setShowLabels] = useState(true);
 
     const [quantitiesWithUnits, setQuantitiesWithUnits] = useState<
         Record<string, QuantityWithUnits>
@@ -89,11 +90,12 @@ function RealTimePage() {
                 <PredictionMapImport
                     twin={twinState.current}
                     realtime
+                    showLabels={showLabels}
                     quantityFilter={quantityFilter}
                 />
             </div>
             <div
-                className='tour-step-0-realtime'
+                className='tour-step-0-realtime flex items-center'
                 onClick={() => {
                     tourController?.customGoToNextTourStep(1);
                 }}
@@ -120,6 +122,14 @@ function RealTimePage() {
                         ))}
                     </div>
                 </Dropdown>
+                <div className='pl-5'>
+                    <ToggleSwitch
+                        label={'Show values'}
+                        checked={showLabels}
+                        onChange={setShowLabels}
+                        color={'indigo'}
+                    />
+                </div>
             </div>
         </div>
     );
