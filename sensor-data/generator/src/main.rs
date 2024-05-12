@@ -173,8 +173,6 @@ async fn run() {
 /// Generate fake sensor data and send it to the ingest service.
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_max_level(Level::DEBUG)
-        .init();
+    tracing_subscriber::fmt().with_max_level(Level::INFO).init();
     run().await;
 }
