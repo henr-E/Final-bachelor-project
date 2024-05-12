@@ -6,7 +6,7 @@ package simulation.simulator_connection;
 
 // Connects simulators to the manager
 service SimulatorConnection {
-    // Ask the manger to connect to the calling simulator.
+    // Ask the manager to connect to the calling simulator.
     rpc ConnectSimulator(SimulatorInfo) returns (google.protobuf.Empty);
 }
 
