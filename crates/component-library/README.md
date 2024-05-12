@@ -2,67 +2,73 @@
 
 ## Overview
 
-This module contains a series of components, that are made to simulate the different aspects of energy-management and distribution. This is only an initial library as we might add more components in the future.
-
+This module contains a series of components designed to simulate different aspects of energy management and distribution. This is only an initial library, and more components may be added in the future.
 
 ### Common units for AC circuits:
-#### Power
-- **Active power**: This is the portion of electrical power that is actually consumed by a device and converted into useful work, such as producing heat, light, or mechanical motion. It is measured in watts (W) and represents the rate at which energy is transferred or used by a circuit.
-- **Reactive power**: This is the power that flows back and forth between the source and the load to support the operation of inductive loads and maintain voltage levels. Since reactive power transfers no net energy to the load, it is sometimes called "wattless" power. Reactive power is measured in volt-amperes reactive (VAR).
 
-Both active and reactive power are important considerations in electrical systems to ensure efficient and reliable operation.
+#### Power
+- **Active power**: Power consumed by a device and converted into useful work, such as producing heat, light, or mechanical motion. Measured in watts (W).
+- **Reactive power**: Power that flows back and forth between the source and the load, used to support inductive loads and maintain voltage levels. Measured in volt-amperes reactive (VAR).
 
 #### Voltage
-Voltage amplitude and angle are two important parameters used to describe an alternating current (AC) voltage waveform.
-- **Voltage Amplitude**: Voltage magnitude may be used interchangeably. This refers to the maximum magnitude of the voltage waveform. In an AC circuit, the voltage continuously oscillates between positive and negative values. The voltage amplitude represents the maximum positive or negative value reached by the voltage waveform during each cycle. It is typically measured in volts (V).
-- **Voltage Angle**: This is a measure of the displacement of an AC voltage waveform relative to a reference waveform. It represents the angular position of the voltage waveform at a specific point in time. Voltage angle is often expressed in degrees (°) or radians (rad). In a sinusoidal waveform, the voltage angle determines the position of the waveform relative to its peak or zero crossing.
-
-Together they provide a complete description of the AC voltage waveform and are essential for analyzing and understanding AC circuits. 
-
-### p.u system
-In electrical engineering, per unit (p.u.) system is a method used to express the values of electrical quantities relative to a chosen base value. Per unit values are dimensionless and are typically used to simplify calculations and comparisons in power system analysis.
-
-- **Bases**: Per unit values are expressed relative to a chosen base value for each quantity. The base value is typically selected to be equal to the rated or nominal value of the quantity being considered. For example, the base values for voltage, current, and power are often chosen to be the rated voltage, current, and apparent power of a power system. For the load flow, the two required bases are:
-    * **Sbase**: This refers to the base power level in a power system, often expressed in kilowatts (VA) or megawatts (MVA). (The formula for apparent power is $S = VI^*$) It serves as a reference point for calculating other system parameters, such as voltages, currents, and impedances.
-    * **Vbase**: This refers to the base voltage level in a power system, often expressed in kilovolts (kV) or volts (V). Similar to Sbase, Vbase serves as a reference point for voltage calculations and is used to normalize voltage values in the system.
-    * **Pbase**: This refers to the base active power level in a power system, often expressed in watts (W) or megawatts (MW). 
-
-- **Normalization**: To express a value in per unit units, the actual value is divided by the corresponding base value. This normalization process results in dimensionless quantities, which simplifies calculations and allows for easy comparison between different systems with varying ratings.
+- **Voltage Amplitude**: Maximum magnitude of the voltage waveform. Measured in volts (V).
+- **Voltage Angle**: Measure of the displacement of an AC voltage waveform relative to a reference waveform. Measured in radians (rad).
 
 ## Components
 
-The module contains the following energy-related nodes:
+### Global Components Overview
+- **TimeComponent**: Tracks the current simulation time. Unit: Millisecond.
 
-### Global Components
-
-- **TimeComponent**: Represents the current time of a frame in the simulation, accurate up to the millisecond.
-- **TemperatureComponent**: Represents the current temperature in degrees Celsius.
-- **energy::Limits**: defines the global operational thresholds for key parameters within a power system to ensure stability, safety, and efficiency.
+### Weather Components
+- **TemperatureComponent**: Tracks current temperature. Unit: Degrees Celsius (°C).
+- **PrecipitationComponent**: Tracks rainfall amount. Unit: Millimeters per hour (mm/h).
+- **IrradianceComponent**: Tracks solar power received. Unit: Watts per square meter (W/m²).
+- **IlluminanceComponent**: Tracks light intensity. Unit: Lux (lx).
 
 ### General Energy Components
-
-- **TransmissionEdge**: Represents an edge in the energy system with properties like resistance per meter, reactance per meter, length, and cable type. The component also holds the minimum and maximum allowable voltage magnitude (in p.u.) and the thermal limit (in amperes), which should be set to a default value based on the cable type.
+- **TransmissionEdge**: Represents an edge in the energy system, including resistance and reactance per meter, length, and cable type. Includes min/max voltage magnitude and thermal limit.
 
 #### Sensor Energy Components
-These are the knowns the sensor data will have to provide to perform load-flow analysis. Be sure to look at the common units to get a good understanding for each unit.
-- **SensorGeneratorNode**: Stores the knowns for a generator node, used in load flow analysis. Active power (P) and voltage magnitude/amplitude (V).
-- **SensorLoadNode**: Stores the knowns for a load node, used in load flow analysis. Active power (P) and reactive power (Q).
+- **SensorGeneratorNode**: Stores data for generator nodes in load flow analysis. Includes active power and voltage magnitude.
+- **SensorLoadNode**: Stores data for load nodes in load flow analysis. Includes active power and reactive power.
 
 #### Load Flow Analysis Specific Components
+- **LoadNode**: Represents a node with voltage amplitude, voltage angle, active power, and reactive power.
+- **GeneratorNode**: Represents a generator node with voltage amplitude, voltage angle, active power, reactive power, and power type. Includes min/max reactive power limits.
+- **SlackNode**: Serves as a reference point in load flow simulations with known voltage magnitude and angle.
+- **EnergyLoadFlow**: Provides analytics data on the created graph, such as total generators and total load.
+- **ProductionOverview**: Part of 'energy_production_overview', showing energy type produced and its percentage in the system.
 
-- **LoadNode**: Represents a node in the energy system with properties like voltage amplitude, voltage angle, active power, and reactive power.
-- **GeneratorNode**: Represents a generator node in the energy system with properties like voltage amplitude, voltage angle, active power, reactive power, and power type. A generator has a minimum and maximum allowable reactive power, as determined by the factory.
-- **SlackNode**: Is a mathematical node used for the load-flow simulator. This node serves as a reference point with known voltage magnitude and angle, facilitating power flow analysis and ensuring the balance of power generation and consumption within the system.
-- **EnergyLoadFlow**: This node is used to return some analytics data on the graph the user has created (such as total generators/total load/..)
-- **ProductionOverview**: this node is an element for the 'energy_production_overview' of the EnergyLoadFlow. The EnergyType produced in the graph with the percentage of the amount of energy it accounts for in the system is added as a element in this structure and saved in energy_production_overview.
 #### Supply Demand Specific Components
+- **ProducerNode**: Node in load-flow simulation with voltage amplitude, voltage angle, and active power.
+- **ConsumerNode**: Node in load-flow simulation with voltage amplitude, voltage angle, active power, and reactive power.
 
-- **ProducerNode**: Reperensents a node for load-flow simulator. Has properties like voltage amplitude, voltage angle and active power.
-- **ConsumerNode**: Represents a node for load-flow simulator. Has properties like voltage amplitude, voltage angle, active power and reactive power.
+## Additional Enum Types
 
+### CableType
+Enumerates types of cables used in transmission edges.
+- Above Ground:
+    - `ACSR_Conductor`: Aluminum Conductor Steel Reinforced cable.
+    - `AAC_Conductor`: All Aluminum Conductor cable.
+    - `AAAC_Conductor`: All Aluminum Alloy Conductor cable.
+- Underground:
+    - `XLPE_Cable`: Cross-linked Polyethylene cable.
+    - `PILC_Cable`: Paper Insulated Lead Covered cable.
 
-#### Additional Types
+### PowerType
+Enumerates types of power sources used in generator nodes.
+- `Fossil`: Power derived from fossil fuels like coal, oil, or natural gas.
+- `Renewable`: Power derived from renewable energy sources.
+- `Nuclear`: Power derived from nuclear reactors.
+- `Hydro`: Power derived from hydroelectric power plants.
+- `Solar`: Power derived from solar panels.
+- `Wind`: Power derived from wind turbines.
+- `Battery`: Power stored in battery systems.
+- `Storage`: General category for power storage systems.
 
-- **CableType**: Enumerates different types of cables used in the transmission edges.
-- **PowerType**: Enumerates different types of power sources used in generator nodes.
-The library provides functionality to serialize and deserialize these components and types, making it easy to integrate with other systems and tools.
+### LoadFlowSolvers
+Enumerates possible solvers for load flow analysis.
+- `GaussSeidel`: Uses the Gauss-Seidel method for solving load flow problems.
+- `NewtonRaphson`: Uses the Newton-Raphson method for solving load flow problems.
+
+The library provides functionality to serialize and deserialize these components and types, facilitating integration with other systems and tools.

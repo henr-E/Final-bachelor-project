@@ -17,6 +17,7 @@ impl Power {
     pub fn to_complex(self) -> Complex<f64> {
         Complex::new(self.active, self.reactive)
     }
+
     #[allow(dead_code)]
     /// Creates a Power instance from a complex number (S = P + jQ).
     pub fn from_complex(complex: Complex<f64>) -> Self {
