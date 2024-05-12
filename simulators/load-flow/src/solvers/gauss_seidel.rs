@@ -5,6 +5,7 @@ use crate::units::voltage::Voltage;
 use crate::utils::{admittance_matrix, check_convergence};
 use nalgebra::{Complex, ComplexField, DMatrix};
 use std::collections::HashMap;
+
 pub struct GaussSeidel;
 #[allow(dead_code)]
 impl GaussSeidel {
@@ -12,6 +13,17 @@ impl GaussSeidel {
         GaussSeidel {}
     }
 }
+
+/// Checks for the presence of zero or invalid (NaN) diagonal elements in a given complex matrix.
+///
+/// This function iterates over the diagonal elements of the `y_bus` matrix, checking if any of the elements
+/// are zero (both real and imaginary parts), contain NaN in either part, or have a modulus (magnitude) of zero.
+///
+/// # Arguments
+/// * `y_bus` - A reference to a `DMatrix<Complex<f64>>` representing the admittance matrix, where each entry is a complex number.
+///
+/// # Returns
+/// * `bool` - Returns `true` if any diagonal element is zero, contains NaN, or has a modulus of zero. Otherwise, returns `false`.
 fn zero_diagonal_elements(y_bus: &DMatrix<Complex<f64>>) -> bool {
     for i in 0..y_bus.nrows() {
         let z = y_bus[(i, i)];
@@ -28,8 +40,16 @@ fn zero_diagonal_elements(y_bus: &DMatrix<Complex<f64>>) -> bool {
     }
     false
 }
-/// Set voltage magnitude of generator nodes to initial values. This is necessary to prevent the algorithm from changing the voltage of generator nodes.
-/// For maximimization of convergence, the voltage of generator nodes can change during the algorithm but should be reset.
+
+/// Captures the initial voltages of all nodes in an undirected graph, typically used for setting initial conditions before simulations.
+///
+/// This function traverses all the nodes in the given graph and stores their current voltages in a `HashMap` indexed by node ID.
+///
+/// # Arguments
+/// * `graph` - A mutable reference to an `UndirectedGraph` where each node represents an electrical component or connection point.
+///
+/// # Returns
+/// * `HashMap<usize, Voltage>` - A hashmap where the key is the node ID and the value is the voltage at that node.
 fn initial_voltages(graph: &mut UndirectedGraph) -> HashMap<usize, Voltage> {
     let mut voltages: HashMap<usize, Voltage> = HashMap::new();
     for id in graph.nodes() {
@@ -39,7 +59,15 @@ fn initial_voltages(graph: &mut UndirectedGraph) -> HashMap<usize, Voltage> {
     }
     voltages
 }
-/// Set voltage of node to the value in the hashmap.
+
+/// Sets the voltage of generator nodes in the graph based on a provided mapping of node IDs to voltages.
+///
+/// This function iterates through all nodes in the `graph` and updates the voltage of generator nodes to the corresponding values in the `voltages` hashmap.
+/// Other node types are unaffected. This is generally used after a simulation or an algorithm iteration to reset the node voltages to initial or desired states.
+///
+/// # Arguments
+/// * `graph` - A mutable reference to an `UndirectedGraph` representing a network of electrical nodes.
+/// * `voltages` - A `HashMap<usize, Voltage>` mapping node IDs to their respective voltages to be applied.
 fn set_voltages(graph: &mut UndirectedGraph, voltages: HashMap<usize, Voltage>) {
     for id in graph.nodes() {
         if let Some(node) = graph.node(id) {
@@ -55,8 +83,22 @@ fn set_voltages(graph: &mut UndirectedGraph, voltages: HashMap<usize, Voltage>) 
 }
 
 impl GaussSeidel {
-    /// Calculates the total current flowing into a specific node from all its connected neighbors.
-    /// This is computed as the sum of the products of the neighboring node voltages and the respective admittances.
+    /// Calculates the total current flowing into a node from its connected neighbors.
+    ///
+    /// This function computes the sum of currents entering a node from all its neighboring nodes.
+    /// The current from each neighbor is calculated as the product of the neighbor's voltage and the admittance
+    /// between this node and the neighbor. The admittance values are obtained from the `y_bus` matrix, which should
+    /// represent the entire network's admittance matrix.
+    ///
+    /// # Arguments
+    /// * `graph` - A reference to an `UndirectedGraph` representing the electrical network.
+    /// * `id` - The node ID for which the total current is being calculated.
+    /// * `y_bus` - A reference to a `DMatrix<Complex<f64>>` containing the admittance values between network nodes.
+    /// * `i` - The index corresponding to the node ID `id` in the `y_bus` matrix.
+    ///
+    /// # Returns
+    /// * `Complex<f64>` - The total current as a complex number, where the real and imaginary parts represent
+    ///   the real and reactive components of the current, respectively.
     fn total_current(
         &self,
         graph: &UndirectedGraph,
@@ -76,8 +118,21 @@ impl GaussSeidel {
         vy_sum
     }
 
-    /// Calculates the new voltage at a node using the Gauss-Seidel iteration method.
-    /// It takes into account the node's self-admittance, the calculated total current from neighbors, and the node's own power.
+    /// Calculates the new voltage for a node using the Gauss-Seidel iteration method.
+    ///
+    /// This function updates the voltage of a node based on the Gauss-Seidel formula. The new voltage is calculated
+    /// using the node's own power, its self-admittance, and the total current computed from its connected neighbors.
+    /// This method is typically used in iterative solvers to converge to a steady-state solution for the voltages in a power network.
+    ///
+    /// # Arguments
+    /// * `graph` - A reference to an `UndirectedGraph` representing the electrical network.
+    /// * `id` - The node ID for which the voltage is to be updated.
+    /// * `node` - A reference to a `BusNode` representing the node whose voltage is being updated.
+    /// * `y_bus` - A reference to a `DMatrix<Complex<f64>>` containing the admittance values between network nodes.
+    ///
+    /// # Returns
+    /// * `Complex<f64>` - The updated voltage as a complex number, where the real and imaginary parts represent
+    ///   the real and reactive voltage components, respectively.
     fn calculate_node_voltage(
         &self,
         graph: &UndirectedGraph,

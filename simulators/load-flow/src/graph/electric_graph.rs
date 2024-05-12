@@ -9,17 +9,31 @@ use super::node::BusType;
 pub struct UndirectedGraph {
     default_graph: DefaultGraph,
 }
+
 #[allow(dead_code)] // Library code
 pub struct DirectedGraph {
     default_graph: DefaultGraph,
 }
+
+/// Base graph structure for directed and undirected graph
 #[derive(Clone, Debug)]
 struct DefaultGraph {
+    /// Map of bus nodes indexed by their unique IDs.
     nodes: BTreeMap<usize, BusNode>,
+
+    /// Map of transmission lines between buses, indexed by node ID pairs.
     edges: BTreeMap<(usize, usize), Transmission>,
+
+    /// Base voltage of the network in volts, used for per-unit conversions.
     v_base: f64,
+
+    /// Base apparent power of the network in volt-amperes, used for per-unit conversions.
     s_base: f64,
+
+    /// Base real power of the network in watts, used for per-unit conversions.
     p_base: f64,
+
+    /// Counter for getting an unique node ID
     count: i32,
 }
 

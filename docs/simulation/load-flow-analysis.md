@@ -1,4 +1,14 @@
 # Load flow analysis
+
+## Table of contents
+1. [Introduction](#introduction)
+2. [Theory](#theory)
+   - [Three Node Types in Power-Flow Studies](#three-node-types-in-power-flow-studies)
+   - [Gauss-Seidel Iterative Method](#gauss-seidel-iterative-method)
+   - [Newton-Raphson Iterative Method](#newton-raphson-iterative-method)
+3. [Usage](#usage)
+
+## Introduction
 In power engineering, the power-flow study, or load-flow study, is a numerical analysis of the flow of electric power in an interconnected system. A power-flow study usually uses simplified notations such as a one-line diagram, and focuses on various aspects of AC power parameters, such as voltages, voltage angles, real power and reactive power. It analyzes the power systems in normal steady-state operation.
 
 Power-flow or load-flow studies are important for planning future expansion of power systems as well as in determining the best operation of existing systems. The principal information obtained from the power-flow study is the magnitude and phase angle of the voltage at each bus, and the real and reactive power flowing in each line.
@@ -96,5 +106,14 @@ This linear equations solver is more complex than the Gauss-Seidel method. Howev
 - Larger graphs converge more often and faster than the Gauss-Seidel method.
 - Even when the initial guesses for the voltages are completely off, The Newton-Raphson method will (often) find a solution in a reasonable amount of iterations.
 
+
 ## Usage
-The simulation expects seven components, and an optional analytics component. The SensorLoadNode and SensorGeneratorNode hold the measured or simulated values the simulation will run with, this means every sensor node needs a corresponding real node (without `Sensor` prefix). The latter will be used as the output for the simulation, and the initial values do not have to be sensible. After the simulation is finished, the real components will be solved. It is up to another program to check if the results are valid (Not outside limits).
+The simulation requires pairing between sensor nodes and their corresponding real nodes to function correctly. Below are the guidelines to properly configure and use the simulation system:
+
+### Configuration Requirements
+
+1.  **Node Pairing**: Each LoadNode or GeneratorNode must have a corresponding SensorLoadNode or SensorGeneratorNode. The sensor nodes will contain either measured data or simulated values, which the simulation uses to compute outputs for the real nodes.
+    
+2.  **Initial Values**: Initialize real nodes with any placeholder values. These values will be overwritten with the results from the simulation.
+    
+3.  **Sensor Attachment**: It's essential to attach sensors to the nodes. Without sensors, the simulation will only use the initial static values. Sensors enable the use of regression models to enhance simulation accuracy.

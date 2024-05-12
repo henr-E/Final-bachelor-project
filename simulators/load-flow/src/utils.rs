@@ -4,6 +4,17 @@ use crate::units::voltage::Voltage;
 use nalgebra::{Complex, DMatrix};
 use num_complex::ComplexFloat;
 
+/// Constructs the admittance matrix (Y-Bus) for an undirected graph representing a power network.
+///
+/// This function computes the admittance matrix based on the network's nodes and edges, where each element represents
+/// the admittance between two buses. The diagonal elements represent the sum of admittances for each node.
+///
+/// # Arguments
+/// * `graph` - A mutable reference to an `UndirectedGraph` representing the power network.
+///
+/// # Returns
+/// `DMatrix<Complex<f64>>` - A square matrix of complex numbers, where the size is the number of nodes in the graph.
+/// Each element at (i, j) represents the admittance between nodes i and j.
 pub fn admittance_matrix(graph: &mut UndirectedGraph) -> DMatrix<Complex<f64>> {
     let size = graph.node_count();
 
@@ -24,8 +35,22 @@ pub fn admittance_matrix(graph: &mut UndirectedGraph) -> DMatrix<Complex<f64>> {
     }
     y_bus
 }
+
 use std::f64::consts::PI;
 
+/// Calculates the Haversine distance between two points on the Earth's surface.
+///
+/// This function uses the Haversine formula to determine the distance between two geographic locations,
+/// given their latitude and longitude coordinates. The result is expressed in meters.
+///
+/// # Arguments
+/// * `lat1` - Latitude of the first point in degrees.
+/// * `lon1` - Longitude of the first point in degrees.
+/// * `lat2` - Latitude of the second point in degrees.
+/// * `lon2` - Longitude of the second point in degrees.
+///
+/// # Returns
+/// `f64` - The distance between the two points in meters.
 pub(crate) fn haversine_distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     // Earth's mean radius in meters
     const EARTH_RADIUS: f64 = 6_371_000.0;
@@ -49,8 +74,16 @@ pub(crate) fn haversine_distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> 
     EARTH_RADIUS * c.abs()
 }
 
-/// Check if the voltage of any node is NaN and replace it with a default value.
-/// If the voltage is NaN, the algorithm will not converge.
+/// Ensures the convergence of a power network simulation by checking and correcting node voltages.
+///
+/// This function checks all nodes in the graph to see if any voltage values are NaN. If a NaN voltage is detected,
+/// it replaces the node's voltage with a default voltage value, which helps ensure algorithm convergence.
+///
+/// # Arguments
+/// * `graph` - A mutable reference to an `UndirectedGraph` representing the power network.
+///
+/// # Returns
+/// `bool` - Returns `true` if all voltages are valid (non-NaN and finite), and `false` otherwise.
 pub fn check_convergence(graph: &mut UndirectedGraph) -> bool {
     let mut convergence = true;
     for node in graph.nodes() {
