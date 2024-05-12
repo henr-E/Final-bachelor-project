@@ -195,7 +195,7 @@ impl DataIngestService for DataIngestor {
 
                 // Explicit flush of all buffered contents to disk.
                 file.flush().await?;
-                info!("successfully flushed content to disk.");
+                debug!("successfully flushed content to disk.");
 
                 // Register the sensor data into the archive database and handle any error.
                 if let Err(e) = self

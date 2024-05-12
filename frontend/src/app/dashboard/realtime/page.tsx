@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic';
 import { QuantityWithUnits, SensorContext } from '@/store/sensor';
 import { Button, Dropdown, DropdownItem } from 'flowbite-react';
 import { BackendGetQuantityWithUnits } from '@/api/sensor/crud';
-import { LiveDataSingleSensor } from '@/api/sensor/dataFetching';
+import { LiveDataAllSensor } from '@/api/sensor/dataFetching';
 import { getFirstQuantity } from '@/lib/util';
 
 import { isAbortError } from 'abort-controller-x';
@@ -47,18 +47,20 @@ function RealTimePage() {
 
     useEffect(() => {
         const abortController = new AbortController();
-        if (twinState.current) {
-            twinState.current.sensors.forEach(async sensor => {
-                const stream = LiveDataSingleSensor(sensor.id, abortController.signal);
-
+        (async () => {
+            if (twinState.current) {
+                const stream = LiveDataAllSensor(abortController.signal);
                 try {
+                    const sensorIds = new Set(twinState.current.sensors.map(s => s.id));
                     for await (const val of stream) {
                         console.log(
-                            `DISPATCHED set_most_recent_value USING VALUES: ${sensor.id} ${val.signalId} ${val.value}`
+                            `DISPATCHED set_most_recent_value USING VALUES: ${val.sensorId} ${val.signalId} ${val.value}`
                         );
+                        if (!sensorIds.has(val.sensorId)) {
+                            continue;
+                        }
                         dispatchSensor({
                             type: 'set_most_recent_value',
-                            sensorId: sensor.id,
                             ...val,
                         });
                     }
@@ -67,8 +69,8 @@ function RealTimePage() {
                         throw err;
                     }
                 }
-            });
-        }
+            }
+        })();
 
         return () => {
             console.debug('Closing sensor data streams.');
